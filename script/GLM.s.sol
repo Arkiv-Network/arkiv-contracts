@@ -2,21 +2,19 @@
 pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
-import {Counter} from "../src/Counter.sol";
+import {GlmToken} from "../src/GLM.sol";
 
-contract CounterScript is Script {
-    Counter public counter;
-
-    function setUp() public {}
+contract GLMScript is Script {
+    GlmToken public glm;
 
     function run() public {
         uint256 privateKey = vm.envUint("ETH_PRIVATE_KEY");
         console.log("Using deployer", vm.envAddress("ETH_ADDRESS"));
 
         vm.startBroadcast(privateKey);
-        counter = new Counter();
+        glm = new GlmToken();
         vm.stopBroadcast();
 
-        console.log("Counter deployed", address(counter));
+        console.log("GLM deployed", address(glm));
     }
 }

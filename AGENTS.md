@@ -48,6 +48,16 @@ live in `app/`.
   Never append state variables directly to an upgradeable contract.
 - **Tests**: follow the Given/When/Then structure used in existing test files.
 - **Solidity formatting**: `forge fmt` is authoritative. Run it before checking formatting.
+- **Custom errors**: use custom errors instead of `require` with string messages. Custom errors
+  are cheaper and carry typed parameters for debugging.
+- **Code ordering**: follow the solhint `ordering` rule within every contract:
+  1. Type declarations (enum, struct)
+  2. Errors
+  3. Constants
+  4. State variables
+  5. Constructor
+  6. Functions ordered by visibility (external → public → internal → private),
+     then by mutability (pure → view → non-payable → payable) within each visibility level.
 
 ## Sharp Edges
 
