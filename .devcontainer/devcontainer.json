@@ -1,0 +1,39 @@
+{
+	"name": "solidity-base",
+	"build": {
+		"context": "..",
+		"dockerfile": "Dockerfile",
+		"args": {
+			"DEBIAN_VERSION": "bookworm",
+			"UV_VERSION": "0.10.12",
+			"PYTHON_VERSION": "3.13"
+		}
+	},
+
+	// Configure tool-specific properties.
+	"customizations": {
+		// Configure properties specific to VS Code.
+		"vscode": {
+			// Add the IDs of extensions you want installed when the container is created.
+			"extensions": [
+				"ms-python.python",
+				"github.vscode-pull-request-github",
+				"github.vscode-github-actions",
+				"github.copilot",
+				"ms-azuretools.vscode-docker",
+				"eamodio.gitlens",
+				"oderwat.indent-rainbow",
+				"johnpapa.vscode-peacock",
+				"vscode-icons-team.vscode-icons",
+				"JuanBlanco.solidity",
+				"esbenp.prettier-vscode",
+				"zhuangtongfa.Material-theme",
+				"monokai.theme-monokai-pro-vscode",
+				"anthropic.claude-code"
+			]
+		}
+	},
+
+	"forwardPorts": [8545],
+	"remoteUser": "devuser"
+}
