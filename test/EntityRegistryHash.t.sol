@@ -502,6 +502,159 @@ contract EntityRegistryHashTest is EntityRegistryBase {
     }
 
     // -------------------------------------------------------------------------
+    // attributeHash — cross-type collision resistance
+    // -------------------------------------------------------------------------
+
+    function test_attributeHash_stringVsUint_sameNameZeroValues_differs() public view {
+        // GIVEN a STRING attr (fixedValue=0, stringValue="") and a UINT attr (fixedValue=0, stringValue="")
+        // with the same name — they differ only in valueType
+        EntityRegistry.Attribute memory strAttr = _stringAttr("tag", "");
+        EntityRegistry.Attribute memory uintAttr = _uintAttr("tag", 0);
+
+        // WHEN hashing both
+        // THEN the hashes differ (valueType discriminates)
+        assertNotEq(registry.attributeHash(strAttr), registry.attributeHash(uintAttr));
+    }
+
+    // -------------------------------------------------------------------------
+    // coreHash — attribute order sensitivity
+    // -------------------------------------------------------------------------
+
+    function test_coreHash_attributeOrderMatters() public view {
+        // GIVEN two attribute arrays with the same elements in different order
+        bytes32 key = keccak256("key");
+        bytes memory payload = "hello";
+
+        EntityRegistry.Attribute[] memory attrsAB = new EntityRegistry.Attribute[](2);
+        attrsAB[0] = _uintAttr("aaa", 1);
+        attrsAB[1] = _uintAttr("bbb", 2);
+
+        EntityRegistry.Attribute[] memory attrsBA = new EntityRegistry.Attribute[](2);
+        attrsBA[0] = _uintAttr("bbb", 2);
+        attrsBA[1] = _uintAttr("aaa", 1);
+
+        // WHEN computing coreHash with each ordering
+        bytes32 hashAB = registry.coreHash(key, alice, 100, "text/plain", payload, attrsAB);
+        bytes32 hashBA = registry.coreHash(key, alice, 100, "text/plain", payload, attrsBA);
+
+        // THEN they differ — this is why the contract requires sorted attributes
+        assertNotEq(hashAB, hashBA);
+    }
+
+    // -------------------------------------------------------------------------
+    // entityKey — chainId binding
+    // -------------------------------------------------------------------------
+
+    function test_entityKey_differentChainId_differs() public {
+        // GIVEN an entityKey on the current chain
+        bytes32 key1 = registry.entityKey(alice, 0);
+
+        // WHEN switching to a different chainId
+        vm.chainId(999);
+        bytes32 key2 = registry.entityKey(alice, 0);
+
+        // THEN the keys differ
+        assertNotEq(key1, key2);
+    }
+
+    // -------------------------------------------------------------------------
+    // entityHash — chainId binding via domain separator
+    // -------------------------------------------------------------------------
+
+    function test_entityHash_differentChainId_differs() public {
+        // GIVEN an entityHash on the current chain
+        bytes32 core = keccak256("core");
+        bytes32 hash1 = registry.entityHash(core, alice, 100, 200);
+
+        // WHEN switching to a different chainId
+        vm.chainId(999);
+        bytes32 hash2 = registry.entityHash(core, alice, 100, 200);
+
+        // THEN the hashes differ (domain separator includes chainId)
+        assertNotEq(hash1, hash2);
+    }
+
+    // -------------------------------------------------------------------------
+    // EIP-712 domain values
+    // -------------------------------------------------------------------------
+
+    function test_eip712Domain_values() public view {
+        // GIVEN a deployed registry
+        // WHEN querying the EIP-712 domain
+        (, string memory name, string memory version, uint256 chainId, address verifyingContract,,) =
+            registry.eip712Domain();
+
+        // THEN the values match the expected domain
+        assertEq(name, "Arkiv EntityRegistry");
+        assertEq(version, "1");
+        assertEq(chainId, block.chainid);
+        assertEq(verifyingContract, address(registry));
+    }
+
+    // -------------------------------------------------------------------------
+    // Typehash constant correctness
+    // -------------------------------------------------------------------------
+
+    function test_attributeTypehash() public view {
+        // GIVEN the expected EIP-712 type string for Attribute
+        bytes32 expected = keccak256("Attribute(bytes32 name,uint8 valueType,bytes32 fixedValue,string stringValue)");
+
+        // THEN the constant matches
+        assertEq(registry.ATTRIBUTE_TYPEHASH(), expected);
+    }
+
+    function test_coreHashTypehash() public view {
+        // GIVEN the expected EIP-712 type string for CoreHash (with referenced Attribute type)
+        bytes32 expected = keccak256(
+            "CoreHash(bytes32 entityKey,address creator,uint32 createdAt,string contentType,bytes payload,Attribute[] attributes)"
+            "Attribute(bytes32 name,uint8 valueType,bytes32 fixedValue,string stringValue)"
+        );
+
+        // THEN the constant matches
+        assertEq(registry.CORE_HASH_TYPEHASH(), expected);
+    }
+
+    function test_entityHashTypehash() public view {
+        // GIVEN the expected EIP-712 type string for EntityHash
+        bytes32 expected = keccak256("EntityHash(bytes32 coreHash,address owner,uint32 updatedAt,uint32 expiresAt)");
+
+        // THEN the constant matches
+        assertEq(registry.ENTITY_HASH_TYPEHASH(), expected);
+    }
+
+    // -------------------------------------------------------------------------
+    // End-to-end: entityKey → coreHash → entityHash
+    // -------------------------------------------------------------------------
+
+    function test_endToEnd_entityKeyThroughEntityHash() public view {
+        // GIVEN an entity key derived from owner + nonce
+        bytes32 key = registry.entityKey(alice, 0);
+
+        // AND entity content
+        bytes memory payload = "hello world";
+        string memory contentType = "text/plain";
+        EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](2);
+        attrs[0] = _uintAttr("priority", 1);
+        attrs[1] = _stringAttr("tag", "test");
+
+        // WHEN computing the full hash pipeline
+        bytes32 core = registry.coreHash(key, alice, 100, contentType, payload, attrs);
+        bytes32 entity = registry.entityHash(core, alice, 100, 200);
+
+        // THEN the result is non-zero and deterministic
+        assertNotEq(entity, bytes32(0));
+        assertEq(entity, registry.entityHash(core, alice, 100, 200));
+
+        // AND simulating extendEntity: new entityHash from same coreHash
+        bytes32 extended = registry.entityHash(core, alice, 150, 300);
+        assertNotEq(entity, extended);
+
+        // AND simulating changeOwner: new entityHash from same coreHash
+        bytes32 transferred = registry.entityHash(core, bob, 150, 300);
+        assertNotEq(extended, transferred);
+    }
+
+    // -------------------------------------------------------------------------
     // Internal helpers
     // -------------------------------------------------------------------------
 
