@@ -132,6 +132,21 @@ contract EntityRegistryValidateEntityTest is EntityRegistryBase {
         registry.validateEntity(_payload(0), attributes);
     }
 
+    function test_validateEntity_emptyAttributeName_reverts() public {
+        // GIVEN an attribute with an empty name
+        EntityRegistry.Attribute[] memory attributes = new EntityRegistry.Attribute[](1);
+        attributes[0] = EntityRegistry.Attribute({
+            name: ShortStrings.toShortString(""),
+            valueType: EntityRegistry.AttributeType.UINT,
+            fixedValue: bytes32(uint256(1)),
+            stringValue: ""
+        });
+
+        // WHEN / THEN
+        vm.expectRevert(abi.encodeWithSelector(EntityRegistry.EmptyAttributeName.selector, 0));
+        registry.validateEntity(_payload(0), attributes);
+    }
+
     function test_validateEntity_emptyAttributes_succeeds() public view {
         // GIVEN no attributes
         EntityRegistry.Attribute[] memory attributes = new EntityRegistry.Attribute[](0);
