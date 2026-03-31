@@ -45,6 +45,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     error TooManyAttributes(uint256 count, uint256 max);
     error StringAttributeTooLarge(ShortString name, uint256 size, uint256 max);
     error AttributesNotSorted(ShortString name, ShortString previousName);
+    error EmptyAttributeName(uint256 index);
 
     // -------------------------------------------------------------------------
     // Constants
@@ -89,6 +90,10 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         }
 
         for (uint256 i = 0; i < attributes.length; i++) {
+            if (ShortString.unwrap(attributes[i].name) == bytes32(0)) {
+                revert EmptyAttributeName(i);
+            }
+
             if (attributes[i].valueType == AttributeType.STRING) {
                 uint256 strSize = bytes(attributes[i].stringValue).length;
                 if (strSize > MAX_STRING_ATTR_SIZE) {
