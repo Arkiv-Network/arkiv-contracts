@@ -6,17 +6,43 @@ The change set hash is a single `bytes32` value that commits to the full ordered
 
 ## Design
 
-A single accumulator, updated on every mutation:
+A single accumulator, updated once per `execute` call:
 
 ```
-changeSetHash = keccak256(changeSetHash || op || entityKey || entityHash)
+changeSetHash = keccak256(changeSetHash || opType || entityKey || entityHash)
 ```
 
 Where:
 - `changeSetHash`: the previous accumulated hash (starts at `bytes32(0)`)
-- `op`: the mutation type (`CREATE`, `UPDATE`, `EXTEND`, `DELETE`, `EXPIRE`)
+- `opType`: the mutation type (`CREATE`, `UPDATE`, `EXTEND`, `DELETE`, `EXPIRE`)
 - `entityKey`: the entity being mutated
-- `entityHash`: the entity's hash after the mutation (or before, for deletes)
+- `entityHash`: the entity's EIP-712 hash after the mutation (or before, for deletes/expires)
+
+The accumulation is chained sequentially across all operations in a batch. For a batch of N operations, the hash chains N times. The result is written to storage once at the end of the batch — not per operation.
+
+## Batch-Bounded Accumulation
+
+The change set hash is accumulated on the stack within `execute`, not in storage per operation:
+
+```solidity
+function execute(Op[] calldata ops) external {
+    bytes32 hash = _changeSetHash;          // 1 SLOAD
+    for (uint256 i = 0; i < ops.length; i++) {
+        (bytes32 key, bytes32 entityHash) = _handler(ops[i]);
+        hash = keccak256(abi.encodePacked(hash, opType, key, entityHash));
+    }
+    _changeSetHash = hash;                  // 1 SSTORE
+}
+```
+
+Operation handlers (`_create`, `_update`, `_extend`, `_delete`, `_expire`) perform state mutations and emit events, then return the entity key and entity hash. They do not touch `_changeSetHash`. The `execute` function owns the accumulation.
+
+This separation means:
+- **One SLOAD and one SSTORE per batch**, regardless of batch size. A batch of 100 operations pays the same storage cost as a batch of 1.
+- **Per-operation cost is ~50 gas** (one keccak256 of 97 bytes on the stack), down from ~2,900 gas (warm SSTORE) in the per-op design.
+- **For a batch of 100 ops**: ~5,000 gas total vs ~290,000 gas in the per-op design. Savings of ~285,000 gas.
+
+The `expireEntities` function uses the same pattern — one SLOAD, loop, one SSTORE.
 
 ## Why a Single Accumulator
 
@@ -42,20 +68,16 @@ The per-block design required:
 - An event (`ChangeSetHashFinalized`) to signal block finalization
 - Extra SSTOREs on block transitions (resetting the per-block hash, writing the cumulative hash)
 
-The single accumulator requires:
+The batch-bounded accumulator requires:
 - One state variable (`_changeSetHash`)
-- One SSTORE per mutation
+- One SLOAD + one SSTORE per `execute` call
 - A trivial view function
-
-### Gas cost
-
-Both designs pay one SSTORE per mutation for the running hash (~5000 gas warm, ~20000 gas cold for the first write in a transaction). The two-level design paid additional SSTOREs on block boundaries for finalization. The single accumulator is strictly cheaper.
 
 ### No synchronisation ambiguity
 
 The two-level design had a "one block behind" problem: `cumulativeChangeSetHash` didn't include the current block's mutations until the next block's first mutation triggered finalization. This meant a view function needed conditional logic based on `block.number` to return the correct value, and consumers needed to understand when the value was "complete."
 
-The single accumulator is always up to date. After any mutation, `changeSetHash()` returns the hash covering all mutations up to and including that one. No lag, no conditional logic, no ambiguity.
+The single accumulator is always up to date. After any `execute` call, `changeSetHash()` returns the hash covering all mutations up to and including that batch. No lag, no conditional logic, no ambiguity.
 
 ## Commitment Depth
 
@@ -64,15 +86,15 @@ The change set hash transitively commits to every field of every entity through 
 ```
 changeSetHash
 ├─ previous changeSetHash          ← full history of all prior mutations
-├─ op                               ← mutation type (CREATE, UPDATE, EXTEND, DELETE, EXPIRE)
-├─ entityKey                        ← identity of the entity being mutated
-└─ entityHash                       ← EIP-712 hash of the entity's full state
-     ├─ coreHash                    ← EIP-712 hash of immutable entity content
+├─ opType                          ← mutation type (CREATE, UPDATE, EXTEND, DELETE, EXPIRE)
+├─ entityKey                       ← identity of the entity being mutated
+└─ entityHash                      ← EIP-712 hash of the entity's full state
+     ├─ coreHash                   ← EIP-712 hash of immutable entity content
      │    ├─ entityKey
      │    ├─ creator
      │    ├─ createdAt
      │    ├─ contentType
-     │    ├─ keccak256(payload)     ← commits to the full payload content
+     │    ├─ keccak256(payload)    ← commits to the full payload content
      │    └─ keccak256(attributeHashes[])
      │         └─ per attribute:
      │              ├─ name
@@ -98,7 +120,7 @@ This means the change set hash is not just an ordering check. It is a full integ
 The off-chain DB verifies sync by:
 
 1. Processing entity mutation events in order
-2. Computing `keccak256(hash || op || entityKey || entityHash)` for each event
+2. Computing `keccak256(hash || opType || entityKey || entityHash)` for each event
 3. Comparing the result against `changeSetHash()` via `eth_call`
 
 If the values match, the DB has processed every mutation in the correct order. If they diverge, the DB replays events to locate the first mismatch.
