@@ -2,11 +2,10 @@
 pragma solidity ^0.8.24;
 
 import {BlockNumber, currentBlock} from "./BlockNumber.sol";
-import {ShortString, ShortStrings} from "@openzeppelin/contracts/utils/ShortStrings.sol";
+import {ShortString} from "@openzeppelin/contracts/utils/ShortStrings.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
 contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
-    using ShortStrings for *;
 
     // -------------------------------------------------------------------------
     // Type declarations
