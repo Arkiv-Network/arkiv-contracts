@@ -170,39 +170,6 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Public pure functions
     // -------------------------------------------------------------------------
 
-    function validateEntity(bytes calldata payload, Attribute[] calldata attributes) public pure {
-        if (payload.length > MAX_PAYLOAD_SIZE) {
-            revert PayloadTooLarge(payload.length, MAX_PAYLOAD_SIZE);
-        }
-        if (attributes.length > MAX_ATTRIBUTES) {
-            revert TooManyAttributes(attributes.length, MAX_ATTRIBUTES);
-        }
-
-        for (uint256 i = 0; i < attributes.length; i++) {
-            if (ShortString.unwrap(attributes[i].name) == bytes32(0)) {
-                revert EmptyAttributeName(i);
-            }
-
-            if (attributes[i].valueType == AttributeType.STRING) {
-                uint256 strSize = bytes(attributes[i].stringValue).length;
-                if (strSize > MAX_STRING_ATTR_SIZE) {
-                    revert StringAttributeTooLarge(attributes[i].name, strSize, MAX_STRING_ATTR_SIZE);
-                }
-                if (attributes[i].fixedValue != bytes32(0)) {
-                    revert UnusedFieldNotZero(i);
-                }
-            } else {
-                if (bytes(attributes[i].stringValue).length != 0) {
-                    revert UnusedFieldNotZero(i);
-                }
-            }
-
-            if (i > 0 && ShortString.unwrap(attributes[i].name) <= ShortString.unwrap(attributes[i - 1].name)) {
-                revert AttributesNotSorted(attributes[i].name, attributes[i - 1].name);
-            }
-        }
-    }
-
     /// @notice Computes the EIP-712 struct hash for a single attribute.
     ///
     /// Every field is included in the hash regardless of the attribute type:
@@ -375,7 +342,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
     /// @dev Computes entityHash from a stored entity's current fields.
     /// Used by delete, expire, and extend (before mutation) to capture the entity's hash.
-    function _entityHashFromStorage(bytes32 key, Entity storage entity) internal view returns (bytes32) {
+    function _entityHashFromStorage(Entity storage entity) internal view returns (bytes32) {
         return entityHash(
             entity.coreHash, entity.owner, BlockNumber.unwrap(entity.updatedAt), BlockNumber.unwrap(entity.expiresAt)
         );
@@ -512,7 +479,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
     function _delete(Op calldata op) internal {
         Entity storage entity = _loadActiveOwnedEntity(op.entityKey);
-        bytes32 _entityHash = _entityHashFromStorage(op.entityKey, entity);
+        bytes32 _entityHash = _entityHashFromStorage(entity);
         address owner = entity.owner;
 
         delete entities[op.entityKey];
@@ -526,7 +493,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         if (entity.creator == address(0)) revert EntityNotFound(key);
         if (currentBlock() < entity.expiresAt) revert EntityNotExpired(key, entity.expiresAt);
 
-        bytes32 _entityHash = _entityHashFromStorage(key, entity);
+        bytes32 _entityHash = _entityHashFromStorage(entity);
         address owner = entity.owner;
         BlockNumber expiresAt = entity.expiresAt;
 

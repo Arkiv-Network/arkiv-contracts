@@ -578,4 +578,206 @@ contract EntityRegistryOpsTest is EntityRegistryBase {
         (address creator,,,,,) = registry.entities(key);
         assertEq(creator, address(0));
     }
+
+    // -------------------------------------------------------------------------
+    // Validation — payload size
+    // -------------------------------------------------------------------------
+
+    function test_create_payloadAtLimit_succeeds() public {
+        // GIVEN a payload exactly at the size limit
+        vm.prank(alice);
+        _executeSingle(_createOp(_payload(registry.MAX_PAYLOAD_SIZE()), expiresAt));
+    }
+
+    function test_create_payloadOverLimit_reverts() public {
+        EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](0);
+        EntityRegistry.Op[] memory ops = new EntityRegistry.Op[](1);
+        ops[0] = EntityRegistry.Op({
+            opType: EntityRegistry.OpType.CREATE,
+            entityKey: bytes32(0),
+            payload: _payload(registry.MAX_PAYLOAD_SIZE() + 1),
+            contentType: "text/plain",
+            attributes: attrs,
+            expiresAt: expiresAt
+        });
+
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                EntityRegistry.PayloadTooLarge.selector, registry.MAX_PAYLOAD_SIZE() + 1, registry.MAX_PAYLOAD_SIZE()
+            )
+        );
+        registry.execute(ops);
+    }
+
+    // -------------------------------------------------------------------------
+    // Validation — attribute count
+    // -------------------------------------------------------------------------
+
+    function test_create_attributesAtLimit_succeeds() public {
+        // GIVEN attributes exactly at the count limit, sorted by name
+        uint256 max = registry.MAX_ATTRIBUTES();
+        EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](max);
+        for (uint256 i = 0; i < max; i++) {
+            attrs[i] = _uintAttr(string(abi.encodePacked("attr", _pad3(i))), i);
+        }
+
+        vm.prank(alice);
+        _executeSingle(_createOpWithAttrs("hello", attrs, expiresAt));
+    }
+
+    function test_create_tooManyAttributes_reverts() public {
+        uint256 max = registry.MAX_ATTRIBUTES();
+        EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](max + 1);
+        for (uint256 i = 0; i <= max; i++) {
+            attrs[i] = _uintAttr(string(abi.encodePacked("attr", _pad3(i))), i);
+        }
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(EntityRegistry.TooManyAttributes.selector, max + 1, max));
+        _executeSingle(_createOpWithAttrs("hello", attrs, expiresAt));
+    }
+
+    // -------------------------------------------------------------------------
+    // Validation — string attribute size
+    // -------------------------------------------------------------------------
+
+    function test_create_stringAttrAtLimit_succeeds() public {
+        EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](1);
+        attrs[0] = _stringAttr("name", _repeatChar("x", registry.MAX_STRING_ATTR_SIZE()));
+
+        vm.prank(alice);
+        _executeSingle(_createOpWithAttrs("hello", attrs, expiresAt));
+    }
+
+    function test_create_stringAttrOverLimit_reverts() public {
+        uint256 max = registry.MAX_STRING_ATTR_SIZE();
+        EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](1);
+        attrs[0] = _stringAttr("name", _repeatChar("x", max + 1));
+
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(EntityRegistry.StringAttributeTooLarge.selector, attrs[0].name, max + 1, max)
+        );
+        _executeSingle(_createOpWithAttrs("hello", attrs, expiresAt));
+    }
+
+    // -------------------------------------------------------------------------
+    // Validation — attribute ordering
+    // -------------------------------------------------------------------------
+
+    function test_create_sortedAttributes_succeeds() public {
+        EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](3);
+        attrs[0] = _uintAttr("aaa", 1);
+        attrs[1] = _uintAttr("bbb", 2);
+        attrs[2] = _uintAttr("ccc", 3);
+
+        vm.prank(alice);
+        _executeSingle(_createOpWithAttrs("hello", attrs, expiresAt));
+    }
+
+    function test_create_unsortedAttributes_reverts() public {
+        EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](2);
+        attrs[0] = _uintAttr("bbb", 1);
+        attrs[1] = _uintAttr("aaa", 2);
+
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(EntityRegistry.AttributesNotSorted.selector, attrs[1].name, attrs[0].name)
+        );
+        _executeSingle(_createOpWithAttrs("hello", attrs, expiresAt));
+    }
+
+    function test_create_duplicateAttributeNames_reverts() public {
+        EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](2);
+        attrs[0] = _uintAttr("name", 1);
+        attrs[1] = _uintAttr("name", 2);
+
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(EntityRegistry.AttributesNotSorted.selector, attrs[1].name, attrs[0].name)
+        );
+        _executeSingle(_createOpWithAttrs("hello", attrs, expiresAt));
+    }
+
+    function test_create_emptyAttributeName_reverts() public {
+        EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](1);
+        attrs[0] = EntityRegistry.Attribute({
+            name: ShortStrings.toShortString(""),
+            valueType: EntityRegistry.AttributeType.UINT,
+            fixedValue: bytes32(uint256(1)),
+            stringValue: ""
+        });
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(EntityRegistry.EmptyAttributeName.selector, 0));
+        _executeSingle(_createOpWithAttrs("hello", attrs, expiresAt));
+    }
+
+    // -------------------------------------------------------------------------
+    // Validation — unused field zeroing
+    // -------------------------------------------------------------------------
+
+    function test_create_stringAttrWithNonZeroFixedValue_reverts() public {
+        EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](1);
+        attrs[0] = EntityRegistry.Attribute({
+            name: ShortStrings.toShortString("tag"),
+            valueType: EntityRegistry.AttributeType.STRING,
+            fixedValue: bytes32(uint256(1)),
+            stringValue: "hello"
+        });
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(EntityRegistry.UnusedFieldNotZero.selector, 0));
+        _executeSingle(_createOpWithAttrs("hello", attrs, expiresAt));
+    }
+
+    function test_create_uintAttrWithNonEmptyStringValue_reverts() public {
+        EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](1);
+        attrs[0] = EntityRegistry.Attribute({
+            name: ShortStrings.toShortString("count"),
+            valueType: EntityRegistry.AttributeType.UINT,
+            fixedValue: bytes32(uint256(42)),
+            stringValue: "should be empty"
+        });
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(EntityRegistry.UnusedFieldNotZero.selector, 0));
+        _executeSingle(_createOpWithAttrs("hello", attrs, expiresAt));
+    }
+
+    function test_create_entityKeyAttrWithNonEmptyStringValue_reverts() public {
+        EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](1);
+        attrs[0] = EntityRegistry.Attribute({
+            name: ShortStrings.toShortString("ref"),
+            valueType: EntityRegistry.AttributeType.ENTITY_KEY,
+            fixedValue: keccak256("entity"),
+            stringValue: "should be empty"
+        });
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(EntityRegistry.UnusedFieldNotZero.selector, 0));
+        _executeSingle(_createOpWithAttrs("hello", attrs, expiresAt));
+    }
+
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
+    function _pad3(uint256 n) internal pure returns (bytes memory) {
+        bytes memory result = new bytes(3);
+        result[2] = bytes1(uint8(48 + (n % 10)));
+        result[1] = bytes1(uint8(48 + ((n / 10) % 10)));
+        result[0] = bytes1(uint8(48 + ((n / 100) % 10)));
+        return result;
+    }
+
+    function _repeatChar(string memory char, uint256 count) internal pure returns (string memory) {
+        bytes memory result = new bytes(count);
+        bytes memory charBytes = bytes(char);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = charBytes[0];
+        }
+        return string(result);
+    }
 }
