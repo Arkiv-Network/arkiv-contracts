@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {BlockNumber} from "./BlockNumber.sol";
+import {BlockNumber, currentBlock} from "./BlockNumber.sol";
 import {ShortString, ShortStrings} from "@openzeppelin/contracts/utils/ShortStrings.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
@@ -12,7 +12,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Type declarations
     // -------------------------------------------------------------------------
 
-    enum Op {
+    enum OpType {
         CREATE,
         UPDATE,
         EXTEND,
@@ -34,15 +34,21 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     }
 
     struct Entity {
-        address creator;
-        address owner;
-        BlockNumber createdAt;
-        BlockNumber updatedAt;
-        BlockNumber expiresAt;
-        bytes payload;
-        string contentType;
-        // Attributes sorted ascending by name for deterministic hash computation.
-        Attribute[] attributes;
+        address creator; // slot 0: 20 bytes
+        BlockNumber createdAt; // slot 0: +4 bytes
+        BlockNumber updatedAt; // slot 0: +4 bytes
+        BlockNumber expiresAt; // slot 0: +4 bytes  (= 32 bytes, slot full)
+        address owner; // slot 1: 20 bytes
+        bytes32 coreHash; // slot 2: 32 bytes
+    }
+
+    struct Op {
+        OpType opType;
+        bytes32 entityKey; // UPDATE, EXTEND, DELETE, EXPIRE (ignored for CREATE)
+        bytes payload; // CREATE, UPDATE
+        string contentType; // CREATE, UPDATE
+        Attribute[] attributes; // CREATE, UPDATE
+        BlockNumber expiresAt; // CREATE, EXTEND
     }
 
     // -------------------------------------------------------------------------
@@ -54,6 +60,32 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     error StringAttributeTooLarge(ShortString name, uint256 size, uint256 max);
     error AttributesNotSorted(ShortString name, ShortString previousName);
     error EmptyAttributeName(uint256 index);
+    error EntityNotFound(bytes32 entityKey);
+    error EntityExpiredError(bytes32 entityKey, BlockNumber expiresAt);
+    error NotOwner(bytes32 entityKey, address caller, address owner);
+    error ExpiryInPast(BlockNumber expiresAt, BlockNumber currentBlock);
+    error ExpiryNotExtended(BlockNumber newExpiresAt, BlockNumber currentExpiresAt);
+    error EntityNotExpired(bytes32 entityKey, BlockNumber expiresAt);
+
+    // -------------------------------------------------------------------------
+    // Events
+    // -------------------------------------------------------------------------
+
+    event EntityCreated(bytes32 indexed entityKey, address indexed owner, bytes32 entityHash, BlockNumber expiresAt);
+
+    event EntityUpdated(bytes32 indexed entityKey, address indexed owner, bytes32 entityHash);
+
+    event EntityExtended(
+        bytes32 indexed entityKey,
+        address indexed owner,
+        bytes32 entityHash,
+        BlockNumber previousExpiresAt,
+        BlockNumber newExpiresAt
+    );
+
+    event EntityDeleted(bytes32 indexed entityKey, address indexed owner, bytes32 entityHash);
+
+    event EntityExpired(bytes32 indexed entityKey, address indexed owner, bytes32 entityHash, BlockNumber expiresAt);
 
     // -------------------------------------------------------------------------
     // Constants
@@ -87,13 +119,13 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
     // Running hash over the full ordered sequence of entity mutations.
     // Each mutation chains onto the previous value:
-    //   _changeSetHash = keccak256(_changeSetHash || op || entityKey || entityHash)
+    //   _changeSetHash = keccak256(_changeSetHash || opType || entityKey || entityHash)
     //
     // Transitively commits to every field of every entity through the EIP-712 hash tree:
     //
     //   changeSetHash
     //   ├─ previous changeSetHash       ← full history of all prior mutations
-    //   ├─ op                            ← mutation type (CREATE, UPDATE, EXTEND, DELETE, EXPIRE)
+    //   ├─ opType                        ← mutation type (CREATE, UPDATE, EXTEND, DELETE, EXPIRE)
     //   ├─ entityKey                     ← identity of the entity
     //   └─ entityHash                    ← EIP-712 hash of the entity's full state
     //        ├─ coreHash                 ← EIP-712 hash of immutable content
@@ -111,6 +143,8 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // A single eth_call comparing this value verifies the off-chain DB has processed
     // every mutation in the correct order with the correct content.
     bytes32 internal _changeSetHash;
+
+    mapping(bytes32 => Entity) public entities;
 
     // -------------------------------------------------------------------------
     // Public pure functions
@@ -195,6 +229,8 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         bytes calldata payload,
         Attribute[] calldata attributes
     ) public pure returns (bytes32) {
+        // TODO This could be more efficient using single bytes32 hashing itself
+        // Also additionally is that this can be rolled into the same attrHashes validation loop
         bytes32[] memory attrHashes = new bytes32[](attributes.length);
         for (uint256 i = 0; i < attributes.length; i++) {
             attrHashes[i] = attributeHash(attributes[i]);
@@ -273,15 +309,165 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     }
 
     // -------------------------------------------------------------------------
+    // External functions
+    // -------------------------------------------------------------------------
+
+    function execute(Op[] calldata ops) external {
+        for (uint256 i = 0; i < ops.length; i++) {
+            OpType opType = ops[i].opType;
+            if (opType == OpType.CREATE) {
+                _create(ops[i]);
+            } else if (opType == OpType.UPDATE) {
+                _update(ops[i]);
+            } else if (opType == OpType.EXTEND) {
+                _extend(ops[i]);
+            } else if (opType == OpType.DELETE) {
+                _delete(ops[i]);
+            } else if (opType == OpType.EXPIRE) {
+                _expire(ops[i].entityKey);
+            }
+        }
+    }
+
+    function expireEntities(bytes32[] calldata keys) external {
+        for (uint256 i = 0; i < keys.length; i++) {
+            _expire(keys[i]);
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Internal functions
     // -------------------------------------------------------------------------
 
-    function _op(Op op, bytes32 _entityKey, bytes32 _entityHash) internal {
-        // TODO: entity mutation logic per op type
-        _accumulateChangeSet(op, _entityKey, _entityHash);
+    function _loadEntity(bytes32 key) internal view returns (Entity storage entity) {
+        entity = entities[key];
+        if (entity.creator == address(0)) {
+            revert EntityNotFound(key);
+        }
     }
 
-    function _accumulateChangeSet(Op op, bytes32 _entityKey, bytes32 _entityHash) internal {
-        _changeSetHash = keccak256(abi.encodePacked(_changeSetHash, op, _entityKey, _entityHash));
+    function _requireNotExpired(bytes32 key, Entity storage entity) internal view {
+        if (currentBlock() >= entity.expiresAt) {
+            revert EntityExpiredError(key, entity.expiresAt);
+        }
+    }
+
+    function _requireOwner(bytes32 key, Entity storage entity) internal view {
+        if (msg.sender != entity.owner) {
+            revert NotOwner(key, msg.sender, entity.owner);
+        }
+    }
+
+    function _accumulateChangeSet(OpType opType, bytes32 key, bytes32 _entityHash) internal {
+        _changeSetHash = keccak256(abi.encodePacked(_changeSetHash, opType, key, _entityHash));
+    }
+
+    function _create(Op calldata op) internal {
+        validateEntity(op.payload, op.attributes);
+        if (op.expiresAt <= currentBlock()) {
+            revert ExpiryInPast(op.expiresAt, currentBlock());
+        }
+
+        uint32 nonce = nonces[msg.sender]++;
+        bytes32 key = entityKey(msg.sender, nonce);
+        BlockNumber now_ = currentBlock();
+
+        bytes32 _coreHash =
+            coreHash(key, msg.sender, BlockNumber.unwrap(now_), op.contentType, op.payload, op.attributes);
+        bytes32 _entityHash =
+            entityHash(_coreHash, msg.sender, BlockNumber.unwrap(now_), BlockNumber.unwrap(op.expiresAt));
+
+        entities[key] = Entity({
+            creator: msg.sender,
+            createdAt: now_,
+            updatedAt: now_,
+            expiresAt: op.expiresAt,
+            owner: msg.sender,
+            coreHash: _coreHash
+        });
+
+        _accumulateChangeSet(OpType.CREATE, key, _entityHash);
+        emit EntityCreated(key, msg.sender, _entityHash, op.expiresAt);
+    }
+
+    function _update(Op calldata op) internal {
+        Entity storage entity = _loadEntity(op.entityKey);
+        _requireNotExpired(op.entityKey, entity);
+        _requireOwner(op.entityKey, entity);
+        validateEntity(op.payload, op.attributes);
+
+        BlockNumber now_ = currentBlock();
+        bytes32 _coreHash = coreHash(
+            op.entityKey,
+            entity.creator,
+            BlockNumber.unwrap(entity.createdAt),
+            op.contentType,
+            op.payload,
+            op.attributes
+        );
+
+        entity.coreHash = _coreHash;
+        entity.updatedAt = now_;
+
+        bytes32 _entityHash =
+            entityHash(_coreHash, entity.owner, BlockNumber.unwrap(now_), BlockNumber.unwrap(entity.expiresAt));
+
+        _accumulateChangeSet(OpType.UPDATE, op.entityKey, _entityHash);
+        emit EntityUpdated(op.entityKey, entity.owner, _entityHash);
+    }
+
+    function _extend(Op calldata op) internal {
+        Entity storage entity = _loadEntity(op.entityKey);
+        _requireNotExpired(op.entityKey, entity);
+        _requireOwner(op.entityKey, entity);
+
+        if (op.expiresAt <= entity.expiresAt) {
+            revert ExpiryNotExtended(op.expiresAt, entity.expiresAt);
+        }
+
+        BlockNumber previousExpiresAt = entity.expiresAt;
+        BlockNumber now_ = currentBlock();
+        entity.expiresAt = op.expiresAt;
+        entity.updatedAt = now_;
+
+        bytes32 _entityHash =
+            entityHash(entity.coreHash, entity.owner, BlockNumber.unwrap(now_), BlockNumber.unwrap(op.expiresAt));
+
+        _accumulateChangeSet(OpType.EXTEND, op.entityKey, _entityHash);
+        emit EntityExtended(op.entityKey, entity.owner, _entityHash, previousExpiresAt, op.expiresAt);
+    }
+
+    function _delete(Op calldata op) internal {
+        Entity storage entity = _loadEntity(op.entityKey);
+        _requireNotExpired(op.entityKey, entity);
+        _requireOwner(op.entityKey, entity);
+
+        bytes32 _entityHash = entityHash(
+            entity.coreHash, entity.owner, BlockNumber.unwrap(entity.updatedAt), BlockNumber.unwrap(entity.expiresAt)
+        );
+        address owner = entity.owner;
+
+        delete entities[op.entityKey];
+
+        _accumulateChangeSet(OpType.DELETE, op.entityKey, _entityHash);
+        emit EntityDeleted(op.entityKey, owner, _entityHash);
+    }
+
+    function _expire(bytes32 key) internal {
+        Entity storage entity = _loadEntity(key);
+        if (currentBlock() < entity.expiresAt) {
+            revert EntityNotExpired(key, entity.expiresAt);
+        }
+
+        bytes32 _entityHash = entityHash(
+            entity.coreHash, entity.owner, BlockNumber.unwrap(entity.updatedAt), BlockNumber.unwrap(entity.expiresAt)
+        );
+        address owner = entity.owner;
+        BlockNumber expiresAt = entity.expiresAt;
+
+        delete entities[key];
+
+        _accumulateChangeSet(OpType.EXPIRE, key, _entityHash);
+        emit EntityExpired(key, owner, _entityHash, expiresAt);
     }
 }
