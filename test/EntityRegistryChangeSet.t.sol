@@ -22,19 +22,17 @@ contract EntityRegistryChangeSetTest is Test {
     // Initial state
     // -------------------------------------------------------------------------
 
-    function test_initialState_allZero() public view {
+    function test_initialState_zero() public view {
         // GIVEN a freshly deployed registry
-        // THEN all change set state is zero
-        assertEq(registry.currentBlockChangeSetHash(), bytes32(0));
-        assertEq(registry.cumulativeChangeSetHash(), bytes32(0));
-        assertEq(registry.lastMutationBlock(), 0);
+        // THEN changeSetHash is zero
+        assertEq(registry.changeSetHash(), bytes32(0));
     }
 
     // -------------------------------------------------------------------------
     // Single mutation
     // -------------------------------------------------------------------------
 
-    function test_singleOp_updatesCurrentBlockHash() public {
+    function test_singleOp_producesNonZeroHash() public {
         // GIVEN a fresh registry
         bytes32 key = keccak256("entity1");
         bytes32 hash = keccak256("hash1");
@@ -42,26 +40,17 @@ contract EntityRegistryChangeSetTest is Test {
         // WHEN a single CREATE op is recorded
         registry.exposed_op(EntityRegistry.Op.CREATE, key, hash);
 
-        // THEN currentBlockChangeSetHash is non-zero
-        assertNotEq(registry.currentBlockChangeSetHash(), bytes32(0));
-
-        // AND it matches the expected chained hash
+        // THEN changeSetHash is non-zero and matches the expected chain
         bytes32 expected = keccak256(abi.encodePacked(bytes32(0), EntityRegistry.Op.CREATE, key, hash));
-        assertEq(registry.currentBlockChangeSetHash(), expected);
-
-        // AND lastMutationBlock is the current block
-        assertEq(registry.lastMutationBlock(), block.number);
-
-        // AND cumulativeChangeSetHash is still zero (no block boundary crossed)
-        assertEq(registry.cumulativeChangeSetHash(), bytes32(0));
+        assertEq(registry.changeSetHash(), expected);
     }
 
     // -------------------------------------------------------------------------
-    // Multiple mutations in the same block
+    // Chaining — multiple ops
     // -------------------------------------------------------------------------
 
-    function test_multipleOps_sameBlock_chainsCorrectly() public {
-        // GIVEN two mutations in the same block
+    function test_multipleOps_chainCorrectly() public {
+        // GIVEN two mutations
         bytes32 key1 = keccak256("entity1");
         bytes32 hash1 = keccak256("hash1");
         bytes32 key2 = keccak256("entity2");
@@ -70,27 +59,22 @@ contract EntityRegistryChangeSetTest is Test {
         registry.exposed_op(EntityRegistry.Op.CREATE, key1, hash1);
         registry.exposed_op(EntityRegistry.Op.UPDATE, key2, hash2);
 
-        // THEN currentBlockChangeSetHash chains both mutations
+        // THEN changeSetHash chains both mutations sequentially
         bytes32 after1 = keccak256(abi.encodePacked(bytes32(0), EntityRegistry.Op.CREATE, key1, hash1));
         bytes32 after2 = keccak256(abi.encodePacked(after1, EntityRegistry.Op.UPDATE, key2, hash2));
-        assertEq(registry.currentBlockChangeSetHash(), after2);
-
-        // AND cumulativeChangeSetHash is still zero (still in the same block)
-        assertEq(registry.cumulativeChangeSetHash(), bytes32(0));
+        assertEq(registry.changeSetHash(), after2);
     }
 
     // -------------------------------------------------------------------------
-    // Block boundary — finalization
+    // Cross-block continuity
     // -------------------------------------------------------------------------
 
-    function test_newBlock_finalizesPreviousBlock() public {
+    function test_crossBlock_chainsWithoutReset() public {
         // GIVEN a mutation in block N
         bytes32 key1 = keccak256("entity1");
         bytes32 hash1 = keccak256("hash1");
         registry.exposed_op(EntityRegistry.Op.CREATE, key1, hash1);
-
-        bytes32 block1Hash = registry.currentBlockChangeSetHash();
-        uint256 block1 = block.number;
+        bytes32 afterBlock1 = registry.changeSetHash();
 
         // WHEN we advance to a new block and record another mutation
         vm.roll(block.number + 1);
@@ -98,93 +82,47 @@ contract EntityRegistryChangeSetTest is Test {
         bytes32 hash2 = keccak256("hash2");
         registry.exposed_op(EntityRegistry.Op.DELETE, key2, hash2);
 
-        // THEN cumulativeChangeSetHash includes block1's finalized hash
-        bytes32 expectedCumulative = keccak256(abi.encodePacked(bytes32(0), block1, block1Hash));
-        assertEq(registry.cumulativeChangeSetHash(), expectedCumulative);
-
-        // AND currentBlockChangeSetHash is the new block's hash (reset + new mutation)
-        bytes32 expectedCurrent = keccak256(abi.encodePacked(bytes32(0), EntityRegistry.Op.DELETE, key2, hash2));
-        assertEq(registry.currentBlockChangeSetHash(), expectedCurrent);
-
-        // AND lastMutationBlock is the new block
-        assertEq(registry.lastMutationBlock(), block.number);
+        // THEN the hash chains continuously — no reset at block boundary
+        bytes32 expected = keccak256(abi.encodePacked(afterBlock1, EntityRegistry.Op.DELETE, key2, hash2));
+        assertEq(registry.changeSetHash(), expected);
     }
 
-    function test_newBlock_emitsChangeSetHashFinalized() public {
-        // GIVEN a mutation in block N
-        bytes32 key1 = keccak256("entity1");
-        bytes32 hash1 = keccak256("hash1");
-        registry.exposed_op(EntityRegistry.Op.CREATE, key1, hash1);
+    function test_threeBlocks_continuousChain() public {
+        // Block 1
+        registry.exposed_op(EntityRegistry.Op.CREATE, keccak256("e1"), keccak256("h1"));
 
-        bytes32 block1Hash = registry.currentBlockChangeSetHash();
-        uint256 block1 = block.number;
-        bytes32 expectedCumulative = keccak256(abi.encodePacked(bytes32(0), block1, block1Hash));
-
-        // WHEN we advance and record a mutation
+        // Block 2
         vm.roll(block.number + 1);
+        registry.exposed_op(EntityRegistry.Op.UPDATE, keccak256("e2"), keccak256("h2"));
+        bytes32 after2 = registry.changeSetHash();
 
-        // THEN the finalization event is emitted
-        vm.expectEmit(true, false, false, true);
-        emit EntityRegistry.ChangeSetHashFinalized(block1, block1Hash, expectedCumulative);
+        // Block 3
+        vm.roll(block.number + 1);
+        registry.exposed_op(EntityRegistry.Op.DELETE, keccak256("e3"), keccak256("h3"));
 
-        registry.exposed_op(EntityRegistry.Op.UPDATE, keccak256("entity2"), keccak256("hash2"));
+        // THEN the final hash chains all three ops regardless of block boundaries
+        bytes32 expected =
+            keccak256(abi.encodePacked(after2, EntityRegistry.Op.DELETE, keccak256("e3"), keccak256("h3")));
+        assertEq(registry.changeSetHash(), expected);
     }
 
     // -------------------------------------------------------------------------
-    // Multiple block boundaries
+    // Block gap — no special handling needed
     // -------------------------------------------------------------------------
 
-    function test_threeBlocks_cumulativeChains() public {
-        // Block 1: one CREATE
-        bytes32 key1 = keccak256("e1");
-        bytes32 hash1 = keccak256("h1");
-        registry.exposed_op(EntityRegistry.Op.CREATE, key1, hash1);
-        bytes32 block1Hash = registry.currentBlockChangeSetHash();
-        uint256 block1 = block.number;
-
-        // Block 2: one UPDATE
-        vm.roll(block.number + 1);
-        bytes32 key2 = keccak256("e2");
-        bytes32 hash2 = keccak256("h2");
-        registry.exposed_op(EntityRegistry.Op.UPDATE, key2, hash2);
-        bytes32 block2Hash = registry.currentBlockChangeSetHash();
-        uint256 block2 = block.number;
-
-        bytes32 cumAfter1 = keccak256(abi.encodePacked(bytes32(0), block1, block1Hash));
-
-        // Block 3: one DELETE
-        vm.roll(block.number + 1);
-        bytes32 key3 = keccak256("e3");
-        bytes32 hash3 = keccak256("h3");
-        registry.exposed_op(EntityRegistry.Op.DELETE, key3, hash3);
-
-        // THEN cumulative hash chains block1 → block2
-        bytes32 cumAfter2 = keccak256(abi.encodePacked(cumAfter1, block2, block2Hash));
-        assertEq(registry.cumulativeChangeSetHash(), cumAfter2);
-    }
-
-    // -------------------------------------------------------------------------
-    // Gap in blocks (no mutations for several blocks)
-    // -------------------------------------------------------------------------
-
-    function test_blockGap_finalizesCorrectly() public {
+    function test_blockGap_chainsNormally() public {
         // GIVEN a mutation in block 1
-        bytes32 key1 = keccak256("e1");
-        bytes32 hash1 = keccak256("h1");
-        registry.exposed_op(EntityRegistry.Op.CREATE, key1, hash1);
-        bytes32 block1Hash = registry.currentBlockChangeSetHash();
-        uint256 block1 = block.number;
+        registry.exposed_op(EntityRegistry.Op.CREATE, keccak256("e1"), keccak256("h1"));
+        bytes32 afterFirst = registry.changeSetHash();
 
-        // WHEN 100 blocks pass with no mutations, then a mutation in block 101
+        // WHEN 100 blocks pass with no mutations, then another mutation
         vm.roll(block.number + 100);
         registry.exposed_op(EntityRegistry.Op.EXPIRE, keccak256("e2"), keccak256("h2"));
 
-        // THEN block1's hash is finalized into the cumulative hash
-        bytes32 expectedCumulative = keccak256(abi.encodePacked(bytes32(0), block1, block1Hash));
-        assertEq(registry.cumulativeChangeSetHash(), expectedCumulative);
-
-        // AND lastMutationBlock jumped to the current block
-        assertEq(registry.lastMutationBlock(), block.number);
+        // THEN the hash just chains — block gaps are invisible
+        bytes32 expected =
+            keccak256(abi.encodePacked(afterFirst, EntityRegistry.Op.EXPIRE, keccak256("e2"), keccak256("h2")));
+        assertEq(registry.changeSetHash(), expected);
     }
 
     // -------------------------------------------------------------------------
@@ -196,7 +134,6 @@ contract EntityRegistryChangeSetTest is Test {
         bytes32 key = keccak256("entity");
         bytes32 hash = keccak256("hash");
 
-        // Deploy two registries to isolate state
         EntityRegistryHarness r1 = new EntityRegistryHarness();
         EntityRegistryHarness r2 = new EntityRegistryHarness();
 
@@ -204,7 +141,7 @@ contract EntityRegistryChangeSetTest is Test {
         r2.exposed_op(EntityRegistry.Op.DELETE, key, hash);
 
         // THEN the resulting hashes differ
-        assertNotEq(r1.currentBlockChangeSetHash(), r2.currentBlockChangeSetHash());
+        assertNotEq(r1.changeSetHash(), r2.changeSetHash());
     }
 
     // -------------------------------------------------------------------------
@@ -228,6 +165,25 @@ contract EntityRegistryChangeSetTest is Test {
         r2.exposed_op(EntityRegistry.Op.CREATE, keyA, hashA);
 
         // THEN the resulting hashes differ
-        assertNotEq(r1.currentBlockChangeSetHash(), r2.currentBlockChangeSetHash());
+        assertNotEq(r1.changeSetHash(), r2.changeSetHash());
+    }
+
+    // -------------------------------------------------------------------------
+    // Determinism
+    // -------------------------------------------------------------------------
+
+    function test_sameOps_sameHash() public {
+        // GIVEN two registries with identical op sequences
+        EntityRegistryHarness r1 = new EntityRegistryHarness();
+        EntityRegistryHarness r2 = new EntityRegistryHarness();
+
+        bytes32 key = keccak256("entity");
+        bytes32 hash = keccak256("hash");
+
+        r1.exposed_op(EntityRegistry.Op.CREATE, key, hash);
+        r2.exposed_op(EntityRegistry.Op.CREATE, key, hash);
+
+        // THEN their hashes are identical
+        assertEq(r1.changeSetHash(), r2.changeSetHash());
     }
 }

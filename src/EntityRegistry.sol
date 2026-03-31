@@ -56,14 +56,6 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     error EmptyAttributeName(uint256 index);
 
     // -------------------------------------------------------------------------
-    // Events
-    // -------------------------------------------------------------------------
-
-    event ChangeSetHashFinalized(
-        uint256 indexed blockNumber, bytes32 blockChangeSetHash, bytes32 cumulativeChangeSetHash
-    );
-
-    // -------------------------------------------------------------------------
     // Constants
     // -------------------------------------------------------------------------
 
@@ -93,9 +85,32 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // is predictable client-side before submission.
     mapping(address owner => uint32) public nonces;
 
-    bytes32 public currentBlockChangeSetHash;
-    bytes32 public cumulativeChangeSetHash;
-    uint256 public lastMutationBlock;
+    // Running hash over the full ordered sequence of entity mutations.
+    // Each mutation chains onto the previous value:
+    //   _changeSetHash = keccak256(_changeSetHash || op || entityKey || entityHash)
+    //
+    // Transitively commits to every field of every entity through the EIP-712 hash tree:
+    //
+    //   changeSetHash
+    //   ├─ previous changeSetHash       ← full history of all prior mutations
+    //   ├─ op                            ← mutation type (CREATE, UPDATE, EXTEND, DELETE, EXPIRE)
+    //   ├─ entityKey                     ← identity of the entity
+    //   └─ entityHash                    ← EIP-712 hash of the entity's full state
+    //        ├─ coreHash                 ← EIP-712 hash of immutable content
+    //        │    ├─ entityKey
+    //        │    ├─ creator
+    //        │    ├─ createdAt
+    //        │    ├─ contentType
+    //        │    ├─ keccak256(payload)
+    //        │    └─ keccak256(attributeHashes[])
+    //        │         └─ per attribute: name, valueType, fixedValue, keccak256(stringValue)
+    //        ├─ owner
+    //        ├─ updatedAt
+    //        └─ expiresAt
+    //
+    // A single eth_call comparing this value verifies the off-chain DB has processed
+    // every mutation in the correct order with the correct content.
+    bytes32 internal _changeSetHash;
 
     // -------------------------------------------------------------------------
     // Public pure functions
@@ -164,6 +179,12 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Public view functions
     // -------------------------------------------------------------------------
 
+    /// @notice Returns the cumulative change set hash over all entity mutations.
+    /// The off-chain DB computes the same chain and compares against this single value.
+    function changeSetHash() public view returns (bytes32) {
+        return _changeSetHash;
+    }
+
     function entityKey(address owner, uint32 nonce) public view returns (bytes32) {
         return keccak256(abi.encodePacked(block.chainid, address(this), owner, nonce));
     }
@@ -188,14 +209,6 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     }
 
     function _accumulateChangeSet(Op op, bytes32 _entityKey, bytes32 _entityHash) internal {
-        if (lastMutationBlock != 0 && block.number > lastMutationBlock) {
-            cumulativeChangeSetHash =
-                keccak256(abi.encodePacked(cumulativeChangeSetHash, lastMutationBlock, currentBlockChangeSetHash));
-            emit ChangeSetHashFinalized(lastMutationBlock, currentBlockChangeSetHash, cumulativeChangeSetHash);
-            currentBlockChangeSetHash = bytes32(0);
-        }
-        lastMutationBlock = block.number;
-
-        currentBlockChangeSetHash = keccak256(abi.encodePacked(currentBlockChangeSetHash, op, _entityKey, _entityHash));
+        _changeSetHash = keccak256(abi.encodePacked(_changeSetHash, op, _entityKey, _entityHash));
     }
 }
