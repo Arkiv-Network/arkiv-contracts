@@ -28,22 +28,35 @@ Key EVM storage costs (EIP-2929):
 
 A new entity CREATE writes 3 slots from zero to non-zero: **66,300 gas**. This is the floor cost for any CREATE regardless of payload size. It cannot be optimised away — it is inherent to the EVM storage model.
 
+### changeSetHash: Batch-Bounded Accumulation
+
+The change set hash is accumulated on the stack within `execute`, not written to storage per operation. One SLOAD at the start of the batch, one SSTORE at the end. Per-operation cost is ~50 gas (one keccak256 on the stack).
+
+| Batch size | Old (per-op SSTORE) | Current (batch-bounded) | Savings |
+|---|---|---|---|
+| 1 op | 2,900 | 2,900 | 0 |
+| 10 ops | 29,000 | 3,400 | 25,600 (88%) |
+| 50 ops | 145,000 | 5,400 | 139,600 (96%) |
+| 100 ops | 290,000 | 7,900 | 282,100 (97%) |
+
+For batched metadata operations (extend/delete/expire), this removes the dominant cost of integrity checking.
+
 ### Per-Operation Gas
 
-All costs assume warm access (not the first operation in a transaction). First-operation cold costs add ~25,000 gas one-time for nonce, changeSetHash, and contentType mapping slots.
+All costs assume warm access (not the first operation in a transaction) and batch-bounded changeSetHash accumulation. First-operation cold costs add ~25,000 gas one-time for nonce, changeSetHash, and contentType mapping slots.
 
 #### CREATE
 
 | Component | Empty payload | 1KB payload, 5 attrs | 100KB payload, 10 attrs |
 |-----------|--------------|----------------------|------------------------|
 | Entity storage (3 new slots) | 66,300 | 66,300 | 66,300 |
-| changeSetHash SSTORE | 2,900 | 2,900 | 2,900 |
+| changeSetHash (stack keccak) | ~50 | ~50 | ~50 |
 | Nonce SSTORE | 3,000 | 3,000 | 3,000 |
 | Content type SLOAD | 100 | 100 | 100 |
 | Hashing (payload + attrs + coreHash + entityHash) | ~900 | ~4,000 | ~25,000 |
 | Event emission | ~2,100 | ~2,100 | ~2,100 |
 | Calldata | ~4,600 | ~24,000 | ~1,600,000 |
-| **Total** | **~78,000** | **~100,000** | **~1,700,000** |
+| **Total** | **~75,000** | **~97,000** | **~1,700,000** |
 
 Entity storage dominates for small payloads. Calldata dominates above ~5KB.
 
@@ -55,10 +68,10 @@ Same as CREATE for hashing and calldata, but cheaper storage — only 2 slots ch
 |-----------|---------------------|
 | Entity SLOADs (3 slots, cold) | 6,300 |
 | Entity SSTOREs (2 slots, warm) | 5,800 |
-| changeSetHash SSTORE | 2,900 |
+| changeSetHash (stack keccak) | ~50 |
 | Hashing | ~4,000 |
 | Calldata | ~24,000 |
-| **Total** | **~43,000** |
+| **Total** | **~40,000** |
 
 #### EXTEND
 
@@ -68,10 +81,10 @@ No payload, no attributes. Only reads the entity and writes 2 fields:
 |-----------|-----|
 | Entity SLOADs (2 slots, cold) | 4,200 |
 | Entity SSTOREs (expiresAt + updatedAt) | 5,800 |
-| changeSetHash SSTORE | 2,900 |
+| changeSetHash (stack keccak) | ~50 |
 | entityHash computation | ~500 |
 | Calldata | ~4,600 |
-| **Total** | **~18,000** |
+| **Total** | **~15,000** |
 
 #### DELETE
 
@@ -81,10 +94,10 @@ Reads entity, computes hash, clears 3 storage slots:
 |-----------|-----|
 | Entity SLOADs (3 slots, cold) | 6,300 |
 | Entity SSTOREs (3 slots to zero) | ~300 + refund |
-| changeSetHash SSTORE | 2,900 |
+| changeSetHash (stack keccak) | ~50 |
 | entityHash computation | ~500 |
 | Calldata | ~4,600 |
-| **Total** | **~15,000** |
+| **Total** | **~12,000** |
 
 #### EXPIRE
 
@@ -92,49 +105,49 @@ Same as DELETE but no owner check (saves one comparison, negligible):
 
 | Component | Gas |
 |-----------|-----|
-| Total | **~13,000** |
+| Total | **~10,000** |
 
 ## Throughput Per Block
 
-Given a 60M block gas limit, with batch operations amortising the 21,000 base transaction cost:
+Given a 60M block gas limit, with batch operations amortising the 21,000 base transaction cost and the changeSetHash SLOAD/SSTORE:
 
 | Scenario | Per-op gas | Ops per block | Ops per second (2s blocks) |
 |----------|-----------|---------------|---------------------------|
-| Minimal CREATEs (empty payload) | ~78,000 | ~769 | ~384 |
-| Small CREATEs (1KB, 5 attrs) | ~100,000 | ~600 | ~300 |
-| Medium CREATEs (10KB, 5 attrs) | ~250,000 | ~240 | ~120 |
+| Minimal CREATEs (empty payload) | ~75,000 | ~800 | ~400 |
+| Small CREATEs (1KB, 5 attrs) | ~97,000 | ~618 | ~309 |
+| Medium CREATEs (10KB, 5 attrs) | ~247,000 | ~242 | ~121 |
 | Large CREATEs (100KB, 10 attrs) | ~1,700,000 | ~35 | ~17 |
-| UPDATEs (1KB, 5 attrs) | ~43,000 | ~1,395 | ~697 |
-| EXTENDs | ~18,000 | ~3,333 | ~1,666 |
-| DELETEs | ~15,000 | ~4,000 | ~2,000 |
-| EXPIREs | ~13,000 | ~4,615 | ~2,307 |
+| UPDATEs (1KB, 5 attrs) | ~40,000 | ~1,500 | ~750 |
+| EXTENDs | ~15,000 | ~4,000 | ~2,000 |
+| DELETEs | ~12,000 | ~5,000 | ~2,500 |
+| EXPIREs | ~10,000 | ~6,000 | ~3,000 |
 
 ## Cost Dominance by Payload Size
 
 The crossover point where calldata cost exceeds storage cost:
 
 ```
-Entity storage floor:  ~72,000 gas (3 new slots + changeSet + nonce)
+Entity storage floor:  ~69,000 gas (3 new slots + nonce)
 Calldata cost:         ~16 gas per byte
 
-Crossover: 72,000 / 16 ≈ 4,500 bytes (~4.5KB)
+Crossover: 69,000 / 16 ≈ 4,300 bytes (~4.3KB)
 ```
 
-Below ~4.5KB, storage dominates. Above ~4.5KB, calldata dominates. For large payloads (100KB+), calldata is 90%+ of the total gas cost.
+Below ~4.3KB, storage dominates. Above ~4.3KB, calldata dominates. For large payloads (100KB+), calldata is 90%+ of the total gas cost.
 
 ## changeSetHash Overhead
 
-The changeSetHash accumulator costs ~2,900 gas (warm SSTORE) per operation. As a fraction of total cost:
+With batch-bounded accumulation, the changeSetHash cost per operation is ~50 gas (stack keccak256) plus the amortised SLOAD/SSTORE (~2,900 / batch size). As a fraction of total cost for a batch of 10:
 
 | Operation | changeSetHash cost | % of total |
 |-----------|--------------------|-----------|
-| CREATE (1KB) | 2,900 | 3% |
-| UPDATE (1KB) | 2,900 | 7% |
-| EXTEND | 2,900 | 16% |
-| DELETE | 2,900 | 19% |
-| EXPIRE | 2,900 | 22% |
+| CREATE (1KB) | ~340 | 0.4% |
+| UPDATE (1KB) | ~340 | 0.9% |
+| EXTEND | ~340 | 2.3% |
+| DELETE | ~340 | 2.8% |
+| EXPIRE | ~340 | 3.4% |
 
-For metadata-heavy workloads (mostly extends/deletes), the integrity hash is a meaningful fraction of the cost. This is the price for the off-chain DB sync verification property.
+For single-op transactions, the cost is ~2,950 gas (full SLOAD + keccak + SSTORE). For batches of 10+, the integrity check is effectively free.
 
 ## Scaling Levers
 
@@ -145,6 +158,6 @@ If throughput is insufficient, the following parameters can be adjusted on the d
 | Increase block gas limit | Linear throughput increase | Longer block execution, higher node hardware requirements |
 | Decrease block time | More blocks per second | Tighter propagation timing, higher bandwidth requirements |
 | Payload via DA layer | Calldata cost drops to ~0 for payload (only hash in calldata) | Adds external DA dependency, changes contract interface |
-| Batch larger | Amortises base tx cost | Single point of failure (one bad op reverts all) |
+| Batch larger | Amortises base tx cost and changeSetHash SSTORE | Single point of failure (one bad op reverts all) |
 
-The most impactful lever for large payloads is separating the payload from calldata — passing only `bytes32 payloadHash` to the contract and committing the payload to a DA layer. This eliminates the calldata cost entirely, making every CREATE cost ~78,000 gas regardless of payload size. At that cost, the system could handle ~384 creates/second of any size.
+The most impactful lever for large payloads is separating the payload from calldata — passing only `bytes32 payloadHash` to the contract and committing the payload to a DA layer. This eliminates the calldata cost entirely, making every CREATE cost ~75,000 gas regardless of payload size. At that cost, the system could handle ~400 creates/second of any size.
