@@ -580,37 +580,6 @@ contract EntityRegistryOpsTest is EntityRegistryBase {
     }
 
     // -------------------------------------------------------------------------
-    // Validation — payload size
-    // -------------------------------------------------------------------------
-
-    function test_create_payloadAtLimit_succeeds() public {
-        // GIVEN a payload exactly at the size limit
-        vm.prank(alice);
-        _executeSingle(_createOp(_payload(registry.MAX_PAYLOAD_SIZE()), expiresAt));
-    }
-
-    function test_create_payloadOverLimit_reverts() public {
-        EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](0);
-        EntityRegistry.Op[] memory ops = new EntityRegistry.Op[](1);
-        ops[0] = EntityRegistry.Op({
-            opType: EntityRegistry.OpType.CREATE,
-            entityKey: bytes32(0),
-            payload: _payload(registry.MAX_PAYLOAD_SIZE() + 1),
-            contentType: "text/plain",
-            attributes: attrs,
-            expiresAt: expiresAt
-        });
-
-        vm.prank(alice);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                EntityRegistry.PayloadTooLarge.selector, registry.MAX_PAYLOAD_SIZE() + 1, registry.MAX_PAYLOAD_SIZE()
-            )
-        );
-        registry.execute(ops);
-    }
-
-    // -------------------------------------------------------------------------
     // Validation — attribute count
     // -------------------------------------------------------------------------
 
@@ -635,30 +604,6 @@ contract EntityRegistryOpsTest is EntityRegistryBase {
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(EntityRegistry.TooManyAttributes.selector, max + 1, max));
-        _executeSingle(_createOpWithAttrs("hello", attrs, expiresAt));
-    }
-
-    // -------------------------------------------------------------------------
-    // Validation — string attribute size
-    // -------------------------------------------------------------------------
-
-    function test_create_stringAttrAtLimit_succeeds() public {
-        EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](1);
-        attrs[0] = _stringAttr("name", _repeatChar("x", registry.MAX_STRING_ATTR_SIZE()));
-
-        vm.prank(alice);
-        _executeSingle(_createOpWithAttrs("hello", attrs, expiresAt));
-    }
-
-    function test_create_stringAttrOverLimit_reverts() public {
-        uint256 max = registry.MAX_STRING_ATTR_SIZE();
-        EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](1);
-        attrs[0] = _stringAttr("name", _repeatChar("x", max + 1));
-
-        vm.prank(alice);
-        vm.expectRevert(
-            abi.encodeWithSelector(EntityRegistry.StringAttributeTooLarge.selector, attrs[0].name, max + 1, max)
-        );
         _executeSingle(_createOpWithAttrs("hello", attrs, expiresAt));
     }
 

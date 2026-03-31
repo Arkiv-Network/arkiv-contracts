@@ -53,9 +53,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Errors
     // -------------------------------------------------------------------------
 
-    error PayloadTooLarge(uint256 size, uint256 max);
     error TooManyAttributes(uint256 count, uint256 max);
-    error StringAttributeTooLarge(ShortString name, uint256 size, uint256 max);
     error AttributesNotSorted(ShortString name, ShortString previousName);
     error EmptyAttributeName(uint256 index);
     error UnusedFieldNotZero(uint256 index);
@@ -91,9 +89,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Constants
     // -------------------------------------------------------------------------
 
-    uint256 public constant MAX_PAYLOAD_SIZE = 122880; // 120 KB
     uint256 public constant MAX_ATTRIBUTES = 32;
-    uint256 public constant MAX_STRING_ATTR_SIZE = 1024; // 1 KB
 
     bytes32 public constant ATTRIBUTE_TYPEHASH =
         keccak256("Attribute(bytes32 name,uint8 valueType,bytes32 fixedValue,string stringValue)");
@@ -349,9 +345,6 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         if (!validContentTypes[keccak256(bytes(contentType))]) {
             revert InvalidContentType(contentType);
         }
-        if (payload.length > MAX_PAYLOAD_SIZE) {
-            revert PayloadTooLarge(payload.length, MAX_PAYLOAD_SIZE);
-        }
         if (attributes.length > MAX_ATTRIBUTES) {
             revert TooManyAttributes(attributes.length, MAX_ATTRIBUTES);
         }
@@ -362,10 +355,6 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
                 revert EmptyAttributeName(i);
             }
             if (attributes[i].valueType == AttributeType.STRING) {
-                uint256 strSize = bytes(attributes[i].stringValue).length;
-                if (strSize > MAX_STRING_ATTR_SIZE) {
-                    revert StringAttributeTooLarge(attributes[i].name, strSize, MAX_STRING_ATTR_SIZE);
-                }
                 if (attributes[i].fixedValue != bytes32(0)) {
                     revert UnusedFieldNotZero(i);
                 }
