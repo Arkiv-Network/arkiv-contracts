@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.8.28;
 
 import {BlockNumber, currentBlock} from "./BlockNumber.sol";
 import {ShortString} from "@openzeppelin/contracts/utils/ShortStrings.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
 contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
-
     // -------------------------------------------------------------------------
     // Type declarations
     // -------------------------------------------------------------------------

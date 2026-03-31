@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.8.28;
 
 import {BlockNumber, currentBlock} from "../src/BlockNumber.sol";
 import {ShortStrings} from "@openzeppelin/contracts/utils/ShortStrings.sol";
