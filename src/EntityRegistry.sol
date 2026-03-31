@@ -60,6 +60,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     error StringAttributeTooLarge(ShortString name, uint256 size, uint256 max);
     error AttributesNotSorted(ShortString name, ShortString previousName);
     error EmptyAttributeName(uint256 index);
+    error UnusedFieldNotZero(uint256 index);
     error EntityNotFound(bytes32 entityKey);
     error EntityExpiredError(bytes32 entityKey, BlockNumber expiresAt);
     error NotOwner(bytes32 entityKey, address caller, address owner);
@@ -168,6 +169,13 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
                 if (strSize > MAX_STRING_ATTR_SIZE) {
                     revert StringAttributeTooLarge(attributes[i].name, strSize, MAX_STRING_ATTR_SIZE);
                 }
+                if (attributes[i].fixedValue != bytes32(0)) {
+                    revert UnusedFieldNotZero(i);
+                }
+            } else {
+                if (bytes(attributes[i].stringValue).length != 0) {
+                    revert UnusedFieldNotZero(i);
+                }
             }
 
             if (i > 0 && ShortString.unwrap(attributes[i].name) <= ShortString.unwrap(attributes[i - 1].name)) {
@@ -229,8 +237,6 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         bytes calldata payload,
         Attribute[] calldata attributes
     ) public pure returns (bytes32) {
-        // TODO This could be more efficient using single bytes32 hashing itself
-        // Also additionally is that this can be rolled into the same attrHashes validation loop
         bytes32[] memory attrHashes = new bytes32[](attributes.length);
         for (uint256 i = 0; i < attributes.length; i++) {
             attrHashes[i] = attributeHash(attributes[i]);

@@ -147,6 +147,77 @@ contract EntityRegistryValidateEntityTest is EntityRegistryBase {
         registry.validateEntity(_payload(0), attributes);
     }
 
+    // -------------------------------------------------------------------------
+    // validateEntity — unused field zeroing
+    // -------------------------------------------------------------------------
+
+    function test_validateEntity_stringAttrWithNonZeroFixedValue_reverts() public {
+        // GIVEN a STRING attribute with a non-zero fixedValue
+        EntityRegistry.Attribute[] memory attributes = new EntityRegistry.Attribute[](1);
+        attributes[0] = EntityRegistry.Attribute({
+            name: ShortStrings.toShortString("tag"),
+            valueType: EntityRegistry.AttributeType.STRING,
+            fixedValue: bytes32(uint256(1)),
+            stringValue: "hello"
+        });
+
+        // WHEN / THEN
+        vm.expectRevert(abi.encodeWithSelector(EntityRegistry.UnusedFieldNotZero.selector, 0));
+        registry.validateEntity(_payload(0), attributes);
+    }
+
+    function test_validateEntity_uintAttrWithNonEmptyStringValue_reverts() public {
+        // GIVEN a UINT attribute with a non-empty stringValue
+        EntityRegistry.Attribute[] memory attributes = new EntityRegistry.Attribute[](1);
+        attributes[0] = EntityRegistry.Attribute({
+            name: ShortStrings.toShortString("count"),
+            valueType: EntityRegistry.AttributeType.UINT,
+            fixedValue: bytes32(uint256(42)),
+            stringValue: "should be empty"
+        });
+
+        // WHEN / THEN
+        vm.expectRevert(abi.encodeWithSelector(EntityRegistry.UnusedFieldNotZero.selector, 0));
+        registry.validateEntity(_payload(0), attributes);
+    }
+
+    function test_validateEntity_entityKeyAttrWithNonEmptyStringValue_reverts() public {
+        // GIVEN an ENTITY_KEY attribute with a non-empty stringValue
+        EntityRegistry.Attribute[] memory attributes = new EntityRegistry.Attribute[](1);
+        attributes[0] = EntityRegistry.Attribute({
+            name: ShortStrings.toShortString("ref"),
+            valueType: EntityRegistry.AttributeType.ENTITY_KEY,
+            fixedValue: keccak256("entity"),
+            stringValue: "should be empty"
+        });
+
+        // WHEN / THEN
+        vm.expectRevert(abi.encodeWithSelector(EntityRegistry.UnusedFieldNotZero.selector, 0));
+        registry.validateEntity(_payload(0), attributes);
+    }
+
+    function test_validateEntity_stringAttrWithZeroFixedValue_succeeds() public view {
+        // GIVEN a STRING attribute with correctly zeroed fixedValue
+        EntityRegistry.Attribute[] memory attributes = new EntityRegistry.Attribute[](1);
+        attributes[0] = _stringAttr("tag", "hello");
+
+        // WHEN / THEN no revert
+        registry.validateEntity(_payload(0), attributes);
+    }
+
+    function test_validateEntity_uintAttrWithEmptyStringValue_succeeds() public view {
+        // GIVEN a UINT attribute with correctly empty stringValue
+        EntityRegistry.Attribute[] memory attributes = new EntityRegistry.Attribute[](1);
+        attributes[0] = _uintAttr("count", 42);
+
+        // WHEN / THEN no revert
+        registry.validateEntity(_payload(0), attributes);
+    }
+
+    // -------------------------------------------------------------------------
+    // validateEntity — empty attributes
+    // -------------------------------------------------------------------------
+
     function test_validateEntity_emptyAttributes_succeeds() public view {
         // GIVEN no attributes
         EntityRegistry.Attribute[] memory attributes = new EntityRegistry.Attribute[](0);
