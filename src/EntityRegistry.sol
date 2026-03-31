@@ -167,80 +167,6 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     }
 
     // -------------------------------------------------------------------------
-    // Public pure functions
-    // -------------------------------------------------------------------------
-
-    /// @notice Computes the EIP-712 struct hash for a single attribute.
-    ///
-    /// Every field is included in the hash regardless of the attribute type:
-    ///   - name:        ShortString (up to 31 bytes), encoded as bytes32
-    ///   - valueType:   the type discriminator (UINT=0, STRING=1, ENTITY_KEY=2)
-    ///   - fixedValue:  used by UINT and ENTITY_KEY; zero for STRING
-    ///   - stringValue: used by STRING; empty for UINT and ENTITY_KEY, hashed via keccak256
-    ///
-    /// All four fields contribute to the hash even when semantically unused for a given
-    /// type. This means callers must zero unused fields — a STRING attribute with a
-    /// non-zero fixedValue will produce a different hash than one with fixedValue=0,
-    /// even though fixedValue is semantically meaningless for STRING.
-    ///
-    /// The valueType field prevents type confusion: a UINT attribute and an ENTITY_KEY
-    /// attribute with the same name and fixedValue produce different hashes.
-    function attributeHash(Attribute calldata attr) public pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                ATTRIBUTE_TYPEHASH, attr.name, attr.valueType, attr.fixedValue, keccak256(bytes(attr.stringValue))
-            )
-        );
-    }
-
-    /// @notice Computes the EIP-712 core hash — the immutable content commitment of an entity.
-    ///
-    /// The core hash captures everything about an entity that does not change after creation
-    /// (except on update, which replaces the core hash entirely):
-    ///   - key:          the entity's unique identifier
-    ///   - creator:      the address that created the entity (immutable, distinct from owner)
-    ///   - createdAt:    the block number at creation (immutable)
-    ///   - contentType:  the MIME type of the payload (hashed via keccak256)
-    ///   - payload:      the entity's content (hashed via keccak256, not stored on-chain)
-    ///   - attributes:   entity metadata for querying (each hashed individually, then
-    ///                   the array of hashes is concatenated and hashed)
-    ///
-    /// The core hash is the inner part of the two-part entity hash structure. It is stable
-    /// across extendEntity and changeOwner — those operations only modify mutable fields
-    /// (owner, updatedAt, expiresAt) in the outer entityHash. This means the contract can
-    /// recompute entityHash for those operations using only the stored coreHash and on-chain
-    /// metadata, without needing the payload or attributes.
-    ///
-    /// Attribute ordering matters: the same attributes in a different order produce a
-    /// different core hash. The contract requires attributes to be sorted ascending by
-    /// name (enforced by validateEntity) to ensure deterministic hashing across all
-    /// implementations.
-    function coreHash(
-        bytes32 key,
-        address creator,
-        uint32 createdAt,
-        string calldata contentType,
-        bytes calldata payload,
-        Attribute[] calldata attributes
-    ) public pure returns (bytes32) {
-        bytes32[] memory attrHashes = new bytes32[](attributes.length);
-        for (uint256 i = 0; i < attributes.length; i++) {
-            attrHashes[i] = attributeHash(attributes[i]);
-        }
-        return keccak256(
-            abi.encode(
-                CORE_HASH_TYPEHASH,
-                key,
-                creator,
-                createdAt,
-                keccak256(bytes(contentType)),
-                keccak256(payload),
-                keccak256(abi.encodePacked(attrHashes))
-            )
-        );
-    }
-
-    // -------------------------------------------------------------------------
     // Public view functions
     // -------------------------------------------------------------------------
 
@@ -341,10 +267,74 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     }
 
     /// @dev Computes entityHash from a stored entity's current fields.
-    /// Used by delete, expire, and extend (before mutation) to capture the entity's hash.
     function _entityHashFromStorage(Entity storage entity) internal view returns (bytes32) {
         return entityHash(
             entity.coreHash, entity.owner, BlockNumber.unwrap(entity.updatedAt), BlockNumber.unwrap(entity.expiresAt)
+        );
+    }
+
+    /// @dev Computes the EIP-712 struct hash for a single attribute.
+    ///
+    /// Every field is included in the hash regardless of the attribute type:
+    ///   - name:        ShortString (up to 31 bytes), encoded as bytes32
+    ///   - valueType:   the type discriminator (UINT=0, STRING=1, ENTITY_KEY=2)
+    ///   - fixedValue:  used by UINT and ENTITY_KEY; zero for STRING
+    ///   - stringValue: used by STRING; empty for UINT and ENTITY_KEY, hashed via keccak256
+    ///
+    /// All four fields contribute to the hash even when semantically unused for a given
+    /// type. This means callers must zero unused fields — a STRING attribute with a
+    /// non-zero fixedValue will produce a different hash than one with fixedValue=0,
+    /// even though fixedValue is semantically meaningless for STRING.
+    ///
+    /// The valueType field prevents type confusion: a UINT attribute and an ENTITY_KEY
+    /// attribute with the same name and fixedValue produce different hashes.
+    function _attributeHash(Attribute calldata attr) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                ATTRIBUTE_TYPEHASH, attr.name, attr.valueType, attr.fixedValue, keccak256(bytes(attr.stringValue))
+            )
+        );
+    }
+
+    /// @dev Computes the EIP-712 core hash — the immutable content commitment of an entity.
+    ///
+    /// The core hash captures everything about an entity that does not change after creation
+    /// (except on update, which replaces the core hash entirely):
+    ///   - key:          the entity's unique identifier
+    ///   - creator:      the address that created the entity (immutable, distinct from owner)
+    ///   - createdAt:    the block number at creation (immutable)
+    ///   - contentType:  the MIME type of the payload (hashed via keccak256)
+    ///   - payload:      the entity's content (hashed via keccak256, not stored on-chain)
+    ///   - attrHashes:   pre-computed EIP-712 hashes of each attribute, concatenated and hashed
+    ///
+    /// The core hash is the inner part of the two-part entity hash structure. It is stable
+    /// across extendEntity and changeOwner — those operations only modify mutable fields
+    /// (owner, updatedAt, expiresAt) in the outer entityHash. This means the contract can
+    /// recompute entityHash for those operations using only the stored coreHash and on-chain
+    /// metadata, without needing the payload or attributes.
+    ///
+    /// Attribute ordering matters: the same attributes in a different order produce a
+    /// different core hash. The contract requires attributes to be sorted ascending by
+    /// name (enforced by _validateAndHash) to ensure deterministic hashing across all
+    /// implementations.
+    function _coreHash(
+        bytes32 key,
+        address creator,
+        uint32 createdAt,
+        string calldata contentType,
+        bytes calldata payload,
+        bytes32[] memory attrHashes
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                CORE_HASH_TYPEHASH,
+                key,
+                creator,
+                createdAt,
+                keccak256(bytes(contentType)),
+                keccak256(payload),
+                keccak256(abi.encodePacked(attrHashes))
+            )
         );
     }
 
@@ -389,20 +379,10 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
             if (i > 0 && ShortString.unwrap(attributes[i].name) <= ShortString.unwrap(attributes[i - 1].name)) {
                 revert AttributesNotSorted(attributes[i].name, attributes[i - 1].name);
             }
-            attrHashes[i] = attributeHash(attributes[i]);
+            attrHashes[i] = _attributeHash(attributes[i]);
         }
 
-        return keccak256(
-            abi.encode(
-                CORE_HASH_TYPEHASH,
-                key,
-                creator,
-                createdAt,
-                keccak256(bytes(contentType)),
-                keccak256(payload),
-                keccak256(abi.encodePacked(attrHashes))
-            )
-        );
+        return _coreHash(key, creator, createdAt, contentType, payload, attrHashes);
     }
 
     function _accumulateChangeSet(OpType opType, bytes32 key, bytes32 _entityHash) internal {

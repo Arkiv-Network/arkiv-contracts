@@ -5,16 +5,38 @@ import {Test} from "forge-std/Test.sol";
 import {ShortStrings} from "@openzeppelin/contracts/utils/ShortStrings.sol";
 import {EntityRegistry} from "../src/EntityRegistry.sol";
 
+/// @dev Test harness that exposes internal hash functions for verification.
+contract EntityRegistryTestable is EntityRegistry {
+    function attributeHash(Attribute calldata attr) external pure returns (bytes32) {
+        return _attributeHash(attr);
+    }
+
+    function coreHash(
+        bytes32 key,
+        address creator,
+        uint32 createdAt,
+        string calldata contentType,
+        bytes calldata payload,
+        Attribute[] calldata attributes
+    ) external pure returns (bytes32) {
+        bytes32[] memory attrHashes = new bytes32[](attributes.length);
+        for (uint256 i = 0; i < attributes.length; i++) {
+            attrHashes[i] = _attributeHash(attributes[i]);
+        }
+        return _coreHash(key, creator, createdAt, contentType, payload, attrHashes);
+    }
+}
+
 contract EntityRegistryBase is Test {
     using ShortStrings for *;
 
-    EntityRegistry registry;
+    EntityRegistryTestable registry;
 
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
 
     function setUp() public virtual {
-        registry = new EntityRegistry();
+        registry = new EntityRegistryTestable();
     }
 
     // -------------------------------------------------------------------------
