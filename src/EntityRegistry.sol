@@ -390,13 +390,13 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     }
 
     function _create(Op calldata op) internal {
-        if (op.expiresAt <= currentBlock()) {
-            revert ExpiryInPast(op.expiresAt, currentBlock());
+        BlockNumber now_ = currentBlock();
+        if (op.expiresAt <= now_) {
+            revert ExpiryInPast(op.expiresAt, now_);
         }
 
         uint32 nonce = nonces[msg.sender]++;
         bytes32 key = entityKey(msg.sender, nonce);
-        BlockNumber now_ = currentBlock();
 
         bytes32 _coreHash =
             _validateAndHash(key, msg.sender, BlockNumber.unwrap(now_), op.contentType, op.payload, op.attributes);
