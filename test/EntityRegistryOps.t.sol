@@ -175,6 +175,68 @@ contract EntityRegistryOpsTest is EntityRegistryBase {
         _executeSingle(_createOp("hello", pastExpiry));
     }
 
+    function test_create_invalidContentType_reverts() public {
+        // GIVEN an Op with an invalid content type
+        EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](0);
+        EntityRegistry.Op memory badOp = EntityRegistry.Op({
+            opType: EntityRegistry.OpType.CREATE,
+            entityKey: bytes32(0),
+            payload: "hello",
+            contentType: "image/png",
+            attributes: attrs,
+            expiresAt: expiresAt
+        });
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(EntityRegistry.InvalidContentType.selector, "image/png"));
+        _executeSingle(badOp);
+    }
+
+    function test_create_emptyContentType_reverts() public {
+        // GIVEN an Op with empty content type
+        EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](0);
+        EntityRegistry.Op memory badOp = EntityRegistry.Op({
+            opType: EntityRegistry.OpType.CREATE,
+            entityKey: bytes32(0),
+            payload: "hello",
+            contentType: "",
+            attributes: attrs,
+            expiresAt: expiresAt
+        });
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(EntityRegistry.InvalidContentType.selector, ""));
+        _executeSingle(badOp);
+    }
+
+    function test_create_allValidContentTypes_succeed() public {
+        // GIVEN each seeded content type
+        string[7] memory types = [
+            "application/json",
+            "application/octet-stream",
+            "application/pdf",
+            "application/cbor",
+            "text/plain",
+            "text/csv",
+            "text/html"
+        ];
+
+        for (uint256 i = 0; i < types.length; i++) {
+            EntityRegistry.Attribute[] memory attrs = new EntityRegistry.Attribute[](0);
+            EntityRegistry.Op memory createOp = EntityRegistry.Op({
+                opType: EntityRegistry.OpType.CREATE,
+                entityKey: bytes32(0),
+                payload: "hello",
+                contentType: types[i],
+                attributes: attrs,
+                expiresAt: expiresAt
+            });
+
+            vm.prank(alice);
+            _executeSingle(createOp);
+        }
+    }
+
     // -------------------------------------------------------------------------
     // UPDATE — happy path
     // -------------------------------------------------------------------------

@@ -61,6 +61,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     error AttributesNotSorted(ShortString name, ShortString previousName);
     error EmptyAttributeName(uint256 index);
     error UnusedFieldNotZero(uint256 index);
+    error InvalidContentType(string contentType);
     error EntityNotFound(bytes32 entityKey);
     error EntityExpiredError(bytes32 entityKey, BlockNumber expiresAt);
     error NotOwner(bytes32 entityKey, address caller, address owner);
@@ -146,6 +147,24 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     bytes32 internal _changeSetHash;
 
     mapping(bytes32 => Entity) public entities;
+
+    // Content type allowlist — keyed by keccak256 of the content type string.
+    // Seeded in the constructor. O(1) lookup via single SLOAD.
+    mapping(bytes32 => bool) public validContentTypes;
+
+    // -------------------------------------------------------------------------
+    // Constructor
+    // -------------------------------------------------------------------------
+
+    constructor() {
+        validContentTypes[keccak256("application/json")] = true;
+        validContentTypes[keccak256("application/octet-stream")] = true;
+        validContentTypes[keccak256("application/pdf")] = true;
+        validContentTypes[keccak256("application/cbor")] = true;
+        validContentTypes[keccak256("text/plain")] = true;
+        validContentTypes[keccak256("text/csv")] = true;
+        validContentTypes[keccak256("text/html")] = true;
+    }
 
     // -------------------------------------------------------------------------
     // Public pure functions
@@ -364,11 +383,18 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         }
     }
 
+    function _requireValidContentType(string calldata contentType) internal view {
+        if (!validContentTypes[keccak256(bytes(contentType))]) {
+            revert InvalidContentType(contentType);
+        }
+    }
+
     function _accumulateChangeSet(OpType opType, bytes32 key, bytes32 _entityHash) internal {
         _changeSetHash = keccak256(abi.encodePacked(_changeSetHash, opType, key, _entityHash));
     }
 
     function _create(Op calldata op) internal {
+        _requireValidContentType(op.contentType);
         validateEntity(op.payload, op.attributes);
         if (op.expiresAt <= currentBlock()) {
             revert ExpiryInPast(op.expiresAt, currentBlock());
@@ -400,6 +426,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         Entity storage entity = _loadEntity(op.entityKey);
         _requireNotExpired(op.entityKey, entity);
         _requireOwner(op.entityKey, entity);
+        _requireValidContentType(op.contentType);
         validateEntity(op.payload, op.attributes);
 
         BlockNumber now_ = currentBlock();
