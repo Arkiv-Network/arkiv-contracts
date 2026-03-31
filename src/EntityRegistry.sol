@@ -12,6 +12,14 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Type declarations
     // -------------------------------------------------------------------------
 
+    enum Op {
+        CREATE,
+        UPDATE,
+        EXTEND,
+        DELETE,
+        EXPIRE
+    }
+
     enum AttributeType {
         UINT,
         STRING,
@@ -48,6 +56,14 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     error EmptyAttributeName(uint256 index);
 
     // -------------------------------------------------------------------------
+    // Events
+    // -------------------------------------------------------------------------
+
+    event ChangeSetHashFinalized(
+        uint256 indexed blockNumber, bytes32 blockChangeSetHash, bytes32 cumulativeChangeSetHash
+    );
+
+    // -------------------------------------------------------------------------
     // Constants
     // -------------------------------------------------------------------------
 
@@ -76,6 +92,10 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // A per-owner nonce is only affected by the owner's own activity, so the next key
     // is predictable client-side before submission.
     mapping(address owner => uint32) public nonces;
+
+    bytes32 public currentBlockChangeSetHash;
+    bytes32 public cumulativeChangeSetHash;
+    uint256 public lastMutationBlock;
 
     // -------------------------------------------------------------------------
     // Public pure functions
@@ -156,5 +176,26 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         returns (bytes32)
     {
         return _hashTypedDataV4(keccak256(abi.encode(ENTITY_HASH_TYPEHASH, _coreHash, owner, updatedAt, expiresAt)));
+    }
+
+    // -------------------------------------------------------------------------
+    // Internal functions
+    // -------------------------------------------------------------------------
+
+    function _op(Op op, bytes32 _entityKey, bytes32 _entityHash) internal {
+        // TODO: entity mutation logic per op type
+        _accumulateChangeSet(op, _entityKey, _entityHash);
+    }
+
+    function _accumulateChangeSet(Op op, bytes32 _entityKey, bytes32 _entityHash) internal {
+        if (lastMutationBlock != 0 && block.number > lastMutationBlock) {
+            cumulativeChangeSetHash =
+                keccak256(abi.encodePacked(cumulativeChangeSetHash, lastMutationBlock, currentBlockChangeSetHash));
+            emit ChangeSetHashFinalized(lastMutationBlock, currentBlockChangeSetHash, cumulativeChangeSetHash);
+            currentBlockChangeSetHash = bytes32(0);
+        }
+        lastMutationBlock = block.number;
+
+        currentBlockChangeSetHash = keccak256(abi.encodePacked(currentBlockChangeSetHash, op, _entityKey, _entityHash));
     }
 }
