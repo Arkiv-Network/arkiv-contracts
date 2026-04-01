@@ -25,10 +25,16 @@
             cargo
             foundry
             gcc
+            llvmPackages.libclang
+            openssl
+            pkg-config
             python313
             reth
             rustc
             solc
+          ];
+          env = [
+            { name = "LIBCLANG_PATH"; value = "${pkgs.llvmPackages.libclang.lib}/lib"; }
           ];
         };
       };
