@@ -13,6 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 BLOCK_TIME="${BLOCK_TIME:-2000ms}"
 GAS_LIMIT="${GAS_LIMIT:-60000000}"
+MAX_TX_BYTES="${MAX_TX_BYTES:-10485760}"
 HTTP_PORT="${HTTP_PORT:-8545}"
 DATADIR="${DATADIR:-/tmp/arkiv-stress-reth}"
 RPC_URL="http://127.0.0.1:$HTTP_PORT"
@@ -37,6 +38,7 @@ GENESIS="$SCRIPT_DIR/genesis.json"
 echo "==> Starting reth dev node..."
 echo "    Block time:  $BLOCK_TIME"
 echo "    Gas limit:   $GAS_LIMIT"
+echo "    Max tx size: $MAX_TX_BYTES bytes ($((MAX_TX_BYTES / 1048576)) MB)"
 echo "    Base fee:    0.001 gwei (1M wei)"
 echo "    HTTP port:   $HTTP_PORT"
 echo "    Data dir:    $DATADIR"
@@ -45,6 +47,9 @@ reth node \
     --dev \
     --dev.block-time "${BLOCK_TIME}" \
     --builder.gaslimit "$GAS_LIMIT" \
+    --txpool.max-tx-input-bytes "$MAX_TX_BYTES" \
+    --rpc.max-request-size 50 \
+    --rpc.max-response-size 50 \
     --chain "$GENESIS" \
     --datadir "$DATADIR" \
     --http \
