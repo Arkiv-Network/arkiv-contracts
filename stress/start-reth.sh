@@ -12,6 +12,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 BLOCK_TIME="${BLOCK_TIME:-2000ms}"
+GAS_LIMIT="${GAS_LIMIT:-60000000}"
 HTTP_PORT="${HTTP_PORT:-8545}"
 DATADIR="${DATADIR:-/tmp/arkiv-stress-reth}"
 RPC_URL="http://127.0.0.1:$HTTP_PORT"
@@ -33,12 +34,14 @@ rm -rf "$DATADIR"
 
 echo "==> Starting reth dev node..."
 echo "    Block time:  $BLOCK_TIME"
+echo "    Gas limit:   $GAS_LIMIT"
 echo "    HTTP port:   $HTTP_PORT"
 echo "    Data dir:    $DATADIR"
 
 reth node \
     --dev \
     --dev.block-time "${BLOCK_TIME}" \
+    --builder.gaslimit "$GAS_LIMIT" \
     --datadir "$DATADIR" \
     --http \
     --http.api eth,net,web3,debug,trace \
