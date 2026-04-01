@@ -24,7 +24,6 @@ __pycache__/
 stress/target/
 
 # Stress test generated files
-stress/genesis.json
 stress/reth.pid
 
 # Nix
