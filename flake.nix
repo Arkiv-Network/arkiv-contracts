@@ -22,9 +22,12 @@
       perSystem = {pkgs, ...}: {
         devshells.default = {
           packages = with pkgs; [
+            cargo
             foundry
+            gcc
             python313
             reth
+            rustc
             solc
           ];
         };
