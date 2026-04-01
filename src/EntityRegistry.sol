@@ -85,6 +85,8 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
     event EntityExpired(bytes32 indexed entityKey, address indexed owner, bytes32 entityHash, BlockNumber expiresAt);
 
+    event ChangeSetHashUpdated(bytes32 changeSetHash);
+
     // -------------------------------------------------------------------------
     // Constants
     // -------------------------------------------------------------------------
@@ -244,6 +246,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
             hash = keccak256(abi.encodePacked(hash, opType, key, _entityHash));
         }
         _changeSetHash = hash;
+        emit ChangeSetHashUpdated(hash);
     }
 
     function expireEntities(bytes32[] calldata keys) external {
@@ -253,6 +256,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
             hash = keccak256(abi.encodePacked(hash, OpType.EXPIRE, key, _entityHash));
         }
         _changeSetHash = hash;
+        emit ChangeSetHashUpdated(hash);
     }
 
     // -------------------------------------------------------------------------

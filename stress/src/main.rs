@@ -1,11 +1,10 @@
 mod abi;
 
 use std::io::Write;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
 use std::time::Instant;
 
 use alloy::{
+    eips::Encodable2718,
     network::{EthereumWallet, TransactionBuilder},
     primitives::{Address, Bytes, FixedBytes, U256, keccak256},
     providers::{Provider, ProviderBuilder, SendableTx},
@@ -55,18 +54,30 @@ struct Prices {
     eth_price_usd: f64,
 }
 
+/// Per-chunk on-chain data, sorted by execution order.
+struct ChunkReceipt {
+    chunk_idx: usize,
+    block_number: u64,
+    tx_index: u64,
+    gas_used: u64,
+    effective_gas_price: u128, // wei
+    base_fee: u64,             // wei
+    changeset_hash: FixedBytes<32>,
+}
+
 struct SizeResult {
     size_kb: u64,
-    chunks: usize,
-    succeeded: u64,
+    chunks: Vec<ChunkReceipt>,
     failed: u64,
     total_calldata: usize,
-    total_gas: u64,
 }
 
 impl SizeResult {
+    fn total_gas(&self) -> u64 {
+        self.chunks.iter().map(|c| c.gas_used).sum()
+    }
     fn l2_cost_eth(&self, l2_gwei: f64) -> f64 {
-        self.total_gas as f64 * l2_gwei * 1e-9
+        self.total_gas() as f64 * l2_gwei * 1e-9
     }
     fn l1_cost_eth(&self, l1_gwei: f64) -> f64 {
         self.total_calldata as f64 * l1_gwei * 1e-9
@@ -113,7 +124,6 @@ async fn main() -> Result<()> {
         dev_provider.send_transaction(fund_tx).await?.watch().await?;
     }
 
-    // Deploy
     println!("Deploying EntityRegistry...");
     let contract_addr = deploy_registry(&rpc_url).await?;
     println!("  Deployed at: {contract_addr}");
@@ -146,18 +156,13 @@ fn compute_max_payload() -> usize {
             expiresAt: u32::MAX,
         }],
     };
-    let overhead = SolCall::abi_encode(&sample).len();
-    TX_SIZE_LIMIT - TX_ENVELOPE_OVERHEAD - overhead
+    TX_SIZE_LIMIT - TX_ENVELOPE_OVERHEAD - SolCall::abi_encode(&sample).len()
 }
 
-fn chunk_attributes(
-    file_hash: FixedBytes<32>,
-    chunk_idx: u64,
-    chunk_total: u64,
-) -> Vec<EntityRegistry::Attribute> {
+fn chunk_attributes(file_hash: FixedBytes<32>, idx: u64, total: u64) -> Vec<EntityRegistry::Attribute> {
     vec![
-        uint_attr("chunk_idx", chunk_idx),
-        uint_attr("chunk_total", chunk_total),
+        uint_attr("chunk_idx", idx),
+        uint_attr("chunk_total", total),
         entity_key_attr("file_hash", file_hash),
     ]
 }
@@ -182,7 +187,7 @@ fn entity_key_attr(name: &str, value: FixedBytes<32>) -> EntityRegistry::Attribu
 
 fn short_string(s: &str) -> FixedBytes<32> {
     let bytes = s.as_bytes();
-    assert!(bytes.len() <= 31, "ShortString too long: {s}");
+    assert!(bytes.len() <= 31);
     let mut buf = [0u8; 32];
     buf[..bytes.len()].copy_from_slice(bytes);
     buf[31] = (bytes.len() * 2) as u8;
@@ -202,17 +207,14 @@ async fn deploy_registry(rpc_url: &alloy::transports::http::reqwest::Url) -> Res
         serde_json::from_str(&std::fs::read_to_string(&artifact_path)
             .map_err(|e| eyre::eyre!("Run `forge build` first: {e}"))?)?;
     let bytecode_hex = artifact["bytecode"]["object"]
-        .as_str()
-        .ok_or_else(|| eyre::eyre!("No bytecode in artifact"))?;
+        .as_str().ok_or_else(|| eyre::eyre!("No bytecode in artifact"))?;
     let bytecode = alloy::hex::decode(bytecode_hex)?;
 
     let tx = alloy::rpc::types::TransactionRequest::default()
         .with_deploy_code(bytecode)
         .gas_limit(5_000_000);
-
     let receipt = provider.send_transaction(tx).await?.get_receipt().await?;
-    receipt.contract_address
-        .ok_or_else(|| eyre::eyre!("No contract address in receipt"))
+    receipt.contract_address.ok_or_else(|| eyre::eyre!("No contract address in receipt"))
 }
 
 async fn run_size<P: Provider>(
@@ -229,17 +231,14 @@ async fn run_size<P: Provider>(
 
     let chunk_count = if file_bytes == 0 { 1 } else { (file_bytes + max_payload - 1) / max_payload };
     let expires_at = reader.get_block_number().await? as u32 + 1_000_000;
+    let mut nonce = reader.get_transaction_count(user_wallet.address()).await?;
 
-    let wallet_addr = user_wallet.address();
-    let mut nonce = reader.get_transaction_count(wallet_addr).await?;
-
-    // Build a wallet provider for signing
     let signer_provider = ProviderBuilder::new()
         .wallet(EthereumWallet::from(user_wallet.clone()))
         .connect_http(rpc_url.clone());
 
-    // Build and sign all chunk txs upfront
-    let mut signed_txs: Vec<Bytes> = Vec::with_capacity(chunk_count);
+    // Build, estimate, sign all chunks
+    let mut signed_txs: Vec<(usize, Bytes, usize)> = Vec::with_capacity(chunk_count); // (chunk_idx, raw, calldata_len)
     let mut total_calldata: usize = 0;
 
     for i in 0..chunk_count {
@@ -256,16 +255,16 @@ async fn run_size<P: Provider>(
         };
 
         let calldata = SolCall::abi_encode(&EntityRegistry::executeCall { ops: vec![op] });
-        total_calldata += calldata.len();
+        let calldata_len = calldata.len();
+        total_calldata += calldata_len;
 
+        // Estimate gas
         let tx_for_estimate = alloy::rpc::types::TransactionRequest::default()
             .to(contract)
             .input(alloy::rpc::types::TransactionInput {
                 input: Some(Bytes::from(calldata.clone())),
                 data: None,
             });
-
-        // Use eth_estimateGas for accurate limit, with 20% headroom
         let estimated = reader.estimate_gas(tx_for_estimate).await?;
         let gas_limit = estimated * 120 / 100;
 
@@ -280,17 +279,13 @@ async fn run_size<P: Provider>(
             .max_fee_per_gas(20_000_000_000)
             .max_priority_fee_per_gas(1_000_000_000);
 
-        // Fill + sign, extract raw encoded bytes
         let sendable = signer_provider.fill(tx).await?;
         let raw = match sendable {
-            SendableTx::Envelope(env) => {
-                use alloy::eips::Encodable2718;
-                Bytes::from(env.encoded_2718())
-            }
+            SendableTx::Envelope(env) => Bytes::from(env.encoded_2718()),
             _ => return Err(eyre::eyre!("unexpected sendable tx type")),
         };
 
-        signed_txs.push(raw);
+        signed_txs.push((i, raw, calldata_len));
         nonce += 1;
     }
 
@@ -301,84 +296,124 @@ async fn run_size<P: Provider>(
         format_bytes(total_calldata),
     );
 
-    // Blast all signed txs into mempool
+    // Blast all into mempool
     let plain_provider = ProviderBuilder::new().connect_http(rpc_url.clone());
-
-    let mined = Arc::new(AtomicU64::new(0));
-    let gas_total = Arc::new(AtomicU64::new(0));
-    let errors = Arc::new(AtomicU64::new(0));
     let start = Instant::now();
 
-    // Fire all at once — mempool handles ordering via nonces
-    let mut tx_hashes = Vec::with_capacity(chunk_count);
-    for raw in &signed_txs {
+    let mut pending_txs: Vec<(usize, usize, _)> = Vec::new(); // (chunk_idx, calldata_len, pending)
+    let mut failed: u64 = 0;
+
+    for (chunk_idx, raw, calldata_len) in &signed_txs {
         match plain_provider.send_raw_transaction(raw).await {
-            Ok(pending) => tx_hashes.push(Some(pending)),
+            Ok(pending) => pending_txs.push((*chunk_idx, *calldata_len, pending)),
             Err(e) => {
-                eprintln!("    send error: {e}");
-                errors.fetch_add(1, Ordering::Relaxed);
-                tx_hashes.push(None);
+                eprintln!("    send error (chunk {chunk_idx}): {e}");
+                failed += 1;
             }
         }
     }
 
-    let sent = tx_hashes.iter().filter(|h| h.is_some()).count();
+    let sent = pending_txs.len();
     if chunk_count > 1 {
-        print!("           {sent}/{chunk_count} sent, waiting for receipts...");
+        print!("           {sent}/{chunk_count} sent, collecting receipts...");
         let _ = std::io::stdout().flush();
     }
 
-    // Collect all receipts in parallel
+    // Collect receipts — parallel await, then sort by chain order
     let mut receipt_handles = Vec::new();
-    for pending_opt in tx_hashes {
-        let mined = mined.clone();
-        let gas_total = gas_total.clone();
-        let errors = errors.clone();
-        let chunk_count = chunk_count;
-
+    for (chunk_idx, _calldata_len, pending) in pending_txs {
+        let rpc_url = rpc_url.clone();
         receipt_handles.push(tokio::spawn(async move {
-            let Some(pending) = pending_opt else { return };
             match pending.get_receipt().await {
                 Ok(receipt) => {
-                    gas_total.fetch_add(receipt.gas_used as u64, Ordering::Relaxed);
-                    let done = mined.fetch_add(1, Ordering::Relaxed) + 1;
-                    if chunk_count > 1 && (done % 10 == 0 || done == chunk_count as u64) {
-                        print!("\r           {done}/{chunk_count} mined              ");
-                        let _ = std::io::stdout().flush();
-                    }
+                    let block_num = receipt.block_number.unwrap_or(0);
+                    let base_fee = get_block_base_fee(&rpc_url, block_num).await;
+
+                    // Parse ChangeSetHashUpdated event from receipt logs
+                    let changeset_hash = parse_changeset_hash(&receipt);
+
+                    Ok(ChunkReceipt {
+                        chunk_idx,
+                        block_number: block_num,
+                        tx_index: receipt.transaction_index.unwrap_or(0),
+                        gas_used: receipt.gas_used as u64,
+                        effective_gas_price: receipt.effective_gas_price,
+                        base_fee,
+                        changeset_hash,
+                    })
                 }
-                Err(e) => {
-                    errors.fetch_add(1, Ordering::Relaxed);
-                    eprintln!("\n    receipt error: {e}");
-                }
+                Err(e) => Err(e),
             }
         }));
     }
 
-    for h in receipt_handles {
-        let _ = h.await;
+    let mut chunk_receipts: Vec<ChunkReceipt> = Vec::new();
+    for (i, handle) in receipt_handles.into_iter().enumerate() {
+        match handle.await {
+            Ok(Ok(cr)) => {
+                if chunk_count > 1 {
+                    let done = chunk_receipts.len() + 1;
+                    print!("\r           {done}/{sent} mined              ");
+                    let _ = std::io::stdout().flush();
+                }
+                chunk_receipts.push(cr);
+            }
+            Ok(Err(e)) => {
+                eprintln!("\n    receipt error (chunk {i}): {e}");
+                failed += 1;
+            }
+            Err(e) => {
+                eprintln!("\n    join error (chunk {i}): {e}");
+                failed += 1;
+            }
+        }
     }
 
+    // Sort by chain execution order
+    chunk_receipts.sort_by_key(|c| (c.block_number, c.tx_index));
+
     let elapsed = start.elapsed().as_secs_f64();
-    let total_gas = gas_total.load(Ordering::Relaxed);
-    let succeeded = mined.load(Ordering::Relaxed);
-    let failed = errors.load(Ordering::Relaxed);
+    let total_gas: u64 = chunk_receipts.iter().map(|c| c.gas_used).sum();
 
     if chunk_count > 1 { print!("\r"); }
     println!(
-        "           {succeeded}/{chunk_count} mined, {} gas, {:.1}s{}",
-        format_gas(total_gas), elapsed,
+        "           {}/{chunk_count} mined, {} gas, {:.1}s{}",
+        chunk_receipts.len(), format_gas(total_gas), elapsed,
         if failed > 0 { format!(" ({failed} failed)") } else { String::new() },
     );
 
     Ok(SizeResult {
         size_kb,
-        chunks: chunk_count,
-        succeeded,
+        chunks: chunk_receipts,
         failed,
         total_calldata,
-        total_gas,
     })
+}
+
+fn parse_changeset_hash(receipt: &alloy::rpc::types::TransactionReceipt) -> FixedBytes<32> {
+    use alloy::sol_types::SolEvent;
+    let sig = EntityRegistry::ChangeSetHashUpdated::SIGNATURE_HASH;
+    for log in receipt.inner.logs() {
+        let topics = log.topics();
+        if !topics.is_empty() && topics[0] == sig {
+            // ChangeSetHashUpdated has one non-indexed bytes32 in data
+            if log.data().data.len() >= 32 {
+                return FixedBytes::from_slice(&log.data().data[..32]);
+            }
+        }
+    }
+    FixedBytes::ZERO
+}
+
+async fn get_block_base_fee(
+    rpc_url: &alloy::transports::http::reqwest::Url,
+    block_num: u64,
+) -> u64 {
+    let provider = ProviderBuilder::new().connect_http(rpc_url.clone());
+    match provider.get_block_by_number(block_num.into()).await {
+        Ok(Some(block)) => block.header.inner.base_fee_per_gas.unwrap_or(0),
+        _ => 0,
+    }
 }
 
 // --- Price fetching ---
@@ -397,10 +432,7 @@ async fn fetch_prices(cli: &Cli) -> Result<Prices> {
                 let body: serde_json::Value = resp.json().await.unwrap_or_default();
                 body["ethereum"]["usd"].as_f64().unwrap_or(2000.0)
             }
-            Err(_) => {
-                eprintln!("  Could not fetch ETH price, using $2000");
-                2000.0
-            }
+            Err(_) => { eprintln!("  Could not fetch ETH price, using $2000"); 2000.0 }
         }
     };
 
@@ -409,15 +441,11 @@ async fn fetch_prices(cli: &Cli) -> Result<Prices> {
     } else {
         match fetch_op_gas_price(&client, &cli.op_rpc_url).await {
             Ok(p) => p,
-            Err(_) => {
-                eprintln!("  Could not fetch OP gas price, using 0.001 gwei");
-                0.001
-            }
+            Err(_) => { eprintln!("  Could not fetch OP gas price, using 0.001 gwei"); 0.001 }
         }
     };
 
     let l1_data_price_gwei = cli.l1_data_price_gwei.unwrap_or(5.0);
-
     Ok(Prices { l2_gas_price_gwei, l1_data_price_gwei, eth_price_usd })
 }
 
@@ -445,10 +473,10 @@ fn print_report(results: &[SizeResult], prices: &Prices) {
         "  L2 gas: {:.4} gwei  |  L1 data: {:.2} gwei/byte  |  ETH: ${:.0}",
         prices.l2_gas_price_gwei, prices.l1_data_price_gwei, prices.eth_price_usd
     );
-    println!("  Tx size limit: {} KB  |  Chunk attrs: file_hash, chunk_idx, chunk_total",
-        TX_SIZE_LIMIT / 1024);
+    println!("  Tx size limit: {} KB", TX_SIZE_LIMIT / 1024);
     println!();
 
+    // Summary table
     println!(
         "  {:>8}  {:>6}  {:>5}  {:>10}  {:>10}  {:>10}  {:>10}  {:>10}  {:>8}",
         "File", "Chunks", "OK", "Calldata", "Gas", "L2 Cost", "L1 Cost", "Total", "USD"
@@ -459,19 +487,17 @@ fn print_report(results: &[SizeResult], prices: &Prices) {
     );
 
     for r in results {
-        let status = if r.failed > 0 {
-            format!("{}/{}", r.succeeded, r.chunks)
-        } else {
-            format!("{}", r.succeeded)
-        };
+        let ok = r.chunks.len();
+        let total_chunks = ok as u64 + r.failed;
+        let status = if r.failed > 0 { format!("{ok}/{total_chunks}") } else { format!("{ok}") };
 
         println!(
             "  {:>5} KB  {:>6}  {:>5}  {:>10}  {:>10}  {:>10}  {:>10}  {:>10}  {:>8}",
             r.size_kb,
-            r.chunks,
+            total_chunks,
             status,
             format_bytes(r.total_calldata),
-            format_gas(r.total_gas),
+            format_gas(r.total_gas()),
             format_eth(r.l2_cost_eth(prices.l2_gas_price_gwei)),
             format_eth(r.l1_cost_eth(prices.l1_data_price_gwei)),
             format_eth(r.total_eth(prices)),
@@ -479,6 +505,59 @@ fn print_report(results: &[SizeResult], prices: &Prices) {
         );
     }
 
+    // Per-chunk detail for multi-chunk files
+    for r in results {
+        if r.chunks.len() <= 1 { continue; }
+
+        println!();
+        println!("  {} KB — per-chunk detail (chain order):", r.size_kb);
+        println!(
+            "    {:>5}  {:>8}  {:>5}  {:>10}  {:>14}  {:>14}  {}",
+            "Chunk", "Block", "TxIdx", "Gas Used", "Base Fee", "Eff. Price", "changeSetHash"
+        );
+        println!(
+            "    {:>5}  {:>8}  {:>5}  {:>10}  {:>14}  {:>14}  {}",
+            "─────", "────────", "─────", "──────────", "──────────────", "──────────────", "──────────────"
+        );
+
+        for c in &r.chunks {
+            println!(
+                "    {:>5}  {:>8}  {:>5}  {:>10}  {:>11} wei  {:>11} wei  {}",
+                c.chunk_idx,
+                c.block_number,
+                c.tx_index,
+                format_gas(c.gas_used),
+                c.base_fee,
+                c.effective_gas_price,
+                c.changeset_hash,
+            );
+        }
+
+        // Base fee trend
+        if r.chunks.len() >= 2 {
+            let first_base = r.chunks.first().unwrap().base_fee;
+            let last_base = r.chunks.last().unwrap().base_fee;
+            if first_base > 0 && last_base > 0 {
+                let change_pct = (last_base as f64 - first_base as f64) / first_base as f64 * 100.0;
+                println!(
+                    "    Base fee: {} → {} wei ({:+.1}% over {} chunks)",
+                    first_base, last_base, change_pct, r.chunks.len()
+                );
+            } else if first_base == 0 && last_base > 0 {
+                println!(
+                    "    Base fee: 0 → {} wei (from zero over {} chunks)",
+                    last_base, r.chunks.len()
+                );
+            } else {
+                println!(
+                    "    Base fee: {} → {} wei ({} chunks)",
+                    first_base, last_base, r.chunks.len()
+                );
+            }
+        }
+    }
+
+    // Cost breakdown
     println!();
     println!("  Cost breakdown per file:");
     for r in results {
@@ -486,11 +565,12 @@ fn print_report(results: &[SizeResult], prices: &Prices) {
         let l1 = r.l1_cost_eth(prices.l1_data_price_gwei);
         let total = r.total_eth(prices);
         let l1_pct = if total > 0.0 { l1 / total * 100.0 } else { 0.0 };
-        let status = if r.failed > 0 { format!(" [{} failed]", r.failed) } else { String::new() };
+        let total_chunks = r.chunks.len() as u64 + r.failed;
+        let fail_note = if r.failed > 0 { format!(" [{} failed]", r.failed) } else { String::new() };
         println!(
-            "    {:>5} KB ({} chunk{}): {} = L2 {} + L1 {} ({:.0}% L1 data){status}",
-            r.size_kb, r.chunks,
-            if r.chunks == 1 { "" } else { "s" },
+            "    {:>5} KB ({} chunk{}): {} = L2 {} + L1 {} ({:.0}% L1 data){fail_note}",
+            r.size_kb, total_chunks,
+            if total_chunks == 1 { "" } else { "s" },
             format_usd(r.total_usd(prices)),
             format_eth(l2), format_eth(l1), l1_pct,
         );
@@ -525,3 +605,4 @@ fn format_usd(usd: f64) -> String {
     else if usd < 1.0 { format!("${:.3}", usd) }
     else { format!("${:.2}", usd) }
 }
+

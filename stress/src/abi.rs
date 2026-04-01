@@ -30,5 +30,6 @@ sol! {
         event EntityExtended(bytes32 indexed entityKey, address indexed owner, bytes32 entityHash, uint32 previousExpiresAt, uint32 newExpiresAt);
         event EntityDeleted(bytes32 indexed entityKey, address indexed owner, bytes32 entityHash);
         event EntityExpired(bytes32 indexed entityKey, address indexed owner, bytes32 entityHash, uint32 expiresAt);
+        event ChangeSetHashUpdated(bytes32 changeSetHash);
     }
 }

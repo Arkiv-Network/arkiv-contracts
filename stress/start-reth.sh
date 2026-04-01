@@ -32,9 +32,12 @@ fi
 # Clean datadir for a fresh chain
 rm -rf "$DATADIR"
 
+GENESIS="$SCRIPT_DIR/genesis.json"
+
 echo "==> Starting reth dev node..."
 echo "    Block time:  $BLOCK_TIME"
 echo "    Gas limit:   $GAS_LIMIT"
+echo "    Base fee:    0.001 gwei (1M wei)"
 echo "    HTTP port:   $HTTP_PORT"
 echo "    Data dir:    $DATADIR"
 
@@ -42,6 +45,7 @@ reth node \
     --dev \
     --dev.block-time "${BLOCK_TIME}" \
     --builder.gaslimit "$GAS_LIMIT" \
+    --chain "$GENESIS" \
     --datadir "$DATADIR" \
     --http \
     --http.api eth,net,web3,debug,trace \
