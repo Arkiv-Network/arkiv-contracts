@@ -20,4 +20,14 @@ __pycache__/
 # Mac
 .DS_Store
 
+# Rust
+stress/target/
+
+# Stress test generated files
+stress/genesis.json
+stress/reth.pid
+
+# Nix
+.direnv/
+
 lib/

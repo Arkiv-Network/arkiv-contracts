@@ -23,6 +23,8 @@
         devshells.default = {
           packages = with pkgs; [
             foundry
+            python313
+            reth
             solc
           ];
         };
