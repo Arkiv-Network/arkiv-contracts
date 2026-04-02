@@ -166,25 +166,53 @@ This withholding risk is **identical** to the current calldata model on a single
 
 ## 4. Sequencer Implementation
 
-### What OP Stack already supports (zero changes)
+### Current OP Stack: blob transactions are blocked on L2
 
-OP Stack L2s with the Ecotone upgrade (Cancun EVM) already have:
+**Critical finding**: The OP Stack execution engine (op-geth) explicitly rejects type 3 (EIP-4844) blob transactions on L2. In `core/txpool/validation.go`:
 
-- EIP-4844 transaction type (type 3) in the mempool
-- `BLOBHASH` opcode in the execution engine
-- Point evaluation precompile at address 0x0a
-- Blob gas accounting in block headers
+```go
+if opts.Config.IsOptimism() && tx.Type() == types.BlobTxType {
+    return core.ErrTxTypeNotSupported
+}
+```
+
+This is a deliberate design choice. On the current OP Stack, blobs only flow in the **L1→L2 direction** — the batcher posts blobs to L1, and op-node reads them during derivation. User-submitted blob transactions on L2 are not supported.
+
+The `BLOBHASH` opcode and point evaluation precompile are available in the EVM (Cancun is enabled), but there is no mechanism for L2 transactions to carry blob sidecars.
+
+### What the OP Stack does support (no changes needed)
+
+- `BLOBHASH` opcode in the execution engine (works if blob hashes are provided)
+- Point evaluation precompile at address `0x0a`
 - KZG trusted setup (c-kzg library shipped with the client)
+- `ParentBeaconBlockRoot` in payload attributes (set since Ecotone)
 
-### Configuration changes needed
+### What needs to change
 
-| Parameter | Default | Recommended | How |
-|-----------|---------|-------------|-----|
-| Max blobs per block | 6 (768KB) | Application-dependent | Sequencer config |
-| Blob base fee | Market-driven | Near-zero (dedicated chain) | Genesis config |
-| Blob retention | ~18 days (L1 semantics) | Until entity expiry | Sequencer config |
-| Blob RPC endpoints | May be disabled | Enable `eth_getBlobSidecars` | RPC config flag |
-| Txpool blob limits | 20MB default | Increase for throughput | `--txpool.blobpool-max-size` |
+The blob model requires changes at three layers of the OP Stack:
+
+#### Layer 1: Execution engine (op-geth or op-reth) — client fork required
+
+| Change | Description | Complexity |
+|--------|-------------|------------|
+| Remove blob tx rejection | Delete the `IsOptimism() && BlobTxType` check in txpool validation | One line, but it's a fork |
+| Blob sidecar storage | Store blob sidecars for L2-originated blobs. On L1 this is the consensus client's job; on L2 the execution engine (or a sidecar service) must retain them | Medium |
+| Blob sidecar RPC | Serve blob data via `eth_getBlobSidecars` or equivalent for the off-chain DB | Low — RPC endpoint addition |
+| Blob gas pricing | Configure L2 blob gas base fee, target, and limit. Currently undefined for L2-originated blobs | Genesis/config |
+
+#### Layer 2: Consensus/derivation (op-node) — may need changes
+
+| Change | Description | Complexity |
+|--------|-------------|------------|
+| Engine API blob fields | Ensure ForkchoiceUpdate and NewPayload payloads include blob versioned hashes for L2 blocks containing user blobs. Currently this path only handles L1-derived blob hashes. | Medium — Engine API integration |
+| Block building with blobs | The sequencer's block builder (op-node) must include type 3 transactions from the txpool and pass their blob hashes to the execution engine | Medium |
+
+#### Layer 3: Infrastructure (no client changes)
+
+| Change | Description | Complexity |
+|--------|-------------|------------|
+| Blob retention | Configure how long blob sidecars are stored. Default L1 semantics prune after ~18 days. | Config or sidecar service |
+| Blob archival | The off-chain DB or a separate archiver fetches and stores blob data within the retention window | Application-level service |
 
 ### Blob retention strategy
 
@@ -196,16 +224,334 @@ Three options, increasing in complexity:
 
 **Option C — Client-responsibility model (recommended)**: The sequencer retains blobs for a fixed short window (e.g., 7 days). The off-chain DB is responsible for fetching and archiving blob data within that window. After the window, the sequencer doesn't have it, but the DB does. This is the simplest approach and matches how Ethereum L1 works — consumers of blob data are expected to fetch it before the pruning window.
 
-### Throughput at various configurations
+### Throughput analysis
 
-| Blobs/block | Block time | Throughput | Notes |
-|-------------|-----------|------------|-------|
-| 6 | 2s | 384 KB/s | OP Stack default |
-| 16 | 2s | 1 MB/s | Moderate increase |
-| 64 | 1s | 8 MB/s | Aggressive |
-| 256 | 1s | 32 MB/s | Theoretical max (untested) |
+#### Constraints
 
-Each blob requires ~1ms for KZG proof generation. At 256 blobs/block, that's 256ms of KZG computation per block — feasible with a 1s block time.
+Three factors limit blob throughput:
+
+1. **KZG proof generation**: ~1ms per blob on modern hardware (single-threaded). Parallelizable across cores — a 16-core machine can generate 16 proofs concurrently.
+2. **Block gas limit**: Each entity CREATE costs ~75K execution gas (storage + hashing), independent of blob size. At 60M block gas limit, that's ~800 entity operations per block.
+3. **Blobs per block/transaction**: On L1, capped at 6 per tx and a target of 3 per block. On a dedicated L2 with a forked client, this is configurable. The practical limit is sequencer memory — each blob is 128KB, so 256 blobs = 32MB per block held in memory during building.
+
+The binding constraint shifts depending on configuration:
+- At low blob counts, **blob slots** are the bottleneck (each blob = one file chunk)
+- At high blob counts, **execution gas** becomes the bottleneck (~75K gas per entity operation)
+- At very high blob counts, **KZG computation time** and **sequencer memory** limit throughput
+
+#### Blobs per transaction
+
+The L1 EIP-4844 limit of 6 blobs per transaction is a protocol constant, not a cryptographic limit. On a dedicated L2 with a forked client, this can be raised. The practical upper bound per transaction is constrained by:
+- Transaction propagation size (no peers on dedicated L2, so no p2p limit)
+- Sequencer memory during block building
+- Engine API payload size
+
+Raising to 64 or 128 blobs per transaction is technically feasible on a dedicated L2.
+
+#### Blobs per block
+
+The L1 target of 3 blobs/block (max 6) exists to limit L1 bandwidth and state growth. On a dedicated L2:
+- No bandwidth concern (single sequencer, no peer propagation)
+- Blob data is ephemeral (pruned after entity expiry)
+- The limit can be raised to whatever the sequencer hardware supports
+
+#### Throughput scenarios
+
+**Conservative (OP Stack defaults, minimal changes):**
+
+| Parameter | Value |
+|-----------|-------|
+| Block time | 2s |
+| Blobs per block | 6 |
+| Block gas limit | 60M |
+| Max entities per block | 6 (blob-limited, not gas-limited) |
+
+| Metric | Value |
+|--------|-------|
+| Raw throughput | 384 KB/s (6 × 128KB / 2s) |
+| Entity creates/sec | 3 |
+| Time to upload 10MB | ~27s (79 blobs ÷ 3/s) |
+| KZG overhead per block | 6ms (negligible) |
+
+**Moderate (raised blob limit, 2s blocks):**
+
+| Parameter | Value |
+|-----------|-------|
+| Block time | 2s |
+| Blobs per block | 32 |
+| Block gas limit | 60M |
+| Max entities per block | 32 (blob-limited) |
+
+| Metric | Value |
+|--------|-------|
+| Raw throughput | 2 MB/s |
+| Entity creates/sec | 16 |
+| Time to upload 10MB | ~5s |
+| KZG overhead per block | 32ms (2% of block time) |
+
+**Aggressive (high blob count, 1s blocks):**
+
+| Parameter | Value |
+|-----------|-------|
+| Block time | 1s |
+| Blobs per block | 128 |
+| Block gas limit | 120M |
+| Max entities per block | 128 (blob-limited) |
+
+| Metric | Value |
+|--------|-------|
+| Raw throughput | 16 MB/s |
+| Entity creates/sec | 128 |
+| Time to upload 10MB | <1s |
+| Time to upload 100MB | ~5s |
+| KZG overhead per block | 128ms (13% of block time, parallelizable to ~8ms on 16 cores) |
+| Sequencer memory per block | 16 MB blob data |
+
+**Maximum theoretical (pushing hardware limits):**
+
+| Parameter | Value |
+|-----------|-------|
+| Block time | 1s |
+| Blobs per block | 512 |
+| Block gas limit | 250M |
+| Max entities per block | 512 (blob-limited) or ~3,333 (gas-limited) |
+
+| Metric | Value |
+|--------|-------|
+| Raw throughput | 64 MB/s |
+| Entity creates/sec | 512 |
+| Time to upload 100MB | ~1.5s |
+| Time to upload 1GB | ~16s |
+| KZG overhead per block | 512ms (parallelized to ~32ms on 16 cores) |
+| Sequencer memory per block | 64 MB blob data |
+
+At this level, the bottleneck shifts to disk I/O for blob storage and network I/O for RPC serving.
+
+#### Comparison with calldata model
+
+For a 10MB file upload:
+
+| Model | Config | Time | Cost (OP L2) | Txs required |
+|-------|--------|------|-------------|--------------|
+| Calldata | 60M gas, 128KB tx, 2s blocks | ~28s | ~$103 | 79 |
+| Blob (conservative) | 6 blobs/block, 2s | ~27s | ~$0.08 | 14 |
+| Blob (moderate) | 32 blobs/block, 2s | ~5s | ~$0.08 | 3 |
+| Blob (aggressive) | 128 blobs/block, 1s | <1s | ~$0.08 | 1 |
+
+The cost is the same across blob configurations — blob fees are per-blob regardless of how many fit in a block. The difference is wall-clock time. The aggressive config matches commodity upload speeds.
+
+#### Storage growth
+
+At sustained maximum throughput (64 MB/s), the sequencer accumulates:
+- 5.5 TB/day of blob data
+- With a 7-day retention window: ~38 TB storage
+- With a 30-day retention window: ~166 TB storage
+
+This is within the range of a single NVMe array, but requires planning. The moderate config (2 MB/s) is more practical for sustained operation: 173 GB/day, 1.2 TB for 7-day retention.
+
+### L2 peering constraints
+
+On a single-sequencer L2, the sequencer produces blocks and propagates them to verifier (non-sequencing) nodes via L2 p2p gossip. Blob data adds a new dimension to this propagation.
+
+#### How L2 block propagation works today
+
+The sequencer gossips **unsafe blocks** to L2 peers via the OP Stack's p2p network. These are execution payloads (block headers + transaction list), not full blob sidecars. Verifier nodes receive the payload, execute it locally, and advance their state.
+
+With blob transactions, the propagation question is: **do verifier nodes need the blob data?**
+
+#### Verifier nodes don't need blob data for state advancement
+
+The execution engine only needs the blob **versioned hashes** (from the Engine API payload), not the blob bytes. `blobhash(n)` is populated from the payload attributes, not from locally stored blob data. So:
+
+- The sequencer gossips the block payload (including blob versioned hashes)
+- Verifier nodes execute the block — `blobhash()` works because the hashes are in the payload
+- The contract stores the blobHash in coreHash
+- **No blob data transfer required for state consensus**
+
+This means blob data does not constrain L2 p2p propagation at all for state advancement.
+
+#### Verifier nodes DO need blob data for data availability
+
+If a verifier node wants to serve blob data (for the off-chain DB, for user queries, or for independent verification), it needs the actual blob bytes. This is a **separate data channel** from block propagation:
+
+| Propagation channel | What flows | Size per block | Required for consensus? |
+|---|---|---|---|
+| Block gossip (existing) | Execution payload + blob versioned hashes | ~1-10 KB per block (same as today) | Yes |
+| Blob data (new) | Blob sidecars | Up to 128KB × blobs_per_block | No — only for data serving |
+
+#### Peering impact at different throughput levels
+
+| Config | Blob data per block | Block gossip (unchanged) | Blob gossip (new) | Network impact |
+|---|---|---|---|---|
+| Conservative (6 blobs) | 768 KB | ~5 KB | 768 KB/2s = 384 KB/s | Negligible — comparable to a video stream |
+| Moderate (32 blobs) | 4 MB | ~5 KB | 4 MB/2s = 2 MB/s | Low — standard broadband |
+| Aggressive (128 blobs) | 16 MB | ~5 KB | 16 MB/1s = 16 MB/s | Moderate — requires dedicated bandwidth between nodes |
+| Maximum (512 blobs) | 64 MB | ~5 KB | 64 MB/1s = 64 MB/s | High — datacenter-grade networking between nodes |
+
+#### Key insight
+
+Blob data propagation is **optional for consensus** but **required for data availability**. You can run a lean verifier network that only gossips block headers (no blob data), with a separate archival/DA tier that fetches blob data directly from the sequencer. This separates the consensus network (light, fast) from the data availability network (heavy, can tolerate latency).
+
+For a dedicated L2 where you control all nodes, the practical architecture is:
+- 1 sequencer producing blocks + storing blobs
+- 1-3 verifier nodes for consensus redundancy (no blob data needed)
+- 1 archival node or off-chain DB fetching blobs from the sequencer via RPC
+
+The verifier nodes add no blob bandwidth. The archival node's bandwidth scales with throughput but only needs a single RPC connection to the sequencer, not p2p gossip.
+
+### KZG commitments in fault proofs
+
+On an OP Stack L2, the fault proof game is how L1 verifies that the sequencer posted correct state roots. The question: can KZG commitments from L2 blob transactions be verified during a fault proof?
+
+#### How OP Stack fault proofs work today
+
+1. Sequencer posts L2 state roots to L1 (via op-proposer)
+2. A challenger can dispute a state root by initiating a fault proof game on L1
+3. The game bisects the disputed execution trace down to a single instruction
+4. The single instruction is executed on L1 (via the MIPS/RISC-V onchain VM) to determine correctness
+5. The game resolves: either the state root is valid or the challenger wins
+
+The fault proof only needs to re-execute the disputed instruction with the correct inputs. It doesn't re-execute the entire block.
+
+#### Can `blobhash()` be proven in a fault proof?
+
+**Yes, in principle.** The `blobhash()` opcode is deterministic given the block's blob versioned hashes. During a fault proof:
+
+1. The disputed block's blob versioned hashes are part of the block header (or Engine API payload)
+2. These hashes were committed to when the sequencer posted the state root to L1
+3. The fault proof VM can be provided with the correct blob versioned hashes as witness data
+4. `blobhash(n)` in the onchain VM returns the nth hash from this witness data
+5. The contract execution (EntityRegistry storing blobHash in coreHash) is deterministically re-executed
+
+The blob **data** is not needed for the fault proof — only the blob **versioned hashes**, which are part of the block metadata committed to L1.
+
+#### What needs to be true
+
+For fault proofs to work with L2 blob transactions:
+
+| Requirement | Status |
+|---|---|
+| Blob versioned hashes included in L2 block metadata | Needs implementation — currently L2 blocks don't carry blob metadata for user-originated blobs |
+| Block metadata committed to L1 via state root | Already works — the state root covers all execution results |
+| Fault proof VM supports `blobhash()` opcode | Needs verification — the MIPS/RISC-V fault proof VM must handle this opcode |
+| Blob data available for dispute window | The blob versioned hashes (not data) must be available. Since they're derived from block metadata committed to L1, they are. |
+
+#### Point evaluation precompile in fault proofs
+
+If the contract used the point evaluation precompile (`0x0a`) to verify blob contents, the fault proof would need to re-execute that precompile call. This requires:
+- The precompile inputs (commitment, point, claimed value, proof) as witness data
+- The fault proof VM to implement KZG verification
+
+The current OP Stack fault proof VM (op-program) already handles precompile calls for L1-derived blobs during derivation. Extending this to L2-originated blobs is a matter of providing the correct witness data, not new cryptography.
+
+#### Alternative: prove KZG commitments via L1 directly
+
+A simpler approach that avoids fault proof complexity:
+
+1. When the sequencer creates an entity with a blob, it also posts the KZG commitment to L1 (48 bytes, cheap)
+2. Anyone can verify the L1-posted commitment against the L2 state root
+3. If they don't match, the sequencer is provably dishonest
+4. This is a **validity proof** (one check proves correctness) rather than a **fault proof** (interactive game)
+
+This bypasses the fault proof game entirely for blob commitment verification. The cost is 48 bytes of L1 calldata per entity — roughly $0.002 at current L1 gas prices. For high-value entities this may be worth the direct L1 guarantee.
+
+### Experimental: DA-gated execution with on-chain DAC
+
+A stronger approach that eliminates the withholding problem at the protocol level. Instead of executing entity operations immediately and hoping the data is available, the EntityRegistry uses **two-stage execution** where the changeSetHash only advances after a configurable quorum of Data Availability Committee (DAC) members confirm they have verified and stored the blob data.
+
+#### Two-stage execution model
+
+**Stage 1 — Propose**: The sequencer includes the blob transaction. The contract verifies the KZG commitment via `blobhash()` and stores the entity as **pending**. The changeSetHash does not advance.
+
+```
+execute(Op) → pendingEntity stored
+           → blob verified via blobhash()
+           → emits EntityProposed(entityKey, blobHash)
+           → changeSetHash unchanged
+```
+
+**Stage 2 — Confirm**: DAC members independently fetch the blob data from the sequencer, verify the KZG commitment, and sign attestations. Once quorum is reached, anyone can submit the aggregated attestations. The entity finalizes and the changeSetHash advances.
+
+```
+confirmEntity(entityKey, signatures[]) → quorum verified
+           → entity moves pending → active
+           → changeSetHash advances
+           → emits EntityCreated(entityKey, blobHash, entityHash)
+```
+
+If quorum is not reached within a timeout (configurable, e.g., 100 blocks), the pending entity can be cancelled and discarded.
+
+#### Entity lifecycle with DAC
+
+| Phase | Actor | What happens | changeSetHash |
+|---|---|---|---|
+| Propose | Sequencer | Blob verified, entity pending, coreHash computed | Unchanged |
+| Attest | DAC members (off-chain) | Each fetches blob, verifies KZG, signs attestation | Unchanged |
+| Confirm | Anyone | Aggregated signatures submitted, quorum checked | Advances |
+| Active | — | Entity queryable, blob data guaranteed available from DAC | — |
+| Expire | Anyone | Entity past expiresAt, removable | Advances |
+
+#### DAC contract sketch
+
+```solidity
+uint256 public quorum;                                      // e.g., 2 of 3
+mapping(address => bool) public committee;                   // registered DAC members
+mapping(bytes32 => PendingEntity) public pending;            // entityKey → pending state
+mapping(bytes32 => mapping(address => bool)) public attested; // entityKey → member → attested
+mapping(bytes32 => uint256) public attestCount;              // entityKey → count
+```
+
+The quorum is configurable: 1-of-1 for a trusted archiver, 2-of-3 for redundancy, 5-of-7 for high assurance. DAC membership can be governed (multisig, governance contract, etc.).
+
+#### Off-chain DB sync model
+
+The DB only tracks confirmed entities. Pending entities are invisible to the changeSetHash:
+
+```
+EntityProposed  →  DB ignores (not finalized, data not guaranteed)
+EntityCreated   →  DB indexes (DAC confirmed, data guaranteed available)
+```
+
+The DB has a **protocol-level guarantee** that any entity in its changeSetHash has blob data available from at least `quorum` DAC members. The "commitment exists, data missing" failure mode is eliminated.
+
+#### Latency
+
+The two-stage model adds finality latency:
+
+| Step | Time | Notes |
+|---|---|---|
+| Propose tx mined | 1 block (2s) | — |
+| DAC fetches blob + verifies KZG | ~2-5s | Network + computation |
+| Confirm tx mined (aggregated sigs) | 1 block (2s) | BLS aggregation off-chain |
+| **Total** | **~4-9s** | Comparable to S3 eventual consistency |
+
+With off-chain BLS signature aggregation, DAC members don't each submit separate transactions. A single aggregator collects signatures and submits one confirm transaction.
+
+#### Trust model
+
+| Actor | Can do | Can't do | Penalty |
+|---|---|---|---|
+| Sequencer | Propose entities | Finalize without DAC quorum | Pending entity times out |
+| DAC member | Attest to data availability | Attest without actually having data (if challenged) | Bond slashed |
+| DAC quorum | Confirm entity finalization | Be bypassed — changeSetHash won't advance without quorum | — |
+| Colluding sequencer + DAC minority | Nothing — quorum not reached | — | Pending entity times out |
+
+The key property: **no entity can enter the changeSetHash without `quorum` independent parties confirming they have the data.** This is a stronger guarantee than any external DA layer provides, because the DA attestation is atomic with the execution state.
+
+#### Trade-offs
+
+- **Liveness depends on DAC**: If fewer than `quorum` members are online, no entities can finalize. Mitigated by choosing quorum < committee size (e.g., 2-of-3).
+- **Throughput bounded by slowest DAC member**: All members must verify before quorum is reached. Mitigated by allowing fast members to attest while slow members catch up.
+- **Complexity**: Two-phase commit adds contract complexity and a new confirmation transaction type. The EntityRegistry becomes a stateful workflow engine rather than a simple registry.
+- **Gas overhead**: Each entity pays gas for both the propose and confirm transactions. At ~75K gas each, this roughly doubles the execution cost per entity. On a dedicated L2 with near-zero gas prices, this is negligible.
+
+#### Why this is novel
+
+Most DA solutions (Celestia, EigenDA, OP Stack alt-DA) treat data availability as an external property that the rollup assumes. This design **integrates DA confirmation into the smart contract execution model** — the changeSetHash is the authority, and it refuses to advance without DA quorum. The execution state and the DA attestation are atomic.
+
+### Summary of effort
+
+The smart contract change is straightforward (~50 lines modified). The sequencer change is a **client fork** — removing one line from op-geth's txpool validation opens the door, but properly supporting L2 blob sidecars (storage, RPC serving, Engine API integration) is a medium-complexity effort across the execution engine and op-node. This is not a configuration change; it is new functionality that the OP Stack does not currently provide.
 
 ## 5. Smart Contract Changes
 
