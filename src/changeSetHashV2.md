@@ -36,6 +36,16 @@ Both components independently compute the same change set hash. A match at any b
 
 ## Smart Contract Design
 
+### Chain Model
+
+Arkiv db-chains do not support arbitrary smart contract deployments. The EntityRegistry is a system contract — one of the few contracts deployed on the chain. This architectural constraint simplifies entity operation detection:
+
+- All entity operations originate from EOA transactions directly targeting EntityRegistry
+- Detection is simply: `tx.to == EntityRegistry && tx succeeded`
+- No need to trace internal calls or parse logs for cross-contract interactions
+
+This model ensures deterministic, efficient operation detection without the complexity of arbitrary contract composition.
+
 ### State Variables
 
 ```solidity
@@ -46,7 +56,7 @@ bytes32 internal _changeSetHash;
 uint256 internal _lastMutationBlock;
 
 // Per-block snapshot for sync verification (lazily populated, internal)
-mapping(uint256 blockNumber => bytes32) internal _changeSetHashAtBlock;
+mapping(uint256 blockNumber => bytes32 changeSetHash) internal _changeSetHashAtBlock;
 ```
 
 ### Hash Accumulation
@@ -56,15 +66,13 @@ On every entity mutation:
 ```solidity
 function _accumulateChangeSet(Op op, bytes32 _entityKey, bytes32 _entityHash) internal {
     // Lazy finalization: write previous block's hash when entering a new block
-    if (block.number != _lastMutationBlock && _lastMutationBlock != 0) {
+    if (block.number != _lastMutationBlock) {
         _changeSetHashAtBlock[_lastMutationBlock] = _changeSetHash;
+        _lastMutationBlock = block.number;
     }
     
     // Update running hash
     _changeSetHash = keccak256(abi.encodePacked(_changeSetHash, op, _entityKey, _entityHash));
-    
-    // Track current block
-    _lastMutationBlock = block.number;
 }
 ```
 
@@ -101,7 +109,7 @@ Callers should use `changeSetHashAt(blockNumber)` for verification. This functio
 
 Where:
 - `_changeSetHash`: the previous accumulated hash (starts at `bytes32(0)`)
-- `op`: the mutation type (`CREATE`, `UPDATE`, `EXTEND`, `DELETE`, `EXPIRE`)
+- `op`: the mutation type (`CREATE`, `UPDATE`, `EXTEND`, `TRANSFER`, `DELETE`, `EXPIRE`)
 - `entityKey`: the unique identifier of the entity being mutated
 - `entityHash`: the EIP-712 hash of the entity's state after the mutation
 
@@ -147,7 +155,7 @@ This table is populated at the end of every block, regardless of whether the blo
 
 #### Why Complete Per-Block Tracking
 
-The smart contract stores hashes only at blocks with mutations (gas-optimized). The DB component stores every block (storage is cheap). This separation provides defense in depth:
+The smart contract stores hashes only at blocks with mutations (gas-optimized). The DB component stores every block (storage is cheap). Benefits of per block hashes:
 
 1. **Operational convenience** — "What was changeSetHash at block X?" answered instantly from local DB without smart contract query
 
@@ -167,14 +175,14 @@ For each block:
 2. **Per transaction**: 
    - Execute transaction in EVM
    - Check execution result (success/revert)
-   - If successful AND touched EntityRegistry: forward entity ops to DB component, update running hash
-   - If reverted: skip DB component (no state change occurred)
+   - If `tx.to == EntityRegistry` AND successful: forward entity ops to DB component, update running hash
+   - If reverted or not targeting EntityRegistry: skip DB component
 3. **Block end**: 
    - Insert row into `block_hashes` table
    - If block had mutations: verify `change_set_hash == contract.changeSetHashAt(block_number)`
    - Commit DB transaction (or abort on mismatch)
 
-Note: The execution client has access to the transaction execution result including receipt status, logs, and state diff. Only successful EntityRegistry operations are forwarded to the DB component — reverted transactions never affect the change set hash.
+Note: Since Arkiv db-chains don't support arbitrary contract deployments, all entity operations are direct EOA → EntityRegistry transactions. Detection is simply checking `tx.to` and receipt status — no internal call tracing required.
 
 ### Verification During Sync
 
@@ -182,7 +190,8 @@ A syncing node verifies correctness block-by-block:
 
 ```
 For each block N:
-  1. Process all successful EntityRegistry ops, compute change_set_hash
+  1. Process all successful transactions targeting EntityRegistry, compute change_set_hash
+     (each tx may contain multiple entity ops via batch functions)
   2. If block had mutations:
        assert(change_set_hash == contract.changeSetHashAt(N))
   3. If block had no mutations:
@@ -200,7 +209,7 @@ The change set hash transitively commits to every field of every entity through 
 ```
 changeSetHash
 ├─ previous changeSetHash          ← full history of all prior mutations
-├─ op                               ← mutation type (CREATE, UPDATE, EXTEND, DELETE, EXPIRE)
+├─ op                               ← mutation type (CREATE, UPDATE, EXTEND, TRANSFER, DELETE, EXPIRE)
 ├─ entityKey                        ← identity of the entity being mutated
 └─ entityHash                       ← EIP-712 hash of the entity's full state
      ├─ coreHash                    ← EIP-712 hash of immutable entity content
@@ -229,6 +238,7 @@ The verification mechanism relies on the following trust assumptions:
 1. **Ethereum consensus** — all nodes agree on transaction ordering and inclusion per block
 2. **EVM determinism** — identical transactions produce identical state transitions
 3. **Local execution client** — the node runs its own execution client (not a third-party RPC)
+4. **No arbitrary contracts** — only system contracts (including EntityRegistry) are deployed; all entity operations are direct EOA transactions
 
 The change set hash extends Ethereum's state verification to the off-chain DB. Just as all execution clients converge on the same state root, all Arkiv nodes converge on the same change set hash.
 
