@@ -128,9 +128,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // -------------------------------------------------------------------------
 
     function changeSetHash() public view returns (bytes32) {
-        return _hashAt[
-            (uint256(_tailBlock) << 64) | (uint256(_currentTxSeq) << 32) | _currentOpSeq
-        ];
+        return _hashAt[(uint256(_tailBlock) << 64) | (uint256(_currentTxSeq) << 32) | _currentOpSeq];
     }
 
     function entityKey(address owner, uint32 nonce) public view returns (bytes32) {
@@ -145,9 +143,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         if (ops.length == 0) revert EmptyBatch();
 
         // Read previous hash before any counter mutations.
-        bytes32 hash = _hashAt[
-            (uint256(_tailBlock) << 64) | (uint256(_currentTxSeq) << 32) | _currentOpSeq
-        ];
+        bytes32 hash = _hashAt[(uint256(_tailBlock) << 64) | (uint256(_currentTxSeq) << 32) | _currentOpSeq];
 
         // Block transition: maintain the block-level linked list.
         //
