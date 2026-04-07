@@ -251,11 +251,6 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Internal functions — validation and hashing
     // -------------------------------------------------------------------------
 
-    function _validate(Op calldata op) internal pure {
-        // TODO: validate content type, payload size, attribute constraints
-        revert("not implemented");
-    }
-
     function _attributeHash(Attribute calldata attr) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
@@ -302,34 +297,38 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // -------------------------------------------------------------------------
 
     function _create(Op calldata op) internal returns (bytes32 key, bytes32 entityHash_) {
-        _validate(op);
-        // TODO: mint key via nonce, compute coreHash + entityHash, store entity
+        // Validates: content type allowlist, payload size, attribute constraints (sorted, no empty names, unused fields zeroed)
+        // Then: mint key via nonce, compute coreHash + entityHash, store entity, expiresAt must be in future
         revert("not implemented");
     }
 
     function _update(Op calldata op) internal returns (bytes32, bytes32) {
-        _validate(op);
-        // TODO: load entity, validate ownership + not expired, recompute coreHash + entityHash
+        // Validates: entity exists + not expired + msg.sender is owner, content type, payload, attributes (same as create)
+        // Then: recompute coreHash from new content, update entity, recompute entityHash
         revert("not implemented");
     }
 
     function _extend(Op calldata op) internal returns (bytes32, bytes32) {
-        // TODO: load entity, validate ownership + not expired, update expiresAt, recompute entityHash from stored coreHash
+        // Validates: entity exists + not expired + msg.sender is owner, new expiresAt > current expiresAt
+        // Then: update expiresAt + updatedAt, recompute entityHash from stored coreHash
         revert("not implemented");
     }
 
     function _transfer(Op calldata op) internal returns (bytes32, bytes32) {
-        // TODO: load entity, validate ownership + not expired, set new owner, recompute entityHash from stored coreHash
+        // Validates: entity exists + not expired + msg.sender is owner, newOwner != address(0)
+        // Then: set owner to newOwner + updatedAt, recompute entityHash from stored coreHash
         revert("not implemented");
     }
 
     function _delete(Op calldata op) internal returns (bytes32, bytes32) {
-        // TODO: load entity, validate ownership + not expired, snapshot entityHash, delete
+        // Validates: entity exists + not expired + msg.sender is owner
+        // Then: snapshot entityHash before deletion, delete entity
         revert("not implemented");
     }
 
     function _expire(bytes32 key) internal returns (bytes32, bytes32) {
-        // TODO: load entity, verify expired, snapshot entityHash, delete
+        // Validates: entity exists + currentBlock >= expiresAt (entity has expired)
+        // Then: snapshot entityHash before deletion, delete entity (callable by anyone)
         revert("not implemented");
     }
 }
