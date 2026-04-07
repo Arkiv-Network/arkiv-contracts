@@ -12,12 +12,21 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Type declarations
     // -------------------------------------------------------------------------
 
-    enum Op {
+    enum OpType {
         CREATE,
         UPDATE,
         EXTEND,
         DELETE,
         EXPIRE
+    }
+
+    struct Op {
+        OpType opType;
+        bytes32 entityKey; // UPDATE, EXTEND, DELETE, EXPIRE (ignored for CREATE)
+        bytes payload; // CREATE, UPDATE
+        string contentType; // CREATE, UPDATE
+        Attribute[] attributes; // CREATE, UPDATE
+        BlockNumber expiresAt; // CREATE, EXTEND
     }
 
     enum AttributeType {
@@ -112,52 +121,118 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // every mutation in the correct order with the correct content.
     bytes32 internal _changeSetHash;
 
+    // Three-level changeset hash lookup table.
+    // Composite key: (blockNumber << 64) | (txSeq << 32) | opSeq
+    //   opSeq = 0, txSeq = 0  → block-level snapshot
+    //   opSeq = 0, txSeq = N  → tx-level snapshot (after all ops in tx N)
+    //   opSeq = M, txSeq = N  → op-level snapshot (after op M in tx N)
+    mapping(uint256 => bytes32) internal _hashAt;
+
+    mapping(uint256 blockNumber => uint32) internal _blockTxCount;
+    mapping(uint256 blockNumber => uint32) internal _blockOpCount;
+
+    uint64 internal _currentBlock;
+    uint32 internal _currentTxSeq;
+    uint32 internal _currentOpSeq;
+
     // -------------------------------------------------------------------------
-    // Public pure functions
+    // Public view functions
     // -------------------------------------------------------------------------
 
-    function validateEntity(bytes calldata payload, Attribute[] calldata attributes) public pure {
-        if (payload.length > MAX_PAYLOAD_SIZE) {
-            revert PayloadTooLarge(payload.length, MAX_PAYLOAD_SIZE);
-        }
-        if (attributes.length > MAX_ATTRIBUTES) {
-            revert TooManyAttributes(attributes.length, MAX_ATTRIBUTES);
-        }
-
-        for (uint256 i = 0; i < attributes.length; i++) {
-            if (ShortString.unwrap(attributes[i].name) == bytes32(0)) {
-                revert EmptyAttributeName(i);
-            }
-
-            if (attributes[i].valueType == AttributeType.STRING) {
-                uint256 strSize = bytes(attributes[i].stringValue).length;
-                if (strSize > MAX_STRING_ATTR_SIZE) {
-                    revert StringAttributeTooLarge(attributes[i].name, strSize, MAX_STRING_ATTR_SIZE);
-                }
-            }
-
-            if (i > 0 && ShortString.unwrap(attributes[i].name) <= ShortString.unwrap(attributes[i - 1].name)) {
-                revert AttributesNotSorted(attributes[i].name, attributes[i - 1].name);
-            }
-        }
+    function changeSetHash() public view returns (bytes32) {
+        return _changeSetHash;
     }
 
-    /// @notice Computes the EIP-712 struct hash for a single attribute.
-    ///
-    /// Every field is included in the hash regardless of the attribute type:
-    ///   - name:        ShortString (up to 31 bytes), encoded as bytes32
-    ///   - valueType:   the type discriminator (UINT=0, STRING=1, ENTITY_KEY=2)
-    ///   - fixedValue:  used by UINT and ENTITY_KEY; zero for STRING
-    ///   - stringValue: used by STRING; empty for UINT and ENTITY_KEY, hashed via keccak256
-    ///
-    /// All four fields contribute to the hash even when semantically unused for a given
-    /// type. This means callers must zero unused fields — a STRING attribute with a
-    /// non-zero fixedValue will produce a different hash than one with fixedValue=0,
-    /// even though fixedValue is semantically meaningless for STRING.
-    ///
-    /// The valueType field prevents type confusion: a UINT attribute and an ENTITY_KEY
-    /// attribute with the same name and fixedValue produce different hashes.
-    function attributeHash(Attribute calldata attr) public pure returns (bytes32) {
+    function entityKey(address owner, uint32 nonce) public view returns (bytes32) {
+        return keccak256(abi.encodePacked(block.chainid, address(this), owner, nonce));
+    }
+
+    // -------------------------------------------------------------------------
+    // External functions
+    // -------------------------------------------------------------------------
+
+    function execute(Op[] calldata ops) external {
+        if (uint64(block.number) != _currentBlock) {
+            _currentBlock = uint64(block.number);
+            _currentTxSeq = 0;
+            _currentOpSeq = 0;
+        }
+        _currentTxSeq++;
+        _currentOpSeq = 0;
+        _blockTxCount[block.number] = _currentTxSeq;
+
+        bytes32 hash = _changeSetHash;
+        uint256 b = block.number << 64;
+        uint256 txKey = b | (uint256(_currentTxSeq) << 32);
+
+        for (uint256 i = 0; i < ops.length; i++) {
+            OpType opType = ops[i].opType;
+            bytes32 key;
+            bytes32 entityHash_;
+
+            if (opType == OpType.CREATE) {
+                (key, entityHash_) = _create(ops[i]);
+            } else if (opType == OpType.UPDATE) {
+                (key, entityHash_) = _update(ops[i]);
+            } else if (opType == OpType.EXTEND) {
+                (key, entityHash_) = _extend(ops[i]);
+            } else if (opType == OpType.DELETE) {
+                (key, entityHash_) = _delete(ops[i]);
+            } else if (opType == OpType.EXPIRE) {
+                (key, entityHash_) = _expire(ops[i].entityKey);
+            }
+
+            hash = keccak256(abi.encodePacked(hash, opType, key, entityHash_));
+
+            // per-op snapshot
+            _currentOpSeq++;
+            _hashAt[txKey | _currentOpSeq] = hash;
+        }
+
+        _blockOpCount[block.number] = _currentOpSeq;
+
+        // per-tx snapshot
+        _hashAt[txKey] = hash;
+        // per-block snapshot (overwritten each tx, reflects final state)
+        _hashAt[b] = hash;
+
+        _changeSetHash = hash;
+    }
+
+    // -------------------------------------------------------------------------
+    // Public view functions — changeset hash lookups
+    // -------------------------------------------------------------------------
+
+    function changeSetHashAtBlock(uint256 blockNumber) public view returns (bytes32) {
+        return _hashAt[blockNumber << 64];
+    }
+
+    function changeSetHashAtTx(uint256 blockNumber, uint32 txSeq) public view returns (bytes32) {
+        return _hashAt[(blockNumber << 64) | (uint256(txSeq) << 32)];
+    }
+
+    function changeSetHashAtOp(uint256 blockNumber, uint32 txSeq, uint32 opSeq) public view returns (bytes32) {
+        return _hashAt[(blockNumber << 64) | (uint256(txSeq) << 32) | opSeq];
+    }
+
+    function blockTxCount(uint256 blockNumber) public view returns (uint32) {
+        return _blockTxCount[blockNumber];
+    }
+
+    function blockOpCount(uint256 blockNumber) public view returns (uint32) {
+        return _blockOpCount[blockNumber];
+    }
+
+    // -------------------------------------------------------------------------
+    // Internal functions — validation and hashing
+    // -------------------------------------------------------------------------
+
+    function _validate(Op calldata op) internal pure {
+        // TODO: validate content type, payload size, attribute constraints
+        revert("not implemented");
+    }
+
+    function _attributeHash(Attribute calldata attr) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
                 ATTRIBUTE_TYPEHASH, attr.name, attr.valueType, attr.fixedValue, keccak256(bytes(attr.stringValue))
@@ -165,39 +240,17 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         );
     }
 
-    /// @notice Computes the EIP-712 core hash — the immutable content commitment of an entity.
-    ///
-    /// The core hash captures everything about an entity that does not change after creation
-    /// (except on update, which replaces the core hash entirely):
-    ///   - key:          the entity's unique identifier
-    ///   - creator:      the address that created the entity (immutable, distinct from owner)
-    ///   - createdAt:    the block number at creation (immutable)
-    ///   - contentType:  the MIME type of the payload (hashed via keccak256)
-    ///   - payload:      the entity's content (hashed via keccak256, not stored on-chain)
-    ///   - attributes:   entity metadata for querying (each hashed individually, then
-    ///                   the array of hashes is concatenated and hashed)
-    ///
-    /// The core hash is the inner part of the two-part entity hash structure. It is stable
-    /// across extendEntity and changeOwner — those operations only modify mutable fields
-    /// (owner, updatedAt, expiresAt) in the outer entityHash. This means the contract can
-    /// recompute entityHash for those operations using only the stored coreHash and on-chain
-    /// metadata, without needing the payload or attributes.
-    ///
-    /// Attribute ordering matters: the same attributes in a different order produce a
-    /// different core hash. The contract requires attributes to be sorted ascending by
-    /// name (enforced by validateEntity) to ensure deterministic hashing across all
-    /// implementations.
-    function coreHash(
+    function _coreHash(
         bytes32 key,
         address creator,
         uint32 createdAt,
         string calldata contentType,
         bytes calldata payload,
         Attribute[] calldata attributes
-    ) public pure returns (bytes32) {
+    ) internal pure returns (bytes32) {
         bytes32[] memory attrHashes = new bytes32[](attributes.length);
         for (uint256 i = 0; i < attributes.length; i++) {
-            attrHashes[i] = attributeHash(attributes[i]);
+            attrHashes[i] = _attributeHash(attributes[i]);
         }
         return keccak256(
             abi.encode(
@@ -212,76 +265,42 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         );
     }
 
-    // -------------------------------------------------------------------------
-    // Public view functions
-    // -------------------------------------------------------------------------
-
-    /// @notice Returns the cumulative change set hash over all entity mutations.
-    /// The off-chain DB computes the same chain and compares against this single value.
-    function changeSetHash() public view returns (bytes32) {
-        return _changeSetHash;
-    }
-
-    /// @notice Computes the unique identifier for an entity.
-    ///
-    /// The entity key is deterministic and predictable before transaction submission.
-    /// A client reads the owner's current nonce and computes the key locally — no need
-    /// to wait for tx inclusion.
-    ///
-    /// Components:
-    ///   - block.chainid:    prevents key collisions across chains
-    ///   - address(this):    prevents collisions across EntityRegistry deployments
-    ///   - owner:            the address that creates the entity (immutable after creation)
-    ///   - nonce:            per-owner counter, incremented on each create
-    ///
-    /// The per-owner nonce (rather than a global counter) ensures that only the owner's
-    /// own activity affects their next key. Concurrent submissions from different owners
-    /// do not contend, so the key is always predictable client-side.
-    ///
-    /// Entity keys are never reused. Once a nonce is consumed, that key is permanently
-    /// assigned — even if the entity is later deleted or expires.
-    function entityKey(address owner, uint32 nonce) public view returns (bytes32) {
-        return keccak256(abi.encodePacked(block.chainid, address(this), owner, nonce));
-    }
-
-    /// @notice Computes the full EIP-712 entity hash from a core hash and mutable fields.
-    ///
-    /// The entity hash is a two-part EIP-712 structured hash:
-    ///
-    ///   entityHash = EIP712_hash(EntityHash(coreHash, owner, updatedAt, expiresAt))
-    ///
-    /// The two-part structure separates immutable content (in coreHash) from mutable
-    /// metadata (owner, updatedAt, expiresAt). This enables operations that only change
-    /// mutable fields — extendEntity and changeOwner — to recompute the entity hash
-    /// from on-chain state alone, without needing the payload or attributes.
-    ///
-    /// coreHash commits to: entityKey, creator, createdAt, contentType, payload, attributes.
-    /// It is stable across owner changes and expiry extensions.
-    ///
-    /// The EIP-712 domain separator (name: "Arkiv EntityRegistry", version: "1") binds
-    /// the hash to this specific contract deployment and chain, preventing cross-chain
-    /// and cross-contract hash collisions.
-    ///
-    /// This function is view (not pure) because _hashTypedDataV4 reads block.chainid
-    /// to recompute the domain separator if the chain has forked since deployment.
-    function entityHash(bytes32 _coreHash, address owner, uint32 updatedAt, uint32 expiresAt)
-        public
+    function _entityHash(bytes32 coreHash_, address owner, uint32 updatedAt, uint32 expiresAt)
+        internal
         view
         returns (bytes32)
     {
-        return _hashTypedDataV4(keccak256(abi.encode(ENTITY_HASH_TYPEHASH, _coreHash, owner, updatedAt, expiresAt)));
+        return _hashTypedDataV4(keccak256(abi.encode(ENTITY_HASH_TYPEHASH, coreHash_, owner, updatedAt, expiresAt)));
     }
 
     // -------------------------------------------------------------------------
-    // Internal functions
+    // Internal functions — entity operations (skeletons)
     // -------------------------------------------------------------------------
 
-    function _op(Op op, bytes32 _entityKey, bytes32 _entityHash) internal {
-        // TODO: entity mutation logic per op type
-        _accumulateChangeSet(op, _entityKey, _entityHash);
+    function _create(Op calldata op) internal returns (bytes32 key, bytes32 entityHash_) {
+        _validate(op);
+        // TODO: mint key via nonce, compute coreHash + entityHash, store entity
+        revert("not implemented");
     }
 
-    function _accumulateChangeSet(Op op, bytes32 _entityKey, bytes32 _entityHash) internal {
-        _changeSetHash = keccak256(abi.encodePacked(_changeSetHash, op, _entityKey, _entityHash));
+    function _update(Op calldata op) internal returns (bytes32, bytes32) {
+        _validate(op);
+        // TODO: load entity, validate ownership + not expired, recompute coreHash + entityHash
+        revert("not implemented");
+    }
+
+    function _extend(Op calldata op) internal returns (bytes32, bytes32) {
+        // TODO: load entity, validate ownership + not expired, update expiresAt, recompute entityHash
+        revert("not implemented");
+    }
+
+    function _delete(Op calldata op) internal returns (bytes32, bytes32) {
+        // TODO: load entity, validate ownership + not expired, snapshot entityHash, delete
+        revert("not implemented");
+    }
+
+    function _expire(bytes32 key) internal returns (bytes32, bytes32) {
+        // TODO: load entity, verify expired, snapshot entityHash, delete
+        revert("not implemented");
     }
 }
