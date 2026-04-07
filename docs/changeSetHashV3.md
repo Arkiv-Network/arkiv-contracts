@@ -223,6 +223,14 @@ For one transaction with N ops entering a new block:
 
 V3 is +1 SSTORE over V2 on block transitions (the linked list pointer), while providing per-op granularity and full traversal — capabilities V2 cannot offer.
 
+### Storage Costs Relative to Payload Calldata
+
+The SSTORE overhead of V3 is negligible compared to the calldata cost of entity payloads. An entity with a 120KB payload costs approximately 1.9M gas in calldata alone (120,000 bytes * 16 gas/byte). The entire V3 bookkeeping for that operation — one per-op snapshot SSTORE (~5k gas warm), plus amortized tx/block overhead — is under 10k gas, less than 0.5% of the calldata cost.
+
+Even in a batch of small entities, calldata dominates. The `Op` struct itself (opType, entityKey, contentType, attributes, payload) contributes far more gas in calldata encoding than the storage writes that track it. On Arkiv's rollup where gas pricing is controlled, this ratio is even more favourable — the storage costs for per-op snapshots and the block linked list are effectively free relative to the data the operations carry.
+
+This is why V3 doesn't optimise for fewer SSTOREs at the cost of complexity (as V2 did with lazy finalization). The straightforward approach — store everything, derive what you can — is the correct design when storage is a rounding error on the payload.
+
 ## Commitment Depth
 
 The changeset hash transitively commits to every field of every entity through the EIP-712 hash structure:
