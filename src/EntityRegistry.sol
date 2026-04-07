@@ -16,17 +16,19 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         CREATE,
         UPDATE,
         EXTEND,
+        TRANSFER,
         DELETE,
         EXPIRE
     }
 
     struct Op {
         OpType opType;
-        bytes32 entityKey; // UPDATE, EXTEND, DELETE, EXPIRE (ignored for CREATE)
+        bytes32 entityKey; // UPDATE, EXTEND, TRANSFER, DELETE, EXPIRE (ignored for CREATE)
         bytes payload; // CREATE, UPDATE
         string contentType; // CREATE, UPDATE
         Attribute[] attributes; // CREATE, UPDATE
         BlockNumber expiresAt; // CREATE, EXTEND
+        address newOwner; // TRANSFER
     }
 
     enum AttributeType {
@@ -195,6 +197,8 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
                 (key, entityHash_) = _update(ops[i]);
             } else if (opType == OpType.EXTEND) {
                 (key, entityHash_) = _extend(ops[i]);
+            } else if (opType == OpType.TRANSFER) {
+                (key, entityHash_) = _transfer(ops[i]);
             } else if (opType == OpType.DELETE) {
                 (key, entityHash_) = _delete(ops[i]);
             } else if (opType == OpType.EXPIRE) {
@@ -314,7 +318,12 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     }
 
     function _extend(Op calldata op) internal returns (bytes32, bytes32) {
-        // TODO: load entity, validate ownership + not expired, update expiresAt, recompute entityHash
+        // TODO: load entity, validate ownership + not expired, update expiresAt, recompute entityHash from stored coreHash
+        revert("not implemented");
+    }
+
+    function _transfer(Op calldata op) internal returns (bytes32, bytes32) {
+        // TODO: load entity, validate ownership + not expired, set new owner, recompute entityHash from stored coreHash
         revert("not implemented");
     }
 
