@@ -121,6 +121,17 @@ flowchart TD
 
 ## Smart Contract Design
 
+### BlockNode
+
+```solidity
+// All fields pack into a single storage slot (20 bytes).
+struct BlockNode {
+    uint64 prevBlock;   // previous block with mutations (0 = head)
+    uint64 nextBlock;   // next block with mutations (0 = tail)
+    uint32 txCount;     // number of entity txs in this block
+}
+```
+
 ### State Variables
 
 ```solidity
