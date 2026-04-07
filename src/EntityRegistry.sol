@@ -54,23 +54,23 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         Attribute[] attributes;
     }
 
+    // Block-level linked list node for traversing mutation history.
+    // All fields pack into a single slot (20 bytes).
+    struct BlockNode {
+        uint64 prevBlock;
+        uint64 nextBlock;
+        uint32 txCount;
+    }
+
     // -------------------------------------------------------------------------
     // Errors
     // -------------------------------------------------------------------------
 
-    error PayloadTooLarge(uint256 size, uint256 max);
-    error TooManyAttributes(uint256 count, uint256 max);
-    error StringAttributeTooLarge(ShortString name, uint256 size, uint256 max);
-    error AttributesNotSorted(ShortString name, ShortString previousName);
-    error EmptyAttributeName(uint256 index);
+    error EmptyBatch();
 
     // -------------------------------------------------------------------------
     // Constants
     // -------------------------------------------------------------------------
-
-    uint256 public constant MAX_PAYLOAD_SIZE = 122880; // 120 KB
-    uint256 public constant MAX_ATTRIBUTES = 32;
-    uint256 public constant MAX_STRING_ATTR_SIZE = 1024; // 1 KB
 
     bytes32 public constant ATTRIBUTE_TYPEHASH =
         keccak256("Attribute(bytes32 name,uint8 valueType,bytes32 fixedValue,string stringValue)");
@@ -87,51 +87,37 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // State variables
     // -------------------------------------------------------------------------
 
-    // Per-owner nonce for deterministic, predictable entity key derivation.
-    // A global nonce would require waiting for tx inclusion to know the entity key,
-    // since concurrent submissions from different owners would contend on the same value.
-    // A per-owner nonce is only affected by the owner's own activity, so the next key
-    // is predictable client-side before submission.
     mapping(address owner => uint32) public nonces;
 
-    // Running hash over the full ordered sequence of entity mutations.
-    // Each mutation chains onto the previous value:
-    //   _changeSetHash = keccak256(_changeSetHash || op || entityKey || entityHash)
-    //
-    // Transitively commits to every field of every entity through the EIP-712 hash tree:
-    //
-    //   changeSetHash
-    //   ├─ previous changeSetHash       ← full history of all prior mutations
-    //   ├─ op                            ← mutation type (CREATE, UPDATE, EXTEND, DELETE, EXPIRE)
-    //   ├─ entityKey                     ← identity of the entity
-    //   └─ entityHash                    ← EIP-712 hash of the entity's full state
-    //        ├─ coreHash                 ← EIP-712 hash of immutable content
-    //        │    ├─ entityKey
-    //        │    ├─ creator
-    //        │    ├─ createdAt
-    //        │    ├─ contentType
-    //        │    ├─ keccak256(payload)
-    //        │    └─ keccak256(attributeHashes[])
-    //        │         └─ per attribute: name, valueType, fixedValue, keccak256(stringValue)
-    //        ├─ owner
-    //        ├─ updatedAt
-    //        └─ expiresAt
-    //
-    // A single eth_call comparing this value verifies the off-chain DB has processed
-    // every mutation in the correct order with the correct content.
-    bytes32 internal _changeSetHash;
-
     // Three-level changeset hash lookup table.
+    //
     // Composite key: (blockNumber << 64) | (txSeq << 32) | opSeq
-    //   opSeq = 0, txSeq = 0  → block-level snapshot
-    //   opSeq = 0, txSeq = N  → tx-level snapshot (after all ops in tx N)
-    //   opSeq = M, txSeq = N  → op-level snapshot (after op M in tx N)
+    //   (block, tx, op) → changeset hash after that specific op
+    //
+    // No redundant tx-level or block-level snapshots are stored.
+    // Those are derived via counts:
+    //   tx hash   = _hashAt[(block << 64) | (tx << 32) | _txOpCount[(block << 32) | tx]]
+    //   block hash = tx hash of last tx in block (via BlockNode.txCount)
+    //
+    // Traversal: for block M, walk txSeq 1..blocks[M].txCount,
+    //   for each tx walk opSeq 1.._txOpCount[(M << 32) | txSeq].
+    //   Across blocks, follow blocks[M].nextBlock.
     mapping(uint256 => bytes32) internal _hashAt;
 
-    mapping(uint256 blockNumber => uint32) internal _blockTxCount;
-    mapping(uint256 blockNumber => uint32) internal _blockOpCount;
+    // (blockNumber << 32) | txSeq → op count for that tx
+    mapping(uint256 => uint32) internal _txOpCount;
 
-    uint64 internal _currentBlock;
+    // Block-level linked list: only blocks with mutations have entries.
+    // Enables O(1) traversal across sparse blocks.
+    mapping(uint256 => BlockNode) internal _blocks;
+
+    // Packed into a single slot (24 bytes):
+    //   _headBlock:    first block with mutations (head of linked list)
+    //   _tailBlock:    most recent block with mutations (tail of linked list)
+    //   _currentTxSeq: tx counter within the current block
+    //   _currentOpSeq: op counter within the current tx
+    uint64 internal _headBlock;
+    uint64 internal _tailBlock;
     uint32 internal _currentTxSeq;
     uint32 internal _currentOpSeq;
 
@@ -140,7 +126,9 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // -------------------------------------------------------------------------
 
     function changeSetHash() public view returns (bytes32) {
-        return _changeSetHash;
+        return _hashAt[
+            (uint256(_tailBlock) << 64) | (uint256(_currentTxSeq) << 32) | _currentOpSeq
+        ];
     }
 
     function entityKey(address owner, uint32 nonce) public view returns (bytes32) {
@@ -152,19 +140,50 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // -------------------------------------------------------------------------
 
     function execute(Op[] calldata ops) external {
-        if (uint64(block.number) != _currentBlock) {
-            _currentBlock = uint64(block.number);
+        if (ops.length == 0) revert EmptyBatch();
+
+        // Read previous hash before any counter mutations.
+        bytes32 hash = _hashAt[
+            (uint256(_tailBlock) << 64) | (uint256(_currentTxSeq) << 32) | _currentOpSeq
+        ];
+
+        // Block transition: maintain the block-level linked list.
+        //
+        // _headBlock and _tailBlock track the first and most recent mutation
+        // blocks respectively. Both are packed into the same slot as the
+        // tx/op counters, so updating them costs no additional SSTORE.
+        //
+        // When we enter a new block:
+        //   1. If this is the first mutation ever, set _headBlock.
+        //      Otherwise, link the previous tail forward to this block.
+        //   2. This block's prevBlock points back to the previous tail.
+        //   3. _tailBlock advances to become the new tail.
+        //   4. _currentTxSeq resets — tx numbering restarts per block.
+        //
+        // prevBlock == 0 on the head node means "start of chain."
+        // nextBlock == 0 on the tail node means "end of chain."
+        if (uint64(block.number) != _tailBlock) {
+            uint64 prevBlock = _tailBlock;
+            if (prevBlock != 0) {
+                _blocks[prevBlock].nextBlock = uint64(block.number);
+            } else {
+                _headBlock = uint64(block.number);
+            }
+            _blocks[block.number].prevBlock = prevBlock;
+            _tailBlock = uint64(block.number);
             _currentTxSeq = 0;
-            _currentOpSeq = 0;
         }
+
+        // Advance tx sequence within this block.
+        // txCount is overwritten each tx so it always reflects the current count.
         _currentTxSeq++;
-        _currentOpSeq = 0;
-        _blockTxCount[block.number] = _currentTxSeq;
+        uint32 txSeq = _currentTxSeq;
+        _blocks[block.number].txCount = txSeq;
 
-        bytes32 hash = _changeSetHash;
-        uint256 b = block.number << 64;
-        uint256 txKey = b | (uint256(_currentTxSeq) << 32);
+        uint256 txKey = (block.number << 64) | (uint256(txSeq) << 32);
 
+        // Process ops — one SSTORE per op for the snapshot.
+        uint32 opSeq = 0;
         for (uint256 i = 0; i < ops.length; i++) {
             OpType opType = ops[i].opType;
             bytes32 key;
@@ -183,20 +202,13 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
             }
 
             hash = keccak256(abi.encodePacked(hash, opType, key, entityHash_));
-
-            // per-op snapshot
-            _currentOpSeq++;
-            _hashAt[txKey | _currentOpSeq] = hash;
+            opSeq++;
+            _hashAt[txKey | opSeq] = hash;
         }
 
-        _blockOpCount[block.number] = _currentOpSeq;
-
-        // per-tx snapshot
-        _hashAt[txKey] = hash;
-        // per-block snapshot (overwritten each tx, reflects final state)
-        _hashAt[b] = hash;
-
-        _changeSetHash = hash;
+        // Record op count for this tx and update packed cursor.
+        _txOpCount[(block.number << 32) | txSeq] = opSeq;
+        _currentOpSeq = opSeq;
     }
 
     // -------------------------------------------------------------------------
@@ -204,23 +216,35 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // -------------------------------------------------------------------------
 
     function changeSetHashAtBlock(uint256 blockNumber) public view returns (bytes32) {
-        return _hashAt[blockNumber << 64];
+        uint32 txCount = _blocks[blockNumber].txCount;
+        if (txCount == 0) return bytes32(0);
+        uint32 ops = _txOpCount[(blockNumber << 32) | txCount];
+        return _hashAt[(blockNumber << 64) | (uint256(txCount) << 32) | ops];
     }
 
     function changeSetHashAtTx(uint256 blockNumber, uint32 txSeq) public view returns (bytes32) {
-        return _hashAt[(blockNumber << 64) | (uint256(txSeq) << 32)];
+        uint32 ops = _txOpCount[(blockNumber << 32) | txSeq];
+        return _hashAt[(blockNumber << 64) | (uint256(txSeq) << 32) | ops];
     }
 
     function changeSetHashAtOp(uint256 blockNumber, uint32 txSeq, uint32 opSeq) public view returns (bytes32) {
         return _hashAt[(blockNumber << 64) | (uint256(txSeq) << 32) | opSeq];
     }
 
-    function blockTxCount(uint256 blockNumber) public view returns (uint32) {
-        return _blockTxCount[blockNumber];
+    function headBlock() public view returns (uint64) {
+        return _headBlock;
     }
 
-    function blockOpCount(uint256 blockNumber) public view returns (uint32) {
-        return _blockOpCount[blockNumber];
+    function tailBlock() public view returns (uint64) {
+        return _tailBlock;
+    }
+
+    function getBlockNode(uint256 blockNumber) public view returns (BlockNode memory) {
+        return _blocks[blockNumber];
+    }
+
+    function txOpCount(uint256 blockNumber, uint32 txSeq) public view returns (uint32) {
+        return _txOpCount[(blockNumber << 32) | txSeq];
     }
 
     // -------------------------------------------------------------------------
