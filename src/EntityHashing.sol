@@ -67,18 +67,21 @@ library EntityHashing {
         string stringValue; // STRING
     }
 
-    /// @dev On-chain representation of a registered entity. Stored in the
-    /// EntityRegistry's entity mapping. The `attributes` array must be
-    /// sorted ascending by name to match the ordering enforced at creation.
-    struct Entity {
+    /// @dev On-chain entity commitment. Stores only the fields needed to
+    /// recompute entityHash from chain state alone — no payload or attributes.
+    /// Full entity data lives in calldata/events for the off-chain DB.
+    ///
+    /// Storage layout (3 slots):
+    ///   slot 0: creator (20) | createdAt (4) | updatedAt (4) | expiresAt (4) = 32 bytes
+    ///   slot 1: owner (20) | [12 bytes padding]
+    ///   slot 2: coreHash (32)
+    struct Commitment {
         address creator;
-        address owner;
         BlockNumber createdAt;
         BlockNumber updatedAt;
         BlockNumber expiresAt;
-        bytes payload;
-        string contentType;
-        Attribute[] attributes;
+        address owner;
+        bytes32 coreHash;
     }
 
     /// @dev Block-level linked list node for traversing mutation history.
@@ -96,6 +99,27 @@ library EntityHashing {
 
     /// @dev Reverted when `execute()` is called with an empty ops array.
     error EmptyBatch();
+
+    /// @dev Reverted when an entity key already exists in storage.
+    error EntityAlreadyExists(bytes32 entityKey);
+
+    /// @dev Reverted when expiresAt is not in the future.
+    error ExpiryInPast(BlockNumber expiresAt, BlockNumber currentBlock);
+
+    /// @dev Reverted when attributes are not sorted in strict ascending order by name.
+    error AttributesNotSorted(bytes32 current, bytes32 previous);
+
+    /// @dev Reverted when an attribute has an empty name.
+    error EmptyAttributeName(uint256 index);
+
+    /// @dev Reverted when a STRING attribute value exceeds the maximum size.
+    error StringAttributeTooLarge(bytes32 name, uint256 size, uint256 maxSize);
+
+    /// @dev Reverted when a payload exceeds the maximum size.
+    error PayloadTooLarge(uint256 size, uint256 maxSize);
+
+    /// @dev Reverted when too many attributes are provided.
+    error TooManyAttributes(uint256 count, uint256 maxCount);
 
     // -------------------------------------------------------------------------
     // Constants — EIP-712 typehashes
