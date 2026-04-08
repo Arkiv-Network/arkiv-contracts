@@ -139,7 +139,6 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
     function changeSetHashAtTx(uint256 blockNumber, uint32 txSeq) public view returns (bytes32) {
         uint32 opCount = _txOpCount[EntityHashing.txKey(blockNumber, txSeq)];
-        if (opCount == 0) return bytes32(0);
         return _hashAt[EntityHashing.opKey(blockNumber, txSeq, opCount - 1)];
     }
 
