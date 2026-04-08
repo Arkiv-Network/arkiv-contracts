@@ -231,10 +231,10 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     }
 
     // -------------------------------------------------------------------------
-    // Internal functions — validation and hashing
+    // Pure hash functions
     // -------------------------------------------------------------------------
 
-    function _attributeHash(Attribute calldata attr) internal pure returns (bytes32) {
+    function attributeHash(Attribute calldata attr) public pure returns (bytes32) {
         return keccak256(
             abi.encode(
                 ATTRIBUTE_TYPEHASH, attr.name, attr.valueType, attr.fixedValue, keccak256(bytes(attr.stringValue))
@@ -242,17 +242,17 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         );
     }
 
-    function _coreHash(
+    function coreHash(
         bytes32 key,
         address creator,
         uint32 createdAt,
         string calldata contentType,
         bytes calldata payload,
         Attribute[] calldata attributes
-    ) internal pure returns (bytes32) {
+    ) public pure returns (bytes32) {
         bytes32[] memory attrHashes = new bytes32[](attributes.length);
         for (uint256 i = 0; i < attributes.length; i++) {
-            attrHashes[i] = _attributeHash(attributes[i]);
+            attrHashes[i] = attributeHash(attributes[i]);
         }
         return keccak256(
             abi.encode(
