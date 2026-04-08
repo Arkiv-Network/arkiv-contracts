@@ -43,3 +43,13 @@ jobs:
         run: |
           forge test -vvv
         id: test
+
+      - name: Run Forge coverage
+        run: |
+          forge coverage --exclude-tests
+        id: coverage
+
+      - name: Run gas report
+        run: |
+          forge test --gas-report
+        id: gas-report
