@@ -2,7 +2,7 @@
 src = "src"
 out = "out"
 libs = ["lib"]
-test = "test_disabled"
+test = "test"
 solc_version = "0.8.28"
 
 gas_reports = [
