@@ -24,6 +24,8 @@
           packages = with pkgs; [
             foundry
             solc
+            python3
+            vscode-solidity-server
           ];
         };
       };

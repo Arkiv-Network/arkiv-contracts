@@ -1,0 +1,10 @@
+[language-server.vscode-solidity-server]
+command = "vscode-solidity-server"
+args = ["--stdio"]
+
+[[language]]
+name = "solidity"
+language-servers = ["vscode-solidity-server"]
+formatter = { command = "forge", args = ["fmt", "--raw", "-"] }
+auto-format = true
+file-types = ["sol"]
