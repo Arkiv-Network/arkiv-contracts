@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {BlockNumber, currentBlock} from "./BlockNumber.sol";
+import {ShortString} from "@openzeppelin/contracts/utils/ShortStrings.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {EntityHashing, OpKey, TxKey} from "./EntityHashing.sol";
 
@@ -21,6 +22,12 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // -------------------------------------------------------------------------
 
     mapping(address owner => uint32) public nonces;
+
+    /// @dev Entity commitment map: entityKey → Commitment.
+    /// Stores only the fields needed to recompute entityHash from chain
+    /// state alone. Full entity data (payload, attributes) lives in
+    /// calldata/events for the off-chain DB.
+    mapping(bytes32 entityKey => EntityHashing.Commitment) internal _commitments;
 
     // Three-level changeset hash lookup table.
     //
@@ -43,6 +50,32 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Block-level linked list: only blocks with mutations have entries.
     // Enables O(1) traversal across sparse blocks.
     mapping(BlockNumber blockNumber => EntityHashing.BlockNode node) internal _blocks;
+
+    // -------------------------------------------------------------------------
+    // Constants
+    // -------------------------------------------------------------------------
+
+    uint256 public constant MAX_PAYLOAD_SIZE = 24_576;
+    uint256 public constant MAX_ATTRIBUTES = 32;
+    uint256 public constant MAX_STRING_ATTR_SIZE = 1024;
+
+    // -------------------------------------------------------------------------
+    // Events
+    // -------------------------------------------------------------------------
+
+    event EntityCreated(
+        bytes32 indexed entityKey,
+        address indexed owner,
+        bytes32 entityHash,
+        BlockNumber expiresAt,
+        bytes payload,
+        string contentType,
+        EntityHashing.Attribute[] attributes
+    );
+
+    // -------------------------------------------------------------------------
+    // State — linked list pointers
+    // -------------------------------------------------------------------------
 
     BlockNumber internal immutable _genesisBlock;
 
@@ -157,6 +190,10 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         return _txOpCount[EntityHashing.txKey(blockNumber, txSeq)];
     }
 
+    function getCommitment(bytes32 key) public view returns (EntityHashing.Commitment memory) {
+        return _commitments[key];
+    }
+
     // -------------------------------------------------------------------------
     // Internal functions — entity hash (requires domain separator)
     // -------------------------------------------------------------------------
@@ -173,13 +210,76 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     }
 
     // -------------------------------------------------------------------------
-    // Internal functions — entity operations (skeletons)
+    // Internal functions — entity operations
     // -------------------------------------------------------------------------
 
     function _create(EntityHashing.Op calldata op) internal returns (bytes32 key, bytes32 entityHash_) {
-        // Validates: content type allowlist, payload size, attribute constraints (sorted, no empty names, unused fields zeroed)
-        // Then: mint key via nonce, compute coreHash + entityHash, store entity, expiresAt must be in future
-        revert("not implemented");
+        // Validate payload size.
+        if (op.payload.length > MAX_PAYLOAD_SIZE) {
+            revert EntityHashing.PayloadTooLarge(op.payload.length, MAX_PAYLOAD_SIZE);
+        }
+
+        // Validate attribute count.
+        if (op.attributes.length > MAX_ATTRIBUTES) {
+            revert EntityHashing.TooManyAttributes(op.attributes.length, MAX_ATTRIBUTES);
+        }
+
+        // Validate attributes: non-empty names, strict ascending order, string size limits.
+        for (uint256 i = 0; i < op.attributes.length; i++) {
+            bytes32 name = ShortString.unwrap(op.attributes[i].name);
+
+            if (name == bytes32(0)) {
+                revert EntityHashing.EmptyAttributeName(i);
+            }
+
+            if (i > 0) {
+                bytes32 prev = ShortString.unwrap(op.attributes[i - 1].name);
+                if (name <= prev) {
+                    revert EntityHashing.AttributesNotSorted(name, prev);
+                }
+            }
+
+            if (op.attributes[i].valueType == EntityHashing.AttributeType.STRING) {
+                if (bytes(op.attributes[i].stringValue).length > MAX_STRING_ATTR_SIZE) {
+                    revert EntityHashing.StringAttributeTooLarge(
+                        name, bytes(op.attributes[i].stringValue).length, MAX_STRING_ATTR_SIZE
+                    );
+                }
+            }
+        }
+
+        // Validate expiry.
+        BlockNumber now_ = currentBlock();
+        if (op.expiresAt <= now_) {
+            revert EntityHashing.ExpiryInPast(op.expiresAt, now_);
+        }
+
+        // Mint entity key from owner nonce.
+        uint32 nonce = nonces[msg.sender]++;
+        key = EntityHashing.entityKey(block.chainid, address(this), msg.sender, nonce);
+
+        // Entity key must not already exist (nonce should guarantee this,
+        // but defensive check against storage collision).
+        if (_commitments[key].createdAt != BlockNumber.wrap(0)) {
+            revert EntityHashing.EntityAlreadyExists(key);
+        }
+
+        // Compute hashes.
+        bytes32 coreHash_ =
+            EntityHashing.coreHash(key, msg.sender, now_, op.contentType, op.payload, op.attributes);
+        entityHash_ = _entityHash(coreHash_, msg.sender, now_, op.expiresAt);
+
+        // Store commitment (no payload/attributes — those live in calldata/events).
+        _commitments[key] = EntityHashing.Commitment({
+            creator: msg.sender,
+            createdAt: now_,
+            updatedAt: now_,
+            expiresAt: op.expiresAt,
+            owner: msg.sender,
+            coreHash: coreHash_
+        });
+
+        emit EntityCreated(key, msg.sender, entityHash_, op.expiresAt, op.payload, op.contentType, op.attributes);
     }
 
     function _update(EntityHashing.Op calldata op) internal returns (bytes32, bytes32) {
