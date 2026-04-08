@@ -2,15 +2,15 @@
 pragma solidity ^0.8.24;
 
 import {ShortStrings} from "@openzeppelin/contracts/utils/ShortStrings.sol";
-import {EntityRegistry} from "../../src/EntityRegistry.sol";
+import {EntityHashing} from "../../src/EntityHashing.sol";
 
 library Lib {
     using ShortStrings for *;
 
-    function uintAttr(string memory name, uint256 value) internal pure returns (EntityRegistry.Attribute memory) {
-        return EntityRegistry.Attribute({
+    function uintAttr(string memory name, uint256 value) internal pure returns (EntityHashing.Attribute memory) {
+        return EntityHashing.Attribute({
             name: name.toShortString(),
-            valueType: EntityRegistry.AttributeType.UINT,
+            valueType: EntityHashing.AttributeType.UINT,
             fixedValue: bytes32(value),
             stringValue: ""
         });
@@ -19,20 +19,20 @@ library Lib {
     function stringAttr(string memory name, string memory value)
         internal
         pure
-        returns (EntityRegistry.Attribute memory)
+        returns (EntityHashing.Attribute memory)
     {
-        return EntityRegistry.Attribute({
+        return EntityHashing.Attribute({
             name: name.toShortString(),
-            valueType: EntityRegistry.AttributeType.STRING,
+            valueType: EntityHashing.AttributeType.STRING,
             fixedValue: bytes32(0),
             stringValue: value
         });
     }
 
-    function entityKeyAttr(string memory name, bytes32 value) internal pure returns (EntityRegistry.Attribute memory) {
-        return EntityRegistry.Attribute({
+    function entityKeyAttr(string memory name, bytes32 value) internal pure returns (EntityHashing.Attribute memory) {
+        return EntityHashing.Attribute({
             name: name.toShortString(),
-            valueType: EntityRegistry.AttributeType.ENTITY_KEY,
+            valueType: EntityHashing.AttributeType.ENTITY_KEY,
             fixedValue: value,
             stringValue: ""
         });
