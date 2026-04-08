@@ -12,7 +12,6 @@ import {EntityHashing, OpKey, TxKey} from "./EntityHashing.sol";
 contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     constructor() {
         _genesisBlock = uint64(block.number);
-        _headBlock = uint64(block.number);
     }
 
     // -------------------------------------------------------------------------
@@ -26,13 +25,13 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Key: EntityHashing.opKey(blockNumber, txSeq, opSeq)
     //   (block, tx, op) → changeset hash after that specific op
     //
-    // No redundant tx-level or block-level snapshots are stored.
-    // Those are derived via counts:
-    //   tx hash   = _hashAt[opKey(block, tx, _txOpCount[txKey(block, tx)])]
+    // All indices are 0-based. No redundant tx-level or block-level snapshots
+    // are stored — those are derived via counts:
+    //   tx hash   = _hashAt[opKey(block, lastTx, lastOp)]
     //   block hash = tx hash of last tx in block (via BlockNode.txCount)
     //
-    // Traversal: for block M, walk txSeq 1..blocks[M].txCount,
-    //   for each tx walk opSeq 1.._txOpCount[txKey(M, txSeq)].
+    // Traversal: for block M, walk txSeq 0..blocks[M].txCount-1,
+    //   for each tx walk opSeq 0.._txOpCount[txKey(M, txSeq)]-1.
     //   Across blocks, follow blocks[M].nextBlock.
     mapping(OpKey opKey => bytes32 changeSetHash) internal _hashAt;
 
@@ -45,20 +44,15 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
     uint64 internal immutable _genesisBlock;
 
-    // Packed into a single slot (16 bytes):
-    //   _headBlock:    most recent block with mutations (head of linked list)
-    //   _currentTxSeq: tx counter within the current block
-    //   _currentOpSeq: op counter within the current tx
+    // _headBlock: most recent block with mutations (head of linked list)
     uint64 internal _headBlock;
-    uint32 internal _currentTxSeq;
-    uint32 internal _currentOpSeq;
 
     // -------------------------------------------------------------------------
     // Public view functions
     // -------------------------------------------------------------------------
 
     function changeSetHash() public view returns (bytes32) {
-        return _hashAt[EntityHashing.opKey(_headBlock, _currentTxSeq, _currentOpSeq)];
+        return changeSetHashAtBlock(_headBlock);
     }
 
     /// @notice Derive the entity key for an owner and nonce, bound to this
@@ -74,54 +68,61 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function execute(EntityHashing.Op[] calldata ops) external {
         if (ops.length == 0) revert EntityHashing.EmptyBatch();
 
-        // Read previous hash before any counter mutations.
-        bytes32 hash = _hashAt[EntityHashing.opKey(_headBlock, _currentTxSeq, _currentOpSeq)];
+        // Read previous hash from the head of the chain.
+        bytes32 hash = changeSetHash();
 
-        // Block transition: advance the linked list when entering a new block.
+        // Block transition: maintain the block-level linked list.
+        //
+        // When we enter a new block:
+        //   1. Link the previous head forward to this block.
+        //   2. This block's prevBlock points back to the previous head.
+        //   3. _headBlock advances to the current block.
+        //
+        // prevBlock == 0 on the genesis node means "start of chain."
+        // nextBlock == 0 on the head node means "end of chain."
+        uint32 txSeq;
         if (uint64(block.number) != _headBlock) {
-            _blocks[_headBlock].nextBlock = uint64(block.number);
-            _blocks[block.number].prevBlock = _headBlock;
+            uint64 prevHead = _headBlock;
+            if (prevHead != 0) {
+                _blocks[prevHead].nextBlock = uint64(block.number);
+            }
+            _blocks[block.number].prevBlock = prevHead;
             _headBlock = uint64(block.number);
-            _currentTxSeq = 0;
+            // txSeq = 0 (default)
+        } else {
+            txSeq = _blocks[block.number].txCount;
         }
 
-        // Advance tx sequence within this block.
-        // txCount is overwritten each tx so it always reflects the current count.
-        _currentTxSeq++;
-        uint32 txSeq = _currentTxSeq;
-        _blocks[block.number].txCount = txSeq;
+        _blocks[block.number].txCount = txSeq + 1;
 
         // Process ops — one SSTORE per op for the snapshot.
-        uint32 opSeq = 0;
-        for (uint256 i = 0; i < ops.length; i++) {
-            uint8 opType = ops[i].opType;
+        for (uint32 opSeq = 0; opSeq < ops.length; opSeq++) {
+            uint8 opType = ops[opSeq].opType;
             bytes32 key;
             bytes32 entityHash_;
 
             if (opType == EntityHashing.CREATE) {
-                (key, entityHash_) = _create(ops[i]);
+                (key, entityHash_) = _create(ops[opSeq]);
             } else if (opType == EntityHashing.UPDATE) {
-                (key, entityHash_) = _update(ops[i]);
+                (key, entityHash_) = _update(ops[opSeq]);
             } else if (opType == EntityHashing.EXTEND) {
-                (key, entityHash_) = _extend(ops[i]);
+                (key, entityHash_) = _extend(ops[opSeq]);
             } else if (opType == EntityHashing.TRANSFER) {
-                (key, entityHash_) = _transfer(ops[i]);
+                (key, entityHash_) = _transfer(ops[opSeq]);
             } else if (opType == EntityHashing.DELETE) {
-                (key, entityHash_) = _delete(ops[i]);
+                (key, entityHash_) = _delete(ops[opSeq]);
             } else if (opType == EntityHashing.EXPIRE) {
-                (key, entityHash_) = _expire(ops[i].entityKey);
+                (key, entityHash_) = _expire(ops[opSeq].entityKey);
             } else {
                 // TODO should not reach here
             }
 
             hash = EntityHashing.chainOp(hash, opType, key, entityHash_);
-            opSeq++;
             _hashAt[EntityHashing.opKey(block.number, txSeq, opSeq)] = hash;
         }
 
-        // Record op count for this tx and update packed cursor.
-        _txOpCount[EntityHashing.txKey(block.number, txSeq)] = opSeq;
-        _currentOpSeq = opSeq;
+        // Record op count for this tx.
+        _txOpCount[EntityHashing.txKey(block.number, txSeq)] = uint32(ops.length);
     }
 
     // -------------------------------------------------------------------------
@@ -131,13 +132,14 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function changeSetHashAtBlock(uint256 blockNumber) public view returns (bytes32) {
         uint32 txCount = _blocks[blockNumber].txCount;
         if (txCount == 0) return bytes32(0);
-        uint32 ops = _txOpCount[EntityHashing.txKey(blockNumber, txCount)];
-        return _hashAt[EntityHashing.opKey(blockNumber, txCount, ops)];
+        uint32 lastTx = txCount - 1;
+        uint32 opCount = _txOpCount[EntityHashing.txKey(blockNumber, lastTx)];
+        return _hashAt[EntityHashing.opKey(blockNumber, lastTx, opCount - 1)];
     }
 
     function changeSetHashAtTx(uint256 blockNumber, uint32 txSeq) public view returns (bytes32) {
-        uint32 ops = _txOpCount[EntityHashing.txKey(blockNumber, txSeq)];
-        return _hashAt[EntityHashing.opKey(blockNumber, txSeq, ops)];
+        uint32 opCount = _txOpCount[EntityHashing.txKey(blockNumber, txSeq)];
+        return _hashAt[EntityHashing.opKey(blockNumber, txSeq, opCount - 1)];
     }
 
     function changeSetHashAtOp(uint256 blockNumber, uint32 txSeq, uint32 opSeq) public view returns (bytes32) {
