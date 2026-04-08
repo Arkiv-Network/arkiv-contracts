@@ -23,20 +23,20 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
     // Three-level changeset hash lookup table.
     //
-    // Composite key: (blockNumber << 64) | (txSeq << 32) | opSeq
+    // Key: EntityHashing.packHashKey(blockNumber, txSeq, opSeq)
     //   (block, tx, op) → changeset hash after that specific op
     //
     // No redundant tx-level or block-level snapshots are stored.
     // Those are derived via counts:
-    //   tx hash   = _hashAt[(block << 64) | (tx << 32) | _txOpCount[(block << 32) | tx]]
+    //   tx hash   = _hashAt[packHashKey(block, tx, _txOpCount[packTxKey(block, tx)])]
     //   block hash = tx hash of last tx in block (via BlockNode.txCount)
     //
     // Traversal: for block M, walk txSeq 1..blocks[M].txCount,
-    //   for each tx walk opSeq 1.._txOpCount[(M << 32) | txSeq].
+    //   for each tx walk opSeq 1.._txOpCount[packTxKey(M, txSeq)].
     //   Across blocks, follow blocks[M].nextBlock.
     mapping(uint256 blockTxOpIndex => bytes32 changeSetHash) internal _hashAt;
 
-    // (blockNumber << 32) | txSeq → op count for that tx
+    // Key: EntityHashing.packTxKey(blockNumber, txSeq) → op count for that tx
     mapping(uint256 blockTxKey => uint32 opCount) internal _txOpCount;
 
     // Block-level linked list: only blocks with mutations have entries.
@@ -58,7 +58,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // -------------------------------------------------------------------------
 
     function changeSetHash() public view returns (bytes32) {
-        return _hashAt[(uint256(_headBlock) << 64) | (uint256(_currentTxSeq) << 32) | _currentOpSeq];
+        return _hashAt[EntityHashing.packHashKey(_headBlock, _currentTxSeq, _currentOpSeq)];
     }
 
     /// @notice Derive the entity key for an owner and nonce, bound to this
@@ -75,7 +75,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         if (ops.length == 0) revert EntityHashing.EmptyBatch();
 
         // Read previous hash before any counter mutations.
-        bytes32 hash = _hashAt[(uint256(_headBlock) << 64) | (uint256(_currentTxSeq) << 32) | _currentOpSeq];
+        bytes32 hash = _hashAt[EntityHashing.packHashKey(_headBlock, _currentTxSeq, _currentOpSeq)];
 
         // Block transition: advance the linked list when entering a new block.
         if (uint64(block.number) != _headBlock) {
@@ -91,7 +91,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         uint32 txSeq = _currentTxSeq;
         _blocks[block.number].txCount = txSeq;
 
-        uint256 txKey = (block.number << 64) | (uint256(txSeq) << 32);
+        uint256 txKey = EntityHashing.packHashKey(block.number, txSeq, 0);
 
         // Process ops — one SSTORE per op for the snapshot.
         uint32 opSeq = 0;
@@ -120,7 +120,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         }
 
         // Record op count for this tx and update packed cursor.
-        _txOpCount[(block.number << 32) | txSeq] = opSeq;
+        _txOpCount[EntityHashing.packTxKey(block.number, txSeq)] = opSeq;
         _currentOpSeq = opSeq;
     }
 
@@ -131,17 +131,17 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function changeSetHashAtBlock(uint256 blockNumber) public view returns (bytes32) {
         uint32 txCount = _blocks[blockNumber].txCount;
         if (txCount == 0) return bytes32(0);
-        uint32 ops = _txOpCount[(blockNumber << 32) | txCount];
-        return _hashAt[(blockNumber << 64) | (uint256(txCount) << 32) | ops];
+        uint32 ops = _txOpCount[EntityHashing.packTxKey(blockNumber, txCount)];
+        return _hashAt[EntityHashing.packHashKey(blockNumber, txCount, ops)];
     }
 
     function changeSetHashAtTx(uint256 blockNumber, uint32 txSeq) public view returns (bytes32) {
-        uint32 ops = _txOpCount[(blockNumber << 32) | txSeq];
-        return _hashAt[(blockNumber << 64) | (uint256(txSeq) << 32) | ops];
+        uint32 ops = _txOpCount[EntityHashing.packTxKey(blockNumber, txSeq)];
+        return _hashAt[EntityHashing.packHashKey(blockNumber, txSeq, ops)];
     }
 
     function changeSetHashAtOp(uint256 blockNumber, uint32 txSeq, uint32 opSeq) public view returns (bytes32) {
-        return _hashAt[(blockNumber << 64) | (uint256(txSeq) << 32) | opSeq];
+        return _hashAt[EntityHashing.packHashKey(blockNumber, txSeq, opSeq)];
     }
 
     function genesisBlock() public view returns (uint64) {
@@ -157,7 +157,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     }
 
     function txOpCount(uint256 blockNumber, uint32 txSeq) public view returns (uint32) {
-        return _txOpCount[(blockNumber << 32) | txSeq];
+        return _txOpCount[EntityHashing.packTxKey(blockNumber, txSeq)];
     }
 
     // -------------------------------------------------------------------------

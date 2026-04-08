@@ -202,4 +202,28 @@ library EntityHashing {
     function chainOp(bytes32 prev, uint8 opType, bytes32 key, bytes32 entityHash_) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(prev, opType, key, entityHash_));
     }
+
+    // -------------------------------------------------------------------------
+    // Storage key packing
+    // -------------------------------------------------------------------------
+
+    /// @notice Pack a (block, tx, op) triple into a single uint256 key for
+    /// the `_hashAt` mapping. Layout: block in bits [128..191], tx in bits
+    /// [32..63], op in bits [0..31].
+    /// @param blockNumber Block number (uint64 range).
+    /// @param txSeq       Transaction sequence within the block.
+    /// @param opSeq       Operation sequence within the transaction.
+    /// @return The packed mapping key.
+    function packHashKey(uint256 blockNumber, uint32 txSeq, uint32 opSeq) internal pure returns (uint256) {
+        return (blockNumber << 64) | (uint256(txSeq) << 32) | opSeq;
+    }
+
+    /// @notice Pack a (block, tx) pair into a single uint256 key for the
+    /// `_txOpCount` mapping. Layout: block in bits [32..95], tx in bits [0..31].
+    /// @param blockNumber Block number (uint64 range).
+    /// @param txSeq       Transaction sequence within the block.
+    /// @return The packed mapping key.
+    function packTxKey(uint256 blockNumber, uint32 txSeq) internal pure returns (uint256) {
+        return (blockNumber << 32) | txSeq;
+    }
 }
