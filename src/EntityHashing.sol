@@ -208,7 +208,7 @@ library EntityHashing {
     // -------------------------------------------------------------------------
 
     /// @notice Pack a (block, tx, op) triple into a single uint256 key for
-    /// the `_hashAt` mapping. Layout: block in bits [128..191], tx in bits
+    /// the `_hashAt` mapping. Layout: block in bits [64..127], tx in bits
     /// [32..63], op in bits [0..31].
     /// @param blockNumber Block number (uint64 range).
     /// @param txSeq       Transaction sequence within the block.
