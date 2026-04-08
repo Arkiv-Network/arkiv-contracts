@@ -119,13 +119,22 @@ library EntityHashing {
 
     /// @notice Compute the EIP-712 struct hash of a single attribute.
     /// @param attr The attribute to hash.
-    /// @return The keccak256 EIP-712 struct hash.
-    function attributeHash(Attribute calldata attr) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                ATTRIBUTE_TYPEHASH, attr.name, attr.valueType, attr.fixedValue, keccak256(bytes(attr.stringValue))
-            )
-        );
+    /// @return result The keccak256 EIP-712 struct hash.
+    function attributeHash(Attribute calldata attr) internal pure returns (bytes32 result) {
+        bytes32 th = ATTRIBUTE_TYPEHASH;
+        bytes32 svHash = keccak256(bytes(attr.stringValue));
+        bytes32 name = ShortString.unwrap(attr.name);
+        uint8 vt = uint8(attr.valueType);
+        bytes32 fv = attr.fixedValue;
+        assembly {
+            let m := mload(0x40)
+            mstore(m, th)
+            mstore(add(m, 0x20), name)
+            mstore(add(m, 0x40), vt)
+            mstore(add(m, 0x60), fv)
+            mstore(add(m, 0x80), svHash)
+            result := keccak256(m, 0xa0) // 5 × 32 = 160
+        }
     }
 
     /// @notice Compute the EIP-712 struct hash of an entity's immutable core
@@ -136,7 +145,7 @@ library EntityHashing {
     /// @param contentType  MIME-like content type descriptor.
     /// @param payload   Opaque application-specific payload bytes.
     /// @param attributes Sorted attribute array.
-    /// @return The keccak256 EIP-712 struct hash.
+    /// @return result The keccak256 EIP-712 struct hash.
     function coreHash(
         bytes32 key,
         address creator,
@@ -144,22 +153,34 @@ library EntityHashing {
         string calldata contentType,
         bytes calldata payload,
         Attribute[] calldata attributes
-    ) internal pure returns (bytes32) {
+    ) internal pure returns (bytes32 result) {
+        bytes32 ctHash = keccak256(bytes(contentType));
+        bytes32 plHash = keccak256(payload);
+
         bytes32[] memory attrHashes = new bytes32[](attributes.length);
         for (uint256 i = 0; i < attributes.length; i++) {
             attrHashes[i] = attributeHash(attributes[i]);
         }
-        return keccak256(
-            abi.encode(
-                CORE_HASH_TYPEHASH,
-                key,
-                creator,
-                createdAt,
-                keccak256(bytes(contentType)),
-                keccak256(payload),
-                keccak256(abi.encodePacked(attrHashes))
-            )
-        );
+
+        // Hash the attribute array: abi.encodePacked(bytes32[]) is the raw
+        // data without the length prefix, so we skip the first 32 bytes.
+        bytes32 ahHash;
+        assembly {
+            ahHash := keccak256(add(attrHashes, 0x20), mul(mload(attrHashes), 0x20))
+        }
+
+        bytes32 th = CORE_HASH_TYPEHASH;
+        assembly {
+            let m := mload(0x40)
+            mstore(m, th)
+            mstore(add(m, 0x20), key)
+            mstore(add(m, 0x40), creator)
+            mstore(add(m, 0x60), createdAt)
+            mstore(add(m, 0x80), ctHash)
+            mstore(add(m, 0xa0), plHash)
+            mstore(add(m, 0xc0), ahHash)
+            result := keccak256(m, 0xe0) // 7 × 32 = 224
+        }
     }
 
     /// @notice Compute the inner EIP-712 struct hash for an entity, without
@@ -169,13 +190,22 @@ library EntityHashing {
     /// @param owner     Current owner address.
     /// @param updatedAt Block number of last update.
     /// @param expiresAt Expiry block number.
-    /// @return The keccak256 EIP-712 struct hash (unwrapped).
+    /// @return result The keccak256 EIP-712 struct hash (unwrapped).
     function entityStructHash(bytes32 coreHash_, address owner, BlockNumber updatedAt, BlockNumber expiresAt)
         internal
         pure
-        returns (bytes32)
+        returns (bytes32 result)
     {
-        return keccak256(abi.encode(ENTITY_HASH_TYPEHASH, coreHash_, owner, updatedAt, expiresAt));
+        bytes32 th = ENTITY_HASH_TYPEHASH;
+        assembly {
+            let m := mload(0x40)
+            mstore(m, th)
+            mstore(add(m, 0x20), coreHash_)
+            mstore(add(m, 0x40), owner)
+            mstore(add(m, 0x60), updatedAt)
+            mstore(add(m, 0x80), expiresAt)
+            result := keccak256(m, 0xa0) // 5 × 32 = 160
+        }
     }
 
     /// @notice Derive a globally unique entity key from the chain, registry,
@@ -185,9 +215,21 @@ library EntityHashing {
     /// @param registry  The registry contract address.
     /// @param owner     The entity owner.
     /// @param nonce     The owner's entity creation nonce.
-    /// @return The keccak256 entity key.
-    function entityKey(uint256 chainId, address registry, address owner, uint32 nonce) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(chainId, registry, owner, nonce));
+    /// @return result The keccak256 entity key.
+    function entityKey(uint256 chainId, address registry, address owner, uint32 nonce)
+        internal
+        pure
+        returns (bytes32 result)
+    {
+        // encodePacked layout: chainId (32) | registry (20) | owner (20) | nonce (4) = 76 bytes
+        assembly {
+            let m := mload(0x40)
+            mstore(m, chainId)
+            mstore(add(m, 0x20), shl(96, registry))
+            mstore(add(m, 0x34), shl(96, owner))
+            mstore(add(m, 0x48), shl(224, nonce))
+            result := keccak256(m, 76)
+        }
     }
 
     /// @notice Compute the next changeset hash by chaining an operation onto
@@ -198,9 +240,21 @@ library EntityHashing {
     /// @param opType      The operation type being recorded.
     /// @param key         The entity key affected.
     /// @param entityHash_ The entity hash after the operation.
-    /// @return The new changeset hash.
-    function chainOp(bytes32 prev, uint8 opType, bytes32 key, bytes32 entityHash_) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(prev, opType, key, entityHash_));
+    /// @return result The new changeset hash.
+    function chainOp(bytes32 prev, uint8 opType, bytes32 key, bytes32 entityHash_)
+        internal
+        pure
+        returns (bytes32 result)
+    {
+        // encodePacked layout: prev (32) | opType (1) | key (32) | entityHash_ (32) = 97 bytes
+        assembly {
+            let m := mload(0x40)
+            mstore(m, prev)
+            mstore8(add(m, 0x20), opType)
+            mstore(add(m, 0x21), key)
+            mstore(add(m, 0x41), entityHash_)
+            result := keccak256(m, 97)
+        }
     }
 
     // -------------------------------------------------------------------------
