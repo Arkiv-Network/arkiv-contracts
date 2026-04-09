@@ -214,6 +214,8 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // -------------------------------------------------------------------------
 
     function _create(EntityHashing.Op calldata op, BlockNumber current) internal returns (bytes32 key, bytes32 entityHash_) {
+        // TODO: contentType validation (e.g. non-empty, allowlist of MIME types).
+
         // Validate payload size.
         if (op.payload.length > MAX_PAYLOAD_SIZE) {
             revert EntityHashing.PayloadTooLarge(op.payload.length, MAX_PAYLOAD_SIZE);
