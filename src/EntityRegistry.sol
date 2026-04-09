@@ -200,6 +200,18 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     }
 
     // -------------------------------------------------------------------------
+    // Internal functions — validation
+    // -------------------------------------------------------------------------
+
+    /// @dev Validate attribute count. Per-attribute validation (sorting,
+    /// value type/length) is handled inside coreHash → attributeHash.
+    function _validateAttributes(EntityHashing.Attribute[] calldata attributes) internal pure virtual {
+        if (attributes.length > EntityHashing.MAX_ATTRIBUTES) {
+            revert EntityHashing.TooManyAttributes(attributes.length, EntityHashing.MAX_ATTRIBUTES);
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Internal functions — entity operations
     // -------------------------------------------------------------------------
 
@@ -225,6 +237,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// no existence check is needed.
     function _create(EntityHashing.Op calldata op, BlockNumber current)
         internal
+        virtual
         returns (bytes32 key, bytes32 entityHash_)
     {
         // TODO: contentType validation per RFC 6838 media type syntax.
@@ -239,12 +252,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         // Implementation: 256-bit bitmap for valid charset, single pass over
         // bytes(contentType). ~30 gas/byte — negligible for typical values
         // like "application/json".
-
-        if (op.attributes.length > EntityHashing.MAX_ATTRIBUTES) {
-            revert EntityHashing.TooManyAttributes(op.attributes.length, EntityHashing.MAX_ATTRIBUTES);
-        }
-        // Per-attribute validation (sorting, value type/length) is handled
-        // inside coreHash → attributeHash.
+        _validateAttributes(op.attributes);
 
         // expiresAt must be strictly after the current block. Equality is
         // rejected because the entity would already be expirable in this block.
@@ -275,31 +283,31 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         emit EntityCreated(key, msg.sender, op.expiresAt, entityHash_);
     }
 
-    function _update(EntityHashing.Op calldata op, BlockNumber current) internal returns (bytes32, bytes32) {
+    function _update(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         // Validates: entity exists + not expired + msg.sender is owner, content type, payload, attributes (same as create)
         // Then: recompute coreHash from new content, update entity, recompute entityHash
         revert("not implemented");
     }
 
-    function _extend(EntityHashing.Op calldata op, BlockNumber current) internal returns (bytes32, bytes32) {
+    function _extend(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         // Validates: entity exists + not expired + msg.sender is owner, new expiresAt > current expiresAt
         // Then: update expiresAt + updatedAt, recompute entityHash from stored coreHash
         revert("not implemented");
     }
 
-    function _transfer(EntityHashing.Op calldata op, BlockNumber current) internal returns (bytes32, bytes32) {
+    function _transfer(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         // Validates: entity exists + not expired + msg.sender is owner, newOwner != address(0)
         // Then: set owner to newOwner + updatedAt, recompute entityHash from stored coreHash
         revert("not implemented");
     }
 
-    function _delete(EntityHashing.Op calldata op, BlockNumber current) internal returns (bytes32, bytes32) {
+    function _delete(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         // Validates: entity exists + not expired + msg.sender is owner
         // Then: snapshot entityHash before deletion, delete entity
         revert("not implemented");
     }
 
-    function _expire(bytes32 key, BlockNumber current) internal returns (bytes32, bytes32) {
+    function _expire(bytes32 key, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         // Validates: entity exists + currentBlock >= expiresAt (entity has expired)
         // Then: snapshot entityHash before deletion, delete entity (callable by anyone)
         revert("not implemented");

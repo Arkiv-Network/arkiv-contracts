@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {BlockNumber, currentBlock} from "../../src/BlockNumber.sol";
+import {BlockNumber} from "../../src/BlockNumber.sol";
 import {EntityRegistry} from "../../src/EntityRegistry.sol";
 import {EntityHashing} from "../../src/EntityHashing.sol";
 
+/// @dev Harness for pure hash function tests (attributeHash, coreHash, entityStructHash).
+/// No overrides — this is the real contract with exposed internals.
 contract EntityRegistryHarness is EntityRegistry {
     function exposed_attributeHash(bytes32 prevName, bytes32 chain, EntityHashing.Attribute calldata attr)
         external
@@ -31,9 +33,5 @@ contract EntityRegistryHarness is EntityRegistry {
         returns (bytes32)
     {
         return _entityHash(coreHash_, owner, updatedAt, expiresAt);
-    }
-
-    function exposed_create(EntityHashing.Op calldata op) external returns (bytes32 key, bytes32 entityHash_) {
-        return _create(op, currentBlock());
     }
 }
