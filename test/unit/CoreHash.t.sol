@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {BlockNumber} from "../../src/BlockNumber.sol";
 import {Base} from "../utils/Base.t.sol";
 import {Lib} from "../utils/Lib.sol";
 import {EntityHashing} from "../../src/EntityHashing.sol";
@@ -17,8 +18,8 @@ contract CoreHashTest is Base {
         attrs[0] = Lib.uintAttr("count", 1);
 
         // WHEN computing coreHash twice with the same inputs
-        bytes32 hashA = registry.exposed_coreHash(key, alice, 100, "text/plain", "hello", attrs);
-        bytes32 hashB = registry.exposed_coreHash(key, alice, 100, "text/plain", "hello", attrs);
+        bytes32 hashA = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
+        bytes32 hashB = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
 
         // THEN the hashes are equal
         assertEq(hashA, hashB);
@@ -32,8 +33,8 @@ contract CoreHashTest is Base {
         // GIVEN two calls differing only in key
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
-        bytes32 hashA = registry.exposed_coreHash(keccak256("key1"), alice, 100, "text/plain", "hello", attrs);
-        bytes32 hashB = registry.exposed_coreHash(keccak256("key2"), alice, 100, "text/plain", "hello", attrs);
+        bytes32 hashA = registry.exposed_coreHash(keccak256("key1"), alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
+        bytes32 hashB = registry.exposed_coreHash(keccak256("key2"), alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -44,8 +45,8 @@ contract CoreHashTest is Base {
         bytes32 key = keccak256("key");
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
-        bytes32 hashA = registry.exposed_coreHash(key, alice, 100, "text/plain", "hello", attrs);
-        bytes32 hashB = registry.exposed_coreHash(key, bob, 100, "text/plain", "hello", attrs);
+        bytes32 hashA = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
+        bytes32 hashB = registry.exposed_coreHash(key, bob, BlockNumber.wrap(100), "text/plain", "hello", attrs);
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -56,8 +57,8 @@ contract CoreHashTest is Base {
         bytes32 key = keccak256("key");
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
-        bytes32 hashA = registry.exposed_coreHash(key, alice, 100, "text/plain", "hello", attrs);
-        bytes32 hashB = registry.exposed_coreHash(key, alice, 200, "text/plain", "hello", attrs);
+        bytes32 hashA = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
+        bytes32 hashB = registry.exposed_coreHash(key, alice, BlockNumber.wrap(200), "text/plain", "hello", attrs);
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -68,8 +69,8 @@ contract CoreHashTest is Base {
         bytes32 key = keccak256("key");
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
-        bytes32 hashA = registry.exposed_coreHash(key, alice, 100, "text/plain", "hello", attrs);
-        bytes32 hashB = registry.exposed_coreHash(key, alice, 100, "application/json", "hello", attrs);
+        bytes32 hashA = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
+        bytes32 hashB = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "application/json", "hello", attrs);
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -80,8 +81,8 @@ contract CoreHashTest is Base {
         bytes32 key = keccak256("key");
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
-        bytes32 hashA = registry.exposed_coreHash(key, alice, 100, "text/plain", "hello", attrs);
-        bytes32 hashB = registry.exposed_coreHash(key, alice, 100, "text/plain", "world", attrs);
+        bytes32 hashA = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
+        bytes32 hashB = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "world", attrs);
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -97,8 +98,8 @@ contract CoreHashTest is Base {
         EntityHashing.Attribute[] memory attrsB = new EntityHashing.Attribute[](1);
         attrsB[0] = Lib.uintAttr("count", 2);
 
-        bytes32 hashA = registry.exposed_coreHash(key, alice, 100, "text/plain", "hello", attrsA);
-        bytes32 hashB = registry.exposed_coreHash(key, alice, 100, "text/plain", "hello", attrsB);
+        bytes32 hashA = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrsA);
+        bytes32 hashB = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrsB);
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -112,8 +113,8 @@ contract CoreHashTest is Base {
         EntityHashing.Attribute[] memory one = new EntityHashing.Attribute[](1);
         one[0] = Lib.uintAttr("count", 1);
 
-        bytes32 hashA = registry.exposed_coreHash(key, alice, 100, "text/plain", "hello", empty);
-        bytes32 hashB = registry.exposed_coreHash(key, alice, 100, "text/plain", "hello", one);
+        bytes32 hashA = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", empty);
+        bytes32 hashB = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", one);
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -135,8 +136,8 @@ contract CoreHashTest is Base {
         attrsBA[0] = Lib.uintAttr("bbb", 2);
         attrsBA[1] = Lib.uintAttr("aaa", 1);
 
-        bytes32 hashAB = registry.exposed_coreHash(key, alice, 100, "text/plain", "hello", attrsAB);
-        bytes32 hashBA = registry.exposed_coreHash(key, alice, 100, "text/plain", "hello", attrsBA);
+        bytes32 hashAB = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrsAB);
+        bytes32 hashBA = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrsBA);
 
         // THEN they differ — this is why the contract requires sorted attributes
         assertNotEq(hashAB, hashBA);
@@ -149,7 +150,7 @@ contract CoreHashTest is Base {
     function test_coreHash_matchesManualEIP712Encoding() public {
         // GIVEN inputs with two attributes
         bytes32 key = keccak256("key");
-        uint32 createdAt = 100;
+        BlockNumber createdAt = BlockNumber.wrap(100);
         bytes memory payload = "hello";
         string memory contentType = "text/plain";
 
@@ -190,7 +191,7 @@ contract CoreHashTest is Base {
                 EntityHashing.CORE_HASH_TYPEHASH,
                 key,
                 alice,
-                uint32(100),
+                BlockNumber.wrap(100),
                 keccak256(bytes("text/plain")),
                 keccak256(""),
                 keccak256(abi.encodePacked(attrHashes))
@@ -198,7 +199,7 @@ contract CoreHashTest is Base {
         );
 
         // THEN it matches the library
-        assertEq(registry.exposed_coreHash(key, alice, 100, "text/plain", "", attrs), expected);
+        assertEq(registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "", attrs), expected);
     }
 
     // -------------------------------------------------------------------------
@@ -208,11 +209,12 @@ contract CoreHashTest is Base {
     function test_coreHash_fuzz(
         bytes32 key,
         address creator,
-        uint32 createdAt,
+        uint32 rawCreatedAt,
         string calldata contentType,
         bytes calldata payload
     ) public {
         // GIVEN arbitrary core inputs with no attributes
+        BlockNumber createdAt = BlockNumber.wrap(rawCreatedAt);
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
         // WHEN computing via the assembly implementation

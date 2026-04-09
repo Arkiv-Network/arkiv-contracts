@@ -16,8 +16,8 @@ contract ChainOpTest is Base {
         bytes32 entityHash = keccak256("entity");
 
         // WHEN computing chainOp twice
-        bytes32 hashA = EntityHashing.chainOp(prev, EntityHashing.OpType.CREATE, key, entityHash);
-        bytes32 hashB = EntityHashing.chainOp(prev, EntityHashing.OpType.CREATE, key, entityHash);
+        bytes32 hashA = EntityHashing.chainOp(prev, EntityHashing.CREATE, key, entityHash);
+        bytes32 hashB = EntityHashing.chainOp(prev, EntityHashing.CREATE, key, entityHash);
 
         // THEN the hashes are equal
         assertEq(hashA, hashB);
@@ -32,8 +32,8 @@ contract ChainOpTest is Base {
         bytes32 key = keccak256("key");
         bytes32 entityHash = keccak256("entity");
 
-        bytes32 hashA = EntityHashing.chainOp(keccak256("prev1"), EntityHashing.OpType.CREATE, key, entityHash);
-        bytes32 hashB = EntityHashing.chainOp(keccak256("prev2"), EntityHashing.OpType.CREATE, key, entityHash);
+        bytes32 hashA = EntityHashing.chainOp(keccak256("prev1"), EntityHashing.CREATE, key, entityHash);
+        bytes32 hashB = EntityHashing.chainOp(keccak256("prev2"), EntityHashing.CREATE, key, entityHash);
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -45,8 +45,8 @@ contract ChainOpTest is Base {
         bytes32 key = keccak256("key");
         bytes32 entityHash = keccak256("entity");
 
-        bytes32 hashA = EntityHashing.chainOp(prev, EntityHashing.OpType.CREATE, key, entityHash);
-        bytes32 hashB = EntityHashing.chainOp(prev, EntityHashing.OpType.DELETE, key, entityHash);
+        bytes32 hashA = EntityHashing.chainOp(prev, EntityHashing.CREATE, key, entityHash);
+        bytes32 hashB = EntityHashing.chainOp(prev, EntityHashing.DELETE, key, entityHash);
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -57,8 +57,8 @@ contract ChainOpTest is Base {
         bytes32 prev = keccak256("prev");
         bytes32 entityHash = keccak256("entity");
 
-        bytes32 hashA = EntityHashing.chainOp(prev, EntityHashing.OpType.CREATE, keccak256("k1"), entityHash);
-        bytes32 hashB = EntityHashing.chainOp(prev, EntityHashing.OpType.CREATE, keccak256("k2"), entityHash);
+        bytes32 hashA = EntityHashing.chainOp(prev, EntityHashing.CREATE, keccak256("k1"), entityHash);
+        bytes32 hashB = EntityHashing.chainOp(prev, EntityHashing.CREATE, keccak256("k2"), entityHash);
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -69,8 +69,8 @@ contract ChainOpTest is Base {
         bytes32 prev = keccak256("prev");
         bytes32 key = keccak256("key");
 
-        bytes32 hashA = EntityHashing.chainOp(prev, EntityHashing.OpType.CREATE, key, keccak256("e1"));
-        bytes32 hashB = EntityHashing.chainOp(prev, EntityHashing.OpType.CREATE, key, keccak256("e2"));
+        bytes32 hashA = EntityHashing.chainOp(prev, EntityHashing.CREATE, key, keccak256("e1"));
+        bytes32 hashB = EntityHashing.chainOp(prev, EntityHashing.CREATE, key, keccak256("e2"));
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -88,15 +88,15 @@ contract ChainOpTest is Base {
         bytes32 hashB = keccak256("hb");
 
         bytes32 chainAB = EntityHashing.chainOp(
-            EntityHashing.chainOp(bytes32(0), EntityHashing.OpType.CREATE, keyA, hashA),
-            EntityHashing.OpType.CREATE,
+            EntityHashing.chainOp(bytes32(0), EntityHashing.CREATE, keyA, hashA),
+            EntityHashing.CREATE,
             keyB,
             hashB
         );
 
         bytes32 chainBA = EntityHashing.chainOp(
-            EntityHashing.chainOp(bytes32(0), EntityHashing.OpType.CREATE, keyB, hashB),
-            EntityHashing.OpType.CREATE,
+            EntityHashing.chainOp(bytes32(0), EntityHashing.CREATE, keyB, hashB),
+            EntityHashing.CREATE,
             keyA,
             hashA
         );
@@ -111,7 +111,7 @@ contract ChainOpTest is Base {
         bytes32 entityHash = keccak256("entity");
 
         // WHEN computing
-        bytes32 result = EntityHashing.chainOp(bytes32(0), EntityHashing.OpType.CREATE, key, entityHash);
+        bytes32 result = EntityHashing.chainOp(bytes32(0), EntityHashing.CREATE, key, entityHash);
 
         // THEN the result is non-zero
         assertNotEq(result, bytes32(0));
@@ -127,12 +127,12 @@ contract ChainOpTest is Base {
         bytes32 key = keccak256("key");
         bytes32 entityHash = keccak256("entity");
 
-        bytes32 hCreate = EntityHashing.chainOp(prev, EntityHashing.OpType.CREATE, key, entityHash);
-        bytes32 hUpdate = EntityHashing.chainOp(prev, EntityHashing.OpType.UPDATE, key, entityHash);
-        bytes32 hExtend = EntityHashing.chainOp(prev, EntityHashing.OpType.EXTEND, key, entityHash);
-        bytes32 hTransfer = EntityHashing.chainOp(prev, EntityHashing.OpType.TRANSFER, key, entityHash);
-        bytes32 hDelete = EntityHashing.chainOp(prev, EntityHashing.OpType.DELETE, key, entityHash);
-        bytes32 hExpire = EntityHashing.chainOp(prev, EntityHashing.OpType.EXPIRE, key, entityHash);
+        bytes32 hCreate = EntityHashing.chainOp(prev, EntityHashing.CREATE, key, entityHash);
+        bytes32 hUpdate = EntityHashing.chainOp(prev, EntityHashing.UPDATE, key, entityHash);
+        bytes32 hExtend = EntityHashing.chainOp(prev, EntityHashing.EXTEND, key, entityHash);
+        bytes32 hTransfer = EntityHashing.chainOp(prev, EntityHashing.TRANSFER, key, entityHash);
+        bytes32 hDelete = EntityHashing.chainOp(prev, EntityHashing.DELETE, key, entityHash);
+        bytes32 hExpire = EntityHashing.chainOp(prev, EntityHashing.EXPIRE, key, entityHash);
 
         // THEN all 6 are distinct
         bytes32[6] memory hashes = [hCreate, hUpdate, hExtend, hTransfer, hDelete, hExpire];
@@ -150,13 +150,11 @@ contract ChainOpTest is Base {
     function test_chainOp_fuzz(bytes32 prev, uint8 rawOpType, bytes32 key, bytes32 entityHash_) public pure {
         // GIVEN arbitrary inputs, bound opType to valid range
         rawOpType = uint8(bound(rawOpType, 0, 5));
-        EntityHashing.OpType opType = EntityHashing.OpType(rawOpType);
-
         // WHEN computing via the assembly implementation
-        bytes32 actual = EntityHashing.chainOp(prev, opType, key, entityHash_);
+        bytes32 actual = EntityHashing.chainOp(prev, rawOpType, key, entityHash_);
 
         // THEN it matches the pure-Solidity reference
-        bytes32 expected = keccak256(abi.encodePacked(prev, opType, key, entityHash_));
+        bytes32 expected = keccak256(abi.encodePacked(prev, rawOpType, key, entityHash_));
         assertEq(actual, expected);
     }
 }
