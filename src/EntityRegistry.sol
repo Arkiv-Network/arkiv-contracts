@@ -264,12 +264,6 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         uint32 nonce = nonces[msg.sender]++;
         key = EntityHashing.entityKey(block.chainid, address(this), msg.sender, nonce);
 
-        // Entity key must not already exist (nonce should guarantee this,
-        // but defensive check against storage collision).
-        if (_commitments[key].creator != address(0)) {
-            revert EntityHashing.EntityAlreadyExists(key);
-        }
-
         // Compute hashes.
         bytes32 coreHash_ =
             EntityHashing.coreHash(key, msg.sender, current, op.contentType, op.payload, op.attributes);

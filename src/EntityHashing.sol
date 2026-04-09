@@ -100,9 +100,6 @@ library EntityHashing {
     /// @dev Reverted when `execute()` is called with an empty ops array.
     error EmptyBatch();
 
-    /// @dev Reverted when an entity key already exists in storage.
-    error EntityAlreadyExists(bytes32 entityKey);
-
     /// @dev Reverted when expiresAt is not in the future.
     error ExpiryInPast(BlockNumber expiresAt, BlockNumber currentBlock);
 
