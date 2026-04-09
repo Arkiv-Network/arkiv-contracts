@@ -11,7 +11,9 @@ import {EntityHashing, OpKey, TxKey} from "./EntityHashing.sol";
 /// and the changeset hash chain.
 contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     constructor() {
-        _genesisBlock = currentBlock();
+        BlockNumber genesis = currentBlock();
+        _genesisBlock = genesis;
+        _headBlock = genesis;
     }
 
     // -------------------------------------------------------------------------
@@ -72,24 +74,15 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         bytes32 hash = changeSetHash();
 
         // Block transition: maintain the block-level linked list.
-        //
-        // When we enter a new block:
-        //   1. Link the previous head forward to this block.
-        //   2. This block's prevBlock points back to the previous head.
-        //   3. _headBlock advances to the current block.
-        //
-        // prevBlock == 0 on the genesis node means "start of chain."
+        // _headBlock is initialised to the deploy block (sentinel anchor),
+        // so it is always non-zero when we reach this point.
         // nextBlock == 0 on the head node means "end of chain."
         BlockNumber current = currentBlock();
         uint32 txSeq;
         if (current != _headBlock) {
-            BlockNumber prevHead = _headBlock;
-            if (prevHead != BlockNumber.wrap(0)) {
-                _blocks[prevHead].nextBlock = current;
-            }
-            _blocks[current].prevBlock = prevHead;
+            _blocks[_headBlock].nextBlock = current;
+            _blocks[current].prevBlock = _headBlock;
             _headBlock = current;
-            // txSeq = 0 (default)
         } else {
             txSeq = _blocks[current].txCount;
         }
