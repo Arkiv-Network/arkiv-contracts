@@ -81,8 +81,8 @@ library EntityHashing {
     /// Only blocks containing at least one mutation have an entry.
     /// All fields pack into a single slot (20 bytes).
     struct BlockNode {
-        uint64 prevBlock;
-        uint64 nextBlock;
+        BlockNumber prevBlock;
+        BlockNumber nextBlock;
         uint32 txCount;
     }
 
@@ -109,14 +109,14 @@ library EntityHashing {
     /// @dev keccak256("Attribute(bytes32 name,uint8 valueType,bytes value)")
     bytes32 internal constant ATTRIBUTE_TYPEHASH = keccak256("Attribute(bytes32 name,uint8 valueType,bytes value)");
 
-    /// @dev keccak256("CoreHash(bytes32 entityKey,address creator,uint32 createdAt,string contentType,bytes payload,bytes32 attributesHash)")
+    /// @dev keccak256("CoreHash(bytes32 entityKey,address creator,uint64 createdAt,string contentType,bytes payload,bytes32 attributesHash)")
     bytes32 internal constant CORE_HASH_TYPEHASH = keccak256(
-        "CoreHash(bytes32 entityKey,address creator,uint32 createdAt,string contentType,bytes payload,bytes32 attributesHash)"
+        "CoreHash(bytes32 entityKey,address creator,uint64 createdAt,string contentType,bytes payload,bytes32 attributesHash)"
     );
 
-    /// @dev keccak256("EntityHash(bytes32 coreHash,address owner,uint32 updatedAt,uint32 expiresAt)")
+    /// @dev keccak256("EntityHash(bytes32 coreHash,address owner,uint64 updatedAt,uint64 expiresAt)")
     bytes32 internal constant ENTITY_HASH_TYPEHASH =
-        keccak256("EntityHash(bytes32 coreHash,address owner,uint32 updatedAt,uint32 expiresAt)");
+        keccak256("EntityHash(bytes32 coreHash,address owner,uint64 updatedAt,uint64 expiresAt)");
 
     // -------------------------------------------------------------------------
     // Hash functions
@@ -214,14 +214,14 @@ library EntityHashing {
 
     /// @notice Pack a (block, tx) pair into a TxKey for the `_txOpCount`
     /// mapping. Layout: block in bits [32..95], tx in bits [0..31].
-    function txKey(uint256 blockNumber, uint32 txSeq) internal pure returns (TxKey) {
-        return TxKey.wrap((blockNumber << 32) | txSeq);
+    function txKey(BlockNumber blockNumber, uint32 txSeq) internal pure returns (TxKey) {
+        return TxKey.wrap((uint256(BlockNumber.unwrap(blockNumber)) << 32) | txSeq);
     }
 
     /// @notice Pack a (block, tx, op) triple into an OpKey for the `_hashAt`
     /// mapping. Layout: block in bits [64..127], tx in bits [32..63], op in
     /// bits [0..31]. Extends txKey with the op dimension.
-    function opKey(uint256 blockNumber, uint32 txSeq, uint32 opSeq) internal pure returns (OpKey) {
+    function opKey(BlockNumber blockNumber, uint32 txSeq, uint32 opSeq) internal pure returns (OpKey) {
         return OpKey.wrap((TxKey.unwrap(txKey(blockNumber, txSeq)) << 32) | opSeq);
     }
 }
