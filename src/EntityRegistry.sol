@@ -12,17 +12,15 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Type declarations
     // -------------------------------------------------------------------------
 
-    enum OpType {
-        CREATE,
-        UPDATE,
-        EXTEND,
-        TRANSFER,
-        DELETE,
-        EXPIRE
-    }
+    uint8 public constant CREATE = 0;
+    uint8 public constant UPDATE = 1;
+    uint8 public constant EXTEND = 2;
+    uint8 public constant TRANSFER = 3;
+    uint8 public constant DELETE = 4;
+    uint8 public constant EXPIRE = 5;
 
     struct Op {
-        OpType opType;
+        uint8 opType;
         bytes32 entityKey; // UPDATE, EXTEND, TRANSFER, DELETE, EXPIRE (ignored for CREATE)
         bytes payload; // CREATE, UPDATE
         string contentType; // CREATE, UPDATE
@@ -183,21 +181,21 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         // Process ops — one SSTORE per op for the snapshot.
         uint32 opSeq = 0;
         for (uint256 i = 0; i < ops.length; i++) {
-            OpType opType = ops[i].opType;
+            uint8 opType = ops[i].opType;
             bytes32 key;
             bytes32 entityHash_;
 
-            if (opType == OpType.CREATE) {
+            if (opType == CREATE) {
                 (key, entityHash_) = _create(ops[i]);
-            } else if (opType == OpType.UPDATE) {
+            } else if (opType == UPDATE) {
                 (key, entityHash_) = _update(ops[i]);
-            } else if (opType == OpType.EXTEND) {
+            } else if (opType == EXTEND) {
                 (key, entityHash_) = _extend(ops[i]);
-            } else if (opType == OpType.TRANSFER) {
+            } else if (opType == TRANSFER) {
                 (key, entityHash_) = _transfer(ops[i]);
-            } else if (opType == OpType.DELETE) {
+            } else if (opType == DELETE) {
                 (key, entityHash_) = _delete(ops[i]);
-            } else if (opType == OpType.EXPIRE) {
+            } else if (opType == EXPIRE) {
                 (key, entityHash_) = _expire(ops[i].entityKey);
             }
 
