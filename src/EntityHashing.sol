@@ -116,6 +116,9 @@ library EntityHashing {
     /// @dev Reverted when transfer target is the zero address.
     error TransferToZeroAddress(bytes32 entityKey);
 
+    /// @dev Reverted when expire is called on an entity that hasn't expired yet.
+    error EntityNotExpired(bytes32 entityKey, BlockNumber expiresAt);
+
     // -------------------------------------------------------------------------
     // Constants
     // -------------------------------------------------------------------------

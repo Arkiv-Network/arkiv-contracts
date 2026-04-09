@@ -67,6 +67,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         bytes32 indexed entityKey, address indexed previousOwner, address indexed newOwner, bytes32 entityHash
     );
     event EntityDeleted(bytes32 indexed entityKey, address indexed owner, bytes32 entityHash);
+    event EntityExpired(bytes32 indexed entityKey, address indexed owner, bytes32 entityHash);
 
     // -------------------------------------------------------------------------
     // State — linked list pointers
@@ -423,9 +424,33 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         return (key, entityHash_);
     }
 
+    /// @dev Remove an expired entity from storage. Callable by anyone — no
+    /// ownership check. The entity must exist and must have expired
+    /// (expiresAt <= current). This is the inverse of the expiry guard on
+    /// other ops (which require expiresAt > current).
+    ///
+    /// Validation:
+    ///   1. Entity must exist (creator != address(0))
+    ///   2. Entity must have expired (expiresAt <= current)
+    ///
+    /// Storage: deletes the Commitment (zeroes 3 slots via SSTORE to 0, gas refund).
     function _expire(bytes32 key, BlockNumber current) internal virtual returns (bytes32, bytes32) {
-        // Validates: entity exists + currentBlock >= expiresAt (entity has expired)
-        // Then: snapshot entityHash before deletion, delete entity (callable by anyone)
-        revert("not implemented");
+        EntityHashing.Commitment storage c = _commitments[key];
+
+        if (c.creator == address(0)) {
+            revert EntityHashing.EntityNotFound(key);
+        }
+
+        if (c.expiresAt > current) {
+            revert EntityHashing.EntityNotExpired(key, c.expiresAt);
+        }
+
+        bytes32 entityHash_ = _entityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
+        address owner = c.owner;
+
+        delete _commitments[key];
+
+        emit EntityExpired(key, owner, entityHash_);
+        return (key, entityHash_);
     }
 }
