@@ -260,7 +260,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
         // Entity key must not already exist (nonce should guarantee this,
         // but defensive check against storage collision).
-        if (_commitments[key].createdAt != BlockNumber.wrap(0)) {
+        if (_commitments[key].creator != address(0)) {
             revert EntityHashing.EntityAlreadyExists(key);
         }
 
