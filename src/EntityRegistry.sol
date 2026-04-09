@@ -112,12 +112,12 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     mapping(uint256 blockNumber => BlockNode node) internal _blocks;
 
     // Packed into a single slot (24 bytes):
-    //   _headBlock:    first block with mutations (head of linked list)
-    //   _tailBlock:    most recent block with mutations (tail of linked list)
+    //   _genesisBlock: first block with mutations (start of linked list)
+    //   _headBlock:    most recent block with mutations (head of linked list)
     //   _currentTxSeq: tx counter within the current block
     //   _currentOpSeq: op counter within the current tx
+    uint64 internal _genesisBlock;
     uint64 internal _headBlock;
-    uint64 internal _tailBlock;
     uint32 internal _currentTxSeq;
     uint32 internal _currentOpSeq;
 
@@ -126,7 +126,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // -------------------------------------------------------------------------
 
     function changeSetHash() public view returns (bytes32) {
-        return _hashAt[(uint256(_tailBlock) << 64) | (uint256(_currentTxSeq) << 32) | _currentOpSeq];
+        return _hashAt[(uint256(_headBlock) << 64) | (uint256(_currentTxSeq) << 32) | _currentOpSeq];
     }
 
     function entityKey(address owner, uint32 nonce) public view returns (bytes32) {
@@ -141,32 +141,32 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         if (ops.length == 0) revert EmptyBatch();
 
         // Read previous hash before any counter mutations.
-        bytes32 hash = _hashAt[(uint256(_tailBlock) << 64) | (uint256(_currentTxSeq) << 32) | _currentOpSeq];
+        bytes32 hash = _hashAt[(uint256(_headBlock) << 64) | (uint256(_currentTxSeq) << 32) | _currentOpSeq];
 
         // Block transition: maintain the block-level linked list.
         //
-        // _headBlock and _tailBlock track the first and most recent mutation
-        // blocks respectively. Both are packed into the same slot as the
+        // _genesisBlock and _headBlock track the first and most recent
+        // mutation blocks respectively. Both are packed into the same slot as the
         // tx/op counters, so updating them costs no additional SSTORE.
         //
         // When we enter a new block:
-        //   1. If this is the first mutation ever, set _headBlock.
-        //      Otherwise, link the previous tail forward to this block.
-        //   2. This block's prevBlock points back to the previous tail.
-        //   3. _tailBlock advances to become the new tail.
+        //   1. If this is the first mutation ever, set _genesisBlock.
+        //      Otherwise, link the previous head forward to this block.
+        //   2. This block's prevBlock points back to the previous head.
+        //   3. _headBlock advances to the current block.
         //   4. _currentTxSeq resets — tx numbering restarts per block.
         //
         // prevBlock == 0 on the head node means "start of chain."
         // nextBlock == 0 on the tail node means "end of chain."
-        if (uint64(block.number) != _tailBlock) {
-            uint64 prevBlock = _tailBlock;
+        if (uint64(block.number) != _headBlock) {
+            uint64 prevBlock = _headBlock;
             if (prevBlock != 0) {
                 _blocks[prevBlock].nextBlock = uint64(block.number);
             } else {
-                _headBlock = uint64(block.number);
+                _genesisBlock = uint64(block.number);
             }
             _blocks[block.number].prevBlock = prevBlock;
-            _tailBlock = uint64(block.number);
+            _headBlock = uint64(block.number);
             _currentTxSeq = 0;
         }
 
@@ -229,12 +229,12 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         return _hashAt[(blockNumber << 64) | (uint256(txSeq) << 32) | opSeq];
     }
 
-    function headBlock() public view returns (uint64) {
-        return _headBlock;
+    function genesisBlock() public view returns (uint64) {
+        return _genesisBlock;
     }
 
-    function tailBlock() public view returns (uint64) {
-        return _tailBlock;
+    function headBlock() public view returns (uint64) {
+        return _headBlock;
     }
 
     function getBlockNode(uint256 blockNumber) public view returns (BlockNode memory) {
