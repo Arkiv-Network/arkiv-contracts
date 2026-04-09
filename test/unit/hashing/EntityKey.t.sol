@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {EntityHashing} from "../../src/EntityHashing.sol";
+import {EntityHashing} from "../../../src/EntityHashing.sol";
 
 contract EntityKeyTest is Test {
     address alice = makeAddr("alice");

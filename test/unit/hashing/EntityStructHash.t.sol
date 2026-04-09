@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {BlockNumber} from "../../src/BlockNumber.sol";
+import {BlockNumber} from "../../../src/BlockNumber.sol";
 import {Test} from "forge-std/Test.sol";
-import {EntityHashing} from "../../src/EntityHashing.sol";
+import {EntityHashing} from "../../../src/EntityHashing.sol";
 
 contract EntityStructHashTest is Test {
     address alice = makeAddr("alice");

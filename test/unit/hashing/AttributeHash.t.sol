@@ -2,9 +2,9 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {Lib} from "../utils/Lib.sol";
-import {EntityHashing} from "../../src/EntityHashing.sol";
-import {EntityRegistry} from "../../src/EntityRegistry.sol";
+import {Lib} from "../../utils/Lib.sol";
+import {EntityHashing} from "../../../src/EntityHashing.sol";
+import {EntityRegistry} from "../../../src/EntityRegistry.sol";
 
 contract AttributeHashTest is Test, EntityRegistry {
     // Calldata wrappers for library functions.
