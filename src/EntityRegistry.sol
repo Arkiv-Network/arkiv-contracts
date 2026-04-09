@@ -202,15 +202,42 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Internal functions — entity operations
     // -------------------------------------------------------------------------
 
+    /// @dev Create a new entity. Validates inputs, mints a deterministic key
+    /// from the caller's nonce, computes the EIP-712 hash chain, and stores
+    /// a minimal on-chain commitment. Full entity data (payload, contentType,
+    /// attributes) remains in calldata — off-chain indexers reconstruct it
+    /// from the transaction, not from the event.
+    ///
+    /// Validation order:
+    ///   1. Attribute count (bounded by MAX_ATTRIBUTES)
+    ///   2. Per-attribute: non-empty name, strict ascending sort, canonical
+    ///      encoding (unused fields must be zero), string size limit
+    ///   3. Expiry must be strictly in the future
+    ///
+    /// Hash computation:
+    ///   coreHash  = EIP-712 hash of immutable content (key, creator, createdAt,
+    ///               contentType, payload, attributes)
+    ///   entityHash = EIP-712 domain-wrapped hash of (coreHash, owner, updatedAt,
+    ///                expiresAt)
+    ///
+    /// Storage: writes a Commitment struct (3 slots) keyed by entityKey.
+    /// Key uniqueness is guaranteed by the monotonic per-owner nonce —
+    /// no existence check is needed.
     function _create(EntityHashing.Op calldata op, BlockNumber current) internal returns (bytes32 key, bytes32 entityHash_) {
         // TODO: contentType validation (e.g. non-empty, allowlist of MIME types).
 
-        // Validate attribute count.
         if (op.attributes.length > EntityHashing.MAX_ATTRIBUTES) {
             revert EntityHashing.TooManyAttributes(op.attributes.length, EntityHashing.MAX_ATTRIBUTES);
         }
 
-        // Validate attributes: non-empty names, strict ascending order, canonical encoding.
+        // Validate each attribute:
+        //   - Name must be non-zero (ShortString with empty content is bytes32(0)).
+        //   - Names must be in strict ascending order by raw bytes32 value.
+        //     ShortString stores content from the MSB with length in the LSB,
+        //     so bytes32 comparison preserves lexicographic order for ASCII names.
+        //   - Canonical encoding: STRING attrs must have fixedValue == 0,
+        //     UINT/ENTITY_KEY attrs must have empty stringValue. This ensures
+        //     each attribute has exactly one encoding that produces a given hash.
         for (uint256 i = 0; i < op.attributes.length; i++) {
             bytes32 name = ShortString.unwrap(op.attributes[i].name);
 
@@ -241,21 +268,27 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
             }
         }
 
-        // Validate expiry.
+        // expiresAt must be strictly after the current block. Equality is
+        // rejected because the entity would already be expirable in this block.
         if (op.expiresAt <= current) {
             revert EntityHashing.ExpiryInPast(op.expiresAt, current);
         }
 
-        // Mint entity key from owner nonce.
+        // Derive a globally unique entity key: keccak256(chainId, registry, owner, nonce).
+        // The post-increment nonce guarantees uniqueness without an existence check.
         uint32 nonce = nonces[msg.sender]++;
         key = EntityHashing.entityKey(block.chainid, address(this), msg.sender, nonce);
 
-        // Compute hashes.
+        // Two-level EIP-712 hash:
+        //   coreHash: immutable content identity (survives transfers and expiry extensions)
+        //   entityHash: full entity state including mutable fields (owner, updatedAt, expiresAt)
         bytes32 coreHash_ =
             EntityHashing.coreHash(key, msg.sender, current, op.contentType, op.payload, op.attributes);
         entityHash_ = _entityHash(coreHash_, msg.sender, current, op.expiresAt);
 
-        // Store commitment (no payload/attributes — those live in calldata/events).
+        // Store the minimal on-chain commitment (3 slots). Payload and attributes
+        // are not stored — they live in calldata and are recoverable from the
+        // transaction. The coreHash commits to their content.
         _commitments[key] = EntityHashing.Commitment({
             creator: msg.sender,
             createdAt: current,
