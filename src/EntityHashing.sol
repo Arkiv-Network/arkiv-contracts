@@ -105,9 +105,6 @@ library EntityHashing {
 
     uint256 internal constant MAX_STRING_ATTR_SIZE = 1024;
 
-    /// @dev Reverted when an entity key already exists in storage.
-    error EntityAlreadyExists(bytes32 entityKey);
-
     /// @dev Reverted when expiresAt is not in the future.
     error ExpiryInPast(BlockNumber expiresAt, BlockNumber currentBlock);
 
