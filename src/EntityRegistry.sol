@@ -129,17 +129,17 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
             bytes32 entityHash_;
 
             if (opType == EntityHashing.CREATE) {
-                (key, entityHash_) = _create(ops[opSeq]);
+                (key, entityHash_) = _create(ops[opSeq], current);
             } else if (opType == EntityHashing.UPDATE) {
-                (key, entityHash_) = _update(ops[opSeq]);
+                (key, entityHash_) = _update(ops[opSeq], current);
             } else if (opType == EntityHashing.EXTEND) {
-                (key, entityHash_) = _extend(ops[opSeq]);
+                (key, entityHash_) = _extend(ops[opSeq], current);
             } else if (opType == EntityHashing.TRANSFER) {
-                (key, entityHash_) = _transfer(ops[opSeq]);
+                (key, entityHash_) = _transfer(ops[opSeq], current);
             } else if (opType == EntityHashing.DELETE) {
-                (key, entityHash_) = _delete(ops[opSeq]);
+                (key, entityHash_) = _delete(ops[opSeq], current);
             } else if (opType == EntityHashing.EXPIRE) {
-                (key, entityHash_) = _expire(ops[opSeq].entityKey);
+                (key, entityHash_) = _expire(ops[opSeq].entityKey, current);
             } else {
                 // TODO should not reach here
             }
@@ -213,7 +213,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Internal functions — entity operations
     // -------------------------------------------------------------------------
 
-    function _create(EntityHashing.Op calldata op) internal returns (bytes32 key, bytes32 entityHash_) {
+    function _create(EntityHashing.Op calldata op, BlockNumber current) internal returns (bytes32 key, bytes32 entityHash_) {
         // Validate payload size.
         if (op.payload.length > MAX_PAYLOAD_SIZE) {
             revert EntityHashing.PayloadTooLarge(op.payload.length, MAX_PAYLOAD_SIZE);
@@ -256,9 +256,8 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         }
 
         // Validate expiry.
-        BlockNumber now_ = currentBlock();
-        if (op.expiresAt <= now_) {
-            revert EntityHashing.ExpiryInPast(op.expiresAt, now_);
+        if (op.expiresAt <= current) {
+            revert EntityHashing.ExpiryInPast(op.expiresAt, current);
         }
 
         // Mint entity key from owner nonce.
@@ -273,14 +272,14 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
         // Compute hashes.
         bytes32 coreHash_ =
-            EntityHashing.coreHash(key, msg.sender, now_, op.contentType, op.payload, op.attributes);
-        entityHash_ = _entityHash(coreHash_, msg.sender, now_, op.expiresAt);
+            EntityHashing.coreHash(key, msg.sender, current, op.contentType, op.payload, op.attributes);
+        entityHash_ = _entityHash(coreHash_, msg.sender, current, op.expiresAt);
 
         // Store commitment (no payload/attributes — those live in calldata/events).
         _commitments[key] = EntityHashing.Commitment({
             creator: msg.sender,
-            createdAt: now_,
-            updatedAt: now_,
+            createdAt: current,
+            updatedAt: current,
             expiresAt: op.expiresAt,
             owner: msg.sender,
             coreHash: coreHash_
@@ -289,31 +288,31 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         emit EntityCreated(key, msg.sender, entityHash_, op.expiresAt, op.payload, op.contentType, op.attributes);
     }
 
-    function _update(EntityHashing.Op calldata op) internal returns (bytes32, bytes32) {
+    function _update(EntityHashing.Op calldata op, BlockNumber current) internal returns (bytes32, bytes32) {
         // Validates: entity exists + not expired + msg.sender is owner, content type, payload, attributes (same as create)
         // Then: recompute coreHash from new content, update entity, recompute entityHash
         revert("not implemented");
     }
 
-    function _extend(EntityHashing.Op calldata op) internal returns (bytes32, bytes32) {
+    function _extend(EntityHashing.Op calldata op, BlockNumber current) internal returns (bytes32, bytes32) {
         // Validates: entity exists + not expired + msg.sender is owner, new expiresAt > current expiresAt
         // Then: update expiresAt + updatedAt, recompute entityHash from stored coreHash
         revert("not implemented");
     }
 
-    function _transfer(EntityHashing.Op calldata op) internal returns (bytes32, bytes32) {
+    function _transfer(EntityHashing.Op calldata op, BlockNumber current) internal returns (bytes32, bytes32) {
         // Validates: entity exists + not expired + msg.sender is owner, newOwner != address(0)
         // Then: set owner to newOwner + updatedAt, recompute entityHash from stored coreHash
         revert("not implemented");
     }
 
-    function _delete(EntityHashing.Op calldata op) internal returns (bytes32, bytes32) {
+    function _delete(EntityHashing.Op calldata op, BlockNumber current) internal returns (bytes32, bytes32) {
         // Validates: entity exists + not expired + msg.sender is owner
         // Then: snapshot entityHash before deletion, delete entity
         revert("not implemented");
     }
 
-    function _expire(bytes32 key) internal returns (bytes32, bytes32) {
+    function _expire(bytes32 key, BlockNumber current) internal returns (bytes32, bytes32) {
         // Validates: entity exists + currentBlock >= expiresAt (entity has expired)
         // Then: snapshot entityHash before deletion, delete entity (callable by anyone)
         revert("not implemented");
