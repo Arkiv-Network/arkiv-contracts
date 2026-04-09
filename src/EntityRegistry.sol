@@ -60,6 +60,9 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     event EntityUpdated(
         bytes32 indexed entityKey, address indexed owner, BlockNumber indexed expiresAt, bytes32 entityHash
     );
+    event EntityExtended(
+        bytes32 indexed entityKey, address indexed owner, bytes32 entityHash, BlockNumber newExpiresAt
+    );
 
     // -------------------------------------------------------------------------
     // State — linked list pointers
@@ -314,10 +317,43 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         return (key, entityHash_);
     }
 
+    /// @dev Extend an entity's expiry. Does not change payload, attributes, or owner.
+    /// The entityHash is recomputed from the stored coreHash with the new expiresAt.
+    ///
+    /// Validation:
+    ///   1. Entity must exist (creator != address(0))
+    ///   2. Entity must not be expired (expiresAt > current)
+    ///   3. Caller must be the owner
+    ///   4. New expiresAt must be strictly greater than current expiresAt
+    ///
+    /// Storage: updates expiresAt and updatedAt (1 SSTORE — both pack into slot 0).
     function _extend(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
-        // Validates: entity exists + not expired + msg.sender is owner, new expiresAt > current expiresAt
-        // Then: update expiresAt + updatedAt, recompute entityHash from stored coreHash
-        revert("not implemented");
+        bytes32 key = op.entityKey;
+        EntityHashing.Commitment storage c = _commitments[key];
+
+        if (c.creator == address(0)) {
+            revert EntityHashing.EntityNotFound(key);
+        }
+
+        if (c.expiresAt <= current) {
+            revert EntityHashing.EntityExpired(key, c.expiresAt);
+        }
+
+        if (msg.sender != c.owner) {
+            revert EntityHashing.NotOwner(key, msg.sender, c.owner);
+        }
+
+        if (op.expiresAt <= c.expiresAt) {
+            revert EntityHashing.ExpiryNotExtended(key, op.expiresAt, c.expiresAt);
+        }
+
+        c.expiresAt = op.expiresAt;
+        c.updatedAt = current;
+
+        bytes32 entityHash_ = _entityHash(c.coreHash, c.owner, current, op.expiresAt);
+
+        emit EntityExtended(key, c.owner, entityHash_, op.expiresAt);
+        return (key, entityHash_);
     }
 
     function _transfer(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {

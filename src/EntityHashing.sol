@@ -110,6 +110,9 @@ library EntityHashing {
     /// @dev Reverted when an operation targets an expired entity.
     error EntityExpired(bytes32 entityKey, BlockNumber expiresAt);
 
+    /// @dev Reverted when new expiresAt is not strictly greater than current.
+    error ExpiryNotExtended(bytes32 entityKey, BlockNumber newExpiresAt, BlockNumber currentExpiresAt);
+
     // -------------------------------------------------------------------------
     // Constants
     // -------------------------------------------------------------------------
