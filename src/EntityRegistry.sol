@@ -66,6 +66,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     event EntityTransferred(
         bytes32 indexed entityKey, address indexed previousOwner, address indexed newOwner, bytes32 entityHash
     );
+    event EntityDeleted(bytes32 indexed entityKey, address indexed owner, bytes32 entityHash);
 
     // -------------------------------------------------------------------------
     // State — linked list pointers
@@ -397,10 +398,40 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         return (key, entityHash_);
     }
 
+    /// @dev Delete an entity before its expiry. Owner-initiated.
+    /// Snapshots the entityHash before deletion so it can be chained into
+    /// the changeset hash, then zeroes the commitment from storage.
+    ///
+    /// Validation:
+    ///   1. Entity must exist (creator != address(0))
+    ///   2. Entity must not be expired (expiresAt > current)
+    ///   3. Caller must be the owner
+    ///
+    /// Storage: deletes the Commitment (zeroes 3 slots via SSTORE to 0, gas refund).
     function _delete(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
-        // Validates: entity exists + not expired + msg.sender is owner
-        // Then: snapshot entityHash before deletion, delete entity
-        revert("not implemented");
+        bytes32 key = op.entityKey;
+        EntityHashing.Commitment storage c = _commitments[key];
+
+        if (c.creator == address(0)) {
+            revert EntityHashing.EntityNotFound(key);
+        }
+
+        if (c.expiresAt <= current) {
+            revert EntityHashing.EntityExpired(key, c.expiresAt);
+        }
+
+        if (msg.sender != c.owner) {
+            revert EntityHashing.NotOwner(key, msg.sender, c.owner);
+        }
+
+        // Snapshot the entity hash before deletion.
+        bytes32 entityHash_ = _entityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
+        address owner = c.owner;
+
+        delete _commitments[key];
+
+        emit EntityDeleted(key, owner, entityHash_);
+        return (key, entityHash_);
     }
 
     function _expire(bytes32 key, BlockNumber current) internal virtual returns (bytes32, bytes32) {
