@@ -114,17 +114,21 @@ library EntityHashing {
     /// @dev Reverted when an attribute has an empty name.
     error EmptyAttributeName(uint256 index);
 
-    /// @dev Reverted when a STRING attribute value exceeds the maximum size.
-    error StringAttributeTooLarge(bytes32 name, uint256 size, uint256 maxSize);
-
     /// @dev Reverted when an attribute has non-zero unused fields.
     error NonCanonicalAttribute(uint256 index);
 
-    /// @dev Reverted when a payload exceeds the maximum size.
-    error PayloadTooLarge(uint256 size, uint256 maxSize);
+    /// @dev Reverted when a STRING attribute value exceeds the maximum size.
+    error StringAttributeTooLarge(bytes32 name, uint256 size, uint256 maxSize);
 
     /// @dev Reverted when too many attributes are provided.
     error TooManyAttributes(uint256 count, uint256 maxCount);
+
+    // -------------------------------------------------------------------------
+    // Constants
+    // -------------------------------------------------------------------------
+
+    uint256 internal constant MAX_ATTRIBUTES = 32;
+    uint256 internal constant MAX_STRING_ATTR_SIZE = 1024;
 
     // -------------------------------------------------------------------------
     // Constants — EIP-712 typehashes
