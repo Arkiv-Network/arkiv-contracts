@@ -102,14 +102,14 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Traversal: for block M, walk txSeq 1..blocks[M].txCount,
     //   for each tx walk opSeq 1.._txOpCount[(M << 32) | txSeq].
     //   Across blocks, follow blocks[M].nextBlock.
-    mapping(uint256 => bytes32) internal _hashAt;
+    mapping(uint256 blockTxOpIndex => bytes32 changeSetHash) internal _hashAt;
 
     // (blockNumber << 32) | txSeq → op count for that tx
-    mapping(uint256 => uint32) internal _txOpCount;
+    mapping(uint256 blockTxKey => uint32 opCount) internal _txOpCount;
 
     // Block-level linked list: only blocks with mutations have entries.
     // Enables O(1) traversal across sparse blocks.
-    mapping(uint256 => BlockNode) internal _blocks;
+    mapping(uint256 blockNumber => BlockNode node) internal _blocks;
 
     // Packed into a single slot (24 bytes):
     //   _headBlock:    first block with mutations (head of linked list)
