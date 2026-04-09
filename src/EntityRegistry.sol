@@ -55,12 +55,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Events
     // -------------------------------------------------------------------------
 
-    event EntityCreated(
-        bytes32 indexed entityKey,
-        address indexed owner,
-        bytes32 entityHash,
-        BlockNumber expiresAt
-    );
+    event EntityCreated(bytes32 indexed entityKey, address indexed owner, bytes32 entityHash, BlockNumber expiresAt);
 
     // -------------------------------------------------------------------------
     // State — linked list pointers
@@ -223,7 +218,10 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// Storage: writes a Commitment struct (3 slots) keyed by entityKey.
     /// Key uniqueness is guaranteed by the monotonic per-owner nonce —
     /// no existence check is needed.
-    function _create(EntityHashing.Op calldata op, BlockNumber current) internal returns (bytes32 key, bytes32 entityHash_) {
+    function _create(EntityHashing.Op calldata op, BlockNumber current)
+        internal
+        returns (bytes32 key, bytes32 entityHash_)
+    {
         // TODO: contentType validation (e.g. non-empty, allowlist of MIME types).
 
         if (op.attributes.length > EntityHashing.MAX_ATTRIBUTES) {
@@ -282,8 +280,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         // Two-level EIP-712 hash:
         //   coreHash: immutable content identity (survives transfers and expiry extensions)
         //   entityHash: full entity state including mutable fields (owner, updatedAt, expiresAt)
-        bytes32 coreHash_ =
-            EntityHashing.coreHash(key, msg.sender, current, op.contentType, op.payload, op.attributes);
+        bytes32 coreHash_ = EntityHashing.coreHash(key, msg.sender, current, op.contentType, op.payload, op.attributes);
         entityHash_ = _entityHash(coreHash_, msg.sender, current, op.expiresAt);
 
         // Store the minimal on-chain commitment (3 slots). Payload and attributes
