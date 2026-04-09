@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {BlockNumber} from "../../src/BlockNumber.sol";
+import {BlockNumber, currentBlock} from "../../src/BlockNumber.sol";
 import {EntityRegistry} from "../../src/EntityRegistry.sol";
 import {EntityHashing} from "../../src/EntityHashing.sol";
 
@@ -27,5 +27,9 @@ contract EntityRegistryHarness is EntityRegistry {
         returns (bytes32)
     {
         return _entityHash(coreHash_, owner, updatedAt, expiresAt);
+    }
+
+    function exposed_create(EntityHashing.Op calldata op) external returns (bytes32 key, bytes32 entityHash_) {
+        return _create(op, currentBlock());
     }
 }
