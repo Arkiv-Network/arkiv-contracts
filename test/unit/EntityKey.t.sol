@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Base} from "../utils/Base.t.sol";
+import {Test} from "forge-std/Test.sol";
 import {EntityHashing} from "../../src/EntityHashing.sol";
 
-contract EntityKeyTest is Base {
+contract EntityKeyTest is Test {
+    address alice = makeAddr("alice");
+    address bob = makeAddr("bob");
+    address registry = makeAddr("registry");
     // -------------------------------------------------------------------------
     // Determinism
     // -------------------------------------------------------------------------
@@ -12,8 +15,8 @@ contract EntityKeyTest is Base {
     function test_entityKey_deterministic() public view {
         // GIVEN the same inputs
         // WHEN computing entityKey twice
-        bytes32 keyA = EntityHashing.entityKey(block.chainid, address(registry), alice, 0);
-        bytes32 keyB = EntityHashing.entityKey(block.chainid, address(registry), alice, 0);
+        bytes32 keyA = EntityHashing.entityKey(block.chainid, registry, alice, 0);
+        bytes32 keyB = EntityHashing.entityKey(block.chainid, registry, alice, 0);
 
         // THEN the keys are equal
         assertEq(keyA, keyB);
@@ -25,8 +28,8 @@ contract EntityKeyTest is Base {
 
     function test_entityKey_differentOwner_differs() public view {
         // GIVEN two different owners with the same nonce
-        bytes32 keyA = EntityHashing.entityKey(block.chainid, address(registry), alice, 0);
-        bytes32 keyB = EntityHashing.entityKey(block.chainid, address(registry), bob, 0);
+        bytes32 keyA = EntityHashing.entityKey(block.chainid, registry, alice, 0);
+        bytes32 keyB = EntityHashing.entityKey(block.chainid, registry, bob, 0);
 
         // THEN the keys differ
         assertNotEq(keyA, keyB);
@@ -34,8 +37,8 @@ contract EntityKeyTest is Base {
 
     function test_entityKey_differentNonce_differs() public view {
         // GIVEN the same owner with different nonces
-        bytes32 keyA = EntityHashing.entityKey(block.chainid, address(registry), alice, 0);
-        bytes32 keyB = EntityHashing.entityKey(block.chainid, address(registry), alice, 1);
+        bytes32 keyA = EntityHashing.entityKey(block.chainid, registry, alice, 0);
+        bytes32 keyB = EntityHashing.entityKey(block.chainid, registry, alice, 1);
 
         // THEN the keys differ
         assertNotEq(keyA, keyB);
@@ -66,10 +69,10 @@ contract EntityKeyTest is Base {
     function test_entityKey_matchesManualComputation() public view {
         // GIVEN known inputs
         // WHEN computing manually
-        bytes32 expected = keccak256(abi.encodePacked(block.chainid, address(registry), alice, uint32(0)));
+        bytes32 expected = keccak256(abi.encodePacked(block.chainid, registry, alice, uint32(0)));
 
         // THEN it matches the library
-        assertEq(EntityHashing.entityKey(block.chainid, address(registry), alice, 0), expected);
+        assertEq(EntityHashing.entityKey(block.chainid, registry, alice, 0), expected);
     }
 
     // -------------------------------------------------------------------------

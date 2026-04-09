@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Base} from "../utils/Base.t.sol";
+import {Test} from "forge-std/Test.sol";
 import {EntityHashing} from "../../src/EntityHashing.sol";
 
-contract ChainOpTest is Base {
+contract ChainOpTest is Test {
     // -------------------------------------------------------------------------
     // Determinism
     // -------------------------------------------------------------------------

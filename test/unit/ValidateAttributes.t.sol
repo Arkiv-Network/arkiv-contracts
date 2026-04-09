@@ -4,13 +4,12 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../utils/Lib.sol";
 import {EntityHashing} from "../../src/EntityHashing.sol";
-import {ValidateAttributesHarness} from "../utils/harness/ValidateAttributesHarness.sol";
+import {EntityRegistry} from "../../src/EntityRegistry.sol";
 
-contract ValidateAttributesTest is Test {
-    ValidateAttributesHarness harness;
-
-    function setUp() public {
-        harness = new ValidateAttributesHarness();
+contract ValidateAttributesTest is Test, EntityRegistry {
+    // Calldata wrapper — _validateAttributes takes calldata arrays.
+    function validate(EntityHashing.Attribute[] calldata attributes) external pure {
+        _validateAttributes(attributes);
     }
 
     // =========================================================================
@@ -26,7 +25,7 @@ contract ValidateAttributesTest is Test {
         }
 
         vm.expectRevert(abi.encodeWithSelector(EntityHashing.TooManyAttributes.selector, 33, 32));
-        harness.exposed_validateAttributes(attrs);
+        this.validate(attrs);
     }
 
     function test_maxAttributes_succeeds() public view {
@@ -37,11 +36,11 @@ contract ValidateAttributesTest is Test {
             attrs[i] = Lib.uintAttr(string(name), i);
         }
 
-        harness.exposed_validateAttributes(attrs);
+        this.validate(attrs);
     }
 
     function test_emptyAttributes_succeeds() public view {
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        harness.exposed_validateAttributes(attrs);
+        this.validate(attrs);
     }
 }

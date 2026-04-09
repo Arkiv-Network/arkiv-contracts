@@ -2,10 +2,10 @@
 pragma solidity ^0.8.24;
 
 import {BlockNumber} from "../../src/BlockNumber.sol";
-import {Base} from "../utils/Base.t.sol";
+import {Test} from "forge-std/Test.sol";
 import {EntityHashing, OpKey, TxKey} from "../../src/EntityHashing.sol";
 
-contract PackTest is Base {
+contract PackTest is Test {
     // =========================================================================
     // opKey
     // =========================================================================

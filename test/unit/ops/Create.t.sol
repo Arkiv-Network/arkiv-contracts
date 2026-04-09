@@ -5,18 +5,34 @@ import {BlockNumber, currentBlock} from "../../../src/BlockNumber.sol";
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {EntityHashing} from "../../../src/EntityHashing.sol";
-import {OpHarness} from "../../utils/harness/OpHarness.sol";
+import {EntityRegistry} from "../../../src/EntityRegistry.sol";
 
-contract CreateTest is Test {
-    OpHarness registry;
-
+contract CreateTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
 
     BlockNumber expiresAt;
 
+    // Stub out validation — tested separately in ValidateAttributes.t.sol.
+    function _validateAttributes(EntityHashing.Attribute[] calldata) internal pure override {}
+
+    // Calldata wrappers for internal/library functions.
+    function doCreate(EntityHashing.Op calldata op) external returns (bytes32, bytes32) {
+        return _create(op, currentBlock());
+    }
+
+    function hashCore(
+        bytes32 key,
+        address creator,
+        BlockNumber createdAt,
+        string calldata contentType,
+        bytes calldata payload,
+        EntityHashing.Attribute[] calldata attributes
+    ) external pure returns (bytes32) {
+        return EntityHashing.coreHash(key, creator, createdAt, contentType, payload, attributes);
+    }
+
     function setUp() public {
-        registry = new OpHarness();
         expiresAt = currentBlock() + BlockNumber.wrap(1000);
     }
 
@@ -39,7 +55,7 @@ contract CreateTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(); // ExpiryInPast
-        registry.exposed_create(op);
+        this.doCreate(op);
     }
 
     function test_create_expiryInPast_reverts() public {
@@ -50,7 +66,7 @@ contract CreateTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(); // ExpiryInPast
-        registry.exposed_create(op);
+        this.doCreate(op);
     }
 
     function test_create_expiryOneBlockAhead_succeeds() public {
@@ -58,7 +74,7 @@ contract CreateTest is Test {
         EntityHashing.Op memory op = Lib.createOp("hello", "text/plain", attrs, currentBlock() + BlockNumber.wrap(1));
 
         vm.prank(alice);
-        (bytes32 key,) = registry.exposed_create(op);
+        (bytes32 key,) = this.doCreate(op);
         assertTrue(key != bytes32(0));
     }
 
@@ -70,9 +86,9 @@ contract CreateTest is Test {
         EntityHashing.Op memory op = _defaultOp();
 
         vm.prank(alice);
-        (bytes32 key,) = registry.exposed_create(op);
+        (bytes32 key,) = this.doCreate(op);
 
-        EntityHashing.Commitment memory c = registry.getCommitment(key);
+        EntityHashing.Commitment memory c = getCommitment(key);
         assertEq(c.creator, alice);
         assertEq(c.owner, alice);
         assertEq(BlockNumber.unwrap(c.createdAt), uint32(block.number));
@@ -86,30 +102,30 @@ contract CreateTest is Test {
     // =========================================================================
 
     function test_create_incrementsNonce() public {
-        assertEq(registry.nonces(alice), 0);
+        assertEq(nonces[alice], 0);
 
         EntityHashing.Op memory op = _defaultOp();
 
         vm.prank(alice);
-        registry.exposed_create(op);
-        assertEq(registry.nonces(alice), 1);
+        this.doCreate(op);
+        assertEq(nonces[alice], 1);
 
         vm.prank(alice);
-        registry.exposed_create(op);
-        assertEq(registry.nonces(alice), 2);
+        this.doCreate(op);
+        assertEq(nonces[alice], 2);
     }
 
     function test_create_independentNoncesPerSender() public {
         EntityHashing.Op memory op = _defaultOp();
 
         vm.prank(alice);
-        registry.exposed_create(op);
+        this.doCreate(op);
 
         vm.prank(bob);
-        registry.exposed_create(op);
+        this.doCreate(op);
 
-        assertEq(registry.nonces(alice), 1);
-        assertEq(registry.nonces(bob), 1);
+        assertEq(nonces[alice], 1);
+        assertEq(nonces[bob], 1);
     }
 
     // =========================================================================
@@ -117,11 +133,11 @@ contract CreateTest is Test {
     // =========================================================================
 
     function test_create_keyMatchesEntityKeyFunction() public {
-        bytes32 expectedKey = registry.entityKey(alice, 0);
+        bytes32 expectedKey = entityKey(alice, 0);
 
         EntityHashing.Op memory op = _defaultOp();
         vm.prank(alice);
-        (bytes32 key,) = registry.exposed_create(op);
+        (bytes32 key,) = this.doCreate(op);
 
         assertEq(key, expectedKey);
     }
@@ -130,11 +146,11 @@ contract CreateTest is Test {
         EntityHashing.Op memory op = _defaultOp();
 
         vm.prank(alice);
-        registry.exposed_create(op);
+        this.doCreate(op);
 
-        bytes32 expectedKey = registry.entityKey(alice, 1);
+        bytes32 expectedKey = entityKey(alice, 1);
         vm.prank(alice);
-        (bytes32 key,) = registry.exposed_create(op);
+        (bytes32 key,) = this.doCreate(op);
 
         assertEq(key, expectedKey);
     }
@@ -143,10 +159,10 @@ contract CreateTest is Test {
         EntityHashing.Op memory op = _defaultOp();
 
         vm.prank(alice);
-        (bytes32 keyAlice,) = registry.exposed_create(op);
+        (bytes32 keyAlice,) = this.doCreate(op);
 
         vm.prank(bob);
-        (bytes32 keyBob,) = registry.exposed_create(op);
+        (bytes32 keyBob,) = this.doCreate(op);
 
         assertNotEq(keyAlice, keyBob);
     }
@@ -157,15 +173,13 @@ contract CreateTest is Test {
 
     function test_create_emitsEntityCreated() public {
         EntityHashing.Op memory op = _defaultOp();
-        bytes32 expectedKey = registry.entityKey(alice, 0);
+        bytes32 expectedKey = entityKey(alice, 0);
 
         vm.prank(alice);
         vm.expectEmit(true, true, false, false);
         emit EntityCreated(expectedKey, alice, expiresAt, bytes32(0));
-        registry.exposed_create(op);
+        this.doCreate(op);
     }
-
-    event EntityCreated(bytes32 indexed entityKey, address indexed owner, BlockNumber expiresAt, bytes32 entityHash);
 
     // =========================================================================
     // Hash correctness
@@ -177,10 +191,10 @@ contract CreateTest is Test {
         EntityHashing.Op memory op = Lib.createOp("hello", "text/plain", attrs, expiresAt);
 
         vm.prank(alice);
-        (bytes32 key,) = registry.exposed_create(op);
+        (bytes32 key,) = this.doCreate(op);
 
-        EntityHashing.Commitment memory c = registry.getCommitment(key);
-        bytes32 expected = registry.exposed_coreHash(key, alice, c.createdAt, "text/plain", "hello", attrs);
+        EntityHashing.Commitment memory c = getCommitment(key);
+        bytes32 expected = this.hashCore(key, alice, c.createdAt, "text/plain", "hello", attrs);
         assertEq(c.coreHash, expected);
     }
 
@@ -188,10 +202,10 @@ contract CreateTest is Test {
         EntityHashing.Op memory op = _defaultOp();
 
         vm.prank(alice);
-        (bytes32 key, bytes32 entityHash_) = registry.exposed_create(op);
+        (bytes32 key, bytes32 entityHash_) = this.doCreate(op);
 
-        EntityHashing.Commitment memory c = registry.getCommitment(key);
-        bytes32 expected = registry.exposed_entityHash(c.coreHash, alice, c.updatedAt, c.expiresAt);
+        EntityHashing.Commitment memory c = getCommitment(key);
+        bytes32 expected = _entityHash(c.coreHash, alice, c.updatedAt, c.expiresAt);
         assertEq(entityHash_, expected);
     }
 
@@ -204,7 +218,7 @@ contract CreateTest is Test {
         EntityHashing.Op memory op = Lib.createOp("", "text/plain", attrs, expiresAt);
 
         vm.prank(alice);
-        (bytes32 key, bytes32 entityHash_) = registry.exposed_create(op);
+        (bytes32 key, bytes32 entityHash_) = this.doCreate(op);
 
         assertTrue(key != bytes32(0));
         assertTrue(entityHash_ != bytes32(0));

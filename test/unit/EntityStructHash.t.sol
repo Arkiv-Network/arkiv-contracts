@@ -2,10 +2,12 @@
 pragma solidity ^0.8.24;
 
 import {BlockNumber} from "../../src/BlockNumber.sol";
-import {Base} from "../utils/Base.t.sol";
+import {Test} from "forge-std/Test.sol";
 import {EntityHashing} from "../../src/EntityHashing.sol";
 
-contract EntityStructHashTest is Base {
+contract EntityStructHashTest is Test {
+    address alice = makeAddr("alice");
+    address bob = makeAddr("bob");
     // -------------------------------------------------------------------------
     // Determinism
     // -------------------------------------------------------------------------
