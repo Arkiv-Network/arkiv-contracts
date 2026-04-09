@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {BlockNumber} from "../../src/BlockNumber.sol";
 import {Base} from "../utils/Base.t.sol";
 import {EntityHashing} from "../../src/EntityHashing.sol";
 
@@ -14,8 +15,8 @@ contract EntityStructHashTest is Base {
         bytes32 core = keccak256("core");
 
         // WHEN computing entityStructHash twice
-        bytes32 hashA = EntityHashing.entityStructHash(core, alice, 100, 200);
-        bytes32 hashB = EntityHashing.entityStructHash(core, alice, 100, 200);
+        bytes32 hashA = EntityHashing.entityStructHash(core, alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
+        bytes32 hashB = EntityHashing.entityStructHash(core, alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
 
         // THEN the hashes are equal
         assertEq(hashA, hashB);
@@ -27,8 +28,8 @@ contract EntityStructHashTest is Base {
 
     function test_entityStructHash_differentCoreHash_differs() public view {
         // GIVEN two calls differing only in coreHash
-        bytes32 hashA = EntityHashing.entityStructHash(keccak256("core1"), alice, 100, 200);
-        bytes32 hashB = EntityHashing.entityStructHash(keccak256("core2"), alice, 100, 200);
+        bytes32 hashA = EntityHashing.entityStructHash(keccak256("core1"), alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
+        bytes32 hashB = EntityHashing.entityStructHash(keccak256("core2"), alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -38,8 +39,8 @@ contract EntityStructHashTest is Base {
         // GIVEN two calls differing only in owner
         bytes32 core = keccak256("core");
 
-        bytes32 hashA = EntityHashing.entityStructHash(core, alice, 100, 200);
-        bytes32 hashB = EntityHashing.entityStructHash(core, bob, 100, 200);
+        bytes32 hashA = EntityHashing.entityStructHash(core, alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
+        bytes32 hashB = EntityHashing.entityStructHash(core, bob, BlockNumber.wrap(100), BlockNumber.wrap(200));
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -49,8 +50,8 @@ contract EntityStructHashTest is Base {
         // GIVEN two calls differing only in updatedAt
         bytes32 core = keccak256("core");
 
-        bytes32 hashA = EntityHashing.entityStructHash(core, alice, 100, 200);
-        bytes32 hashB = EntityHashing.entityStructHash(core, alice, 150, 200);
+        bytes32 hashA = EntityHashing.entityStructHash(core, alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
+        bytes32 hashB = EntityHashing.entityStructHash(core, alice, BlockNumber.wrap(150), BlockNumber.wrap(200));
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -60,8 +61,8 @@ contract EntityStructHashTest is Base {
         // GIVEN two calls differing only in expiresAt
         bytes32 core = keccak256("core");
 
-        bytes32 hashA = EntityHashing.entityStructHash(core, alice, 100, 200);
-        bytes32 hashB = EntityHashing.entityStructHash(core, alice, 100, 300);
+        bytes32 hashA = EntityHashing.entityStructHash(core, alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
+        bytes32 hashB = EntityHashing.entityStructHash(core, alice, BlockNumber.wrap(100), BlockNumber.wrap(300));
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -74,8 +75,8 @@ contract EntityStructHashTest is Base {
     function test_entityStructHash_matchesManualEIP712Encoding() public view {
         // GIVEN inputs
         bytes32 core = keccak256("core");
-        uint32 updatedAt = 100;
-        uint32 expiresAt = 200;
+        BlockNumber updatedAt = BlockNumber.wrap(100);
+        BlockNumber expiresAt = BlockNumber.wrap(200);
 
         // WHEN computing manually per EIP-712
         bytes32 expected = keccak256(abi.encode(EntityHashing.ENTITY_HASH_TYPEHASH, core, alice, updatedAt, expiresAt));
@@ -93,8 +94,8 @@ contract EntityStructHashTest is Base {
         bytes32 core = keccak256("core");
 
         // WHEN computing entityStructHash with different owners
-        bytes32 hashAlice = EntityHashing.entityStructHash(core, alice, 100, 200);
-        bytes32 hashBob = EntityHashing.entityStructHash(core, bob, 100, 200);
+        bytes32 hashAlice = EntityHashing.entityStructHash(core, alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
+        bytes32 hashBob = EntityHashing.entityStructHash(core, bob, BlockNumber.wrap(100), BlockNumber.wrap(200));
 
         // THEN the struct hashes differ (owner is in the outer hash)
         assertNotEq(hashAlice, hashBob);
@@ -105,8 +106,8 @@ contract EntityStructHashTest is Base {
         bytes32 core = keccak256("core");
 
         // WHEN computing entityStructHash with different expiry (simulating extend)
-        bytes32 hashOriginal = EntityHashing.entityStructHash(core, alice, 100, 200);
-        bytes32 hashExtended = EntityHashing.entityStructHash(core, alice, 150, 300);
+        bytes32 hashOriginal = EntityHashing.entityStructHash(core, alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
+        bytes32 hashExtended = EntityHashing.entityStructHash(core, alice, BlockNumber.wrap(150), BlockNumber.wrap(300));
 
         // THEN the struct hashes differ
         assertNotEq(hashOriginal, hashExtended);
@@ -116,11 +117,14 @@ contract EntityStructHashTest is Base {
     // Assembly correctness — fuzz against pure-Solidity reference
     // -------------------------------------------------------------------------
 
-    function test_entityStructHash_fuzz(bytes32 coreHash_, address owner, uint32 updatedAt, uint32 expiresAt)
+    function test_entityStructHash_fuzz(bytes32 coreHash_, address owner, uint32 rawUpdatedAt, uint32 rawExpiresAt)
         public
         pure
     {
         // GIVEN arbitrary inputs
+        BlockNumber updatedAt = BlockNumber.wrap(rawUpdatedAt);
+        BlockNumber expiresAt = BlockNumber.wrap(rawExpiresAt);
+
         // WHEN computing via the assembly implementation
         bytes32 actual = EntityHashing.entityStructHash(coreHash_, owner, updatedAt, expiresAt);
 
