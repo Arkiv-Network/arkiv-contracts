@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {BlockNumber} from "./BlockNumber.sol";
 import {ShortString, ShortStrings} from "@openzeppelin/contracts/utils/ShortStrings.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
@@ -26,7 +27,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         bytes payload; // CREATE, UPDATE
         string contentType; // CREATE, UPDATE
         Attribute[] attributes; // CREATE, UPDATE
-        uint32 expiresAt; // CREATE, EXTEND
+        BlockNumber expiresAt; // CREATE, EXTEND
         address newOwner; // TRANSFER
     }
 
@@ -46,9 +47,9 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     struct Entity {
         address creator;
         address owner;
-        uint32 createdAt;
-        uint32 updatedAt;
-        uint32 expiresAt;
+        BlockNumber createdAt;
+        BlockNumber updatedAt;
+        BlockNumber expiresAt;
         bytes payload;
         string contentType;
         // Attributes sorted ascending by name for deterministic hash computation.
