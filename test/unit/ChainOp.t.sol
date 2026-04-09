@@ -88,17 +88,11 @@ contract ChainOpTest is Base {
         bytes32 hashB = keccak256("hb");
 
         bytes32 chainAB = EntityHashing.chainOp(
-            EntityHashing.chainOp(bytes32(0), EntityHashing.CREATE, keyA, hashA),
-            EntityHashing.CREATE,
-            keyB,
-            hashB
+            EntityHashing.chainOp(bytes32(0), EntityHashing.CREATE, keyA, hashA), EntityHashing.CREATE, keyB, hashB
         );
 
         bytes32 chainBA = EntityHashing.chainOp(
-            EntityHashing.chainOp(bytes32(0), EntityHashing.CREATE, keyB, hashB),
-            EntityHashing.CREATE,
-            keyA,
-            hashA
+            EntityHashing.chainOp(bytes32(0), EntityHashing.CREATE, keyB, hashB), EntityHashing.CREATE, keyA, hashA
         );
 
         // THEN the resulting hashes differ

@@ -28,8 +28,10 @@ contract EntityStructHashTest is Base {
 
     function test_entityStructHash_differentCoreHash_differs() public view {
         // GIVEN two calls differing only in coreHash
-        bytes32 hashA = EntityHashing.entityStructHash(keccak256("core1"), alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
-        bytes32 hashB = EntityHashing.entityStructHash(keccak256("core2"), alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
+        bytes32 hashA =
+            EntityHashing.entityStructHash(keccak256("core1"), alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
+        bytes32 hashB =
+            EntityHashing.entityStructHash(keccak256("core2"), alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
