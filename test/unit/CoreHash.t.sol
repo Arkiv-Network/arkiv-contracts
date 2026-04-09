@@ -33,8 +33,10 @@ contract CoreHashTest is Base {
         // GIVEN two calls differing only in key
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
-        bytes32 hashA = registry.exposed_coreHash(keccak256("key1"), alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
-        bytes32 hashB = registry.exposed_coreHash(keccak256("key2"), alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
+        bytes32 hashA =
+            registry.exposed_coreHash(keccak256("key1"), alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
+        bytes32 hashB =
+            registry.exposed_coreHash(keccak256("key2"), alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
