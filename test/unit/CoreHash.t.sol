@@ -187,7 +187,7 @@ contract CoreHashTest is Base {
     function test_coreHash_fuzz(
         bytes32 key,
         address creator,
-        uint64 rawCreatedAt,
+        uint32 rawCreatedAt,
         string calldata contentType,
         bytes calldata payload
     ) public {

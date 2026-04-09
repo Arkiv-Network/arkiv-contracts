@@ -79,7 +79,7 @@ library EntityHashing {
 
     /// @dev Block-level linked list node for traversing mutation history.
     /// Only blocks containing at least one mutation have an entry.
-    /// All fields pack into a single slot (20 bytes).
+    /// All fields pack into a single slot (12 bytes).
     struct BlockNode {
         BlockNumber prevBlock;
         BlockNumber nextBlock;
@@ -109,14 +109,14 @@ library EntityHashing {
     /// @dev keccak256("Attribute(bytes32 name,uint8 valueType,bytes value)")
     bytes32 internal constant ATTRIBUTE_TYPEHASH = keccak256("Attribute(bytes32 name,uint8 valueType,bytes value)");
 
-    /// @dev keccak256("CoreHash(bytes32 entityKey,address creator,uint64 createdAt,string contentType,bytes payload,bytes32 attributesHash)")
+    /// @dev keccak256("CoreHash(bytes32 entityKey,address creator,uint32 createdAt,string contentType,bytes payload,bytes32 attributesHash)")
     bytes32 internal constant CORE_HASH_TYPEHASH = keccak256(
-        "CoreHash(bytes32 entityKey,address creator,uint64 createdAt,string contentType,bytes payload,bytes32 attributesHash)"
+        "CoreHash(bytes32 entityKey,address creator,uint32 createdAt,string contentType,bytes payload,bytes32 attributesHash)"
     );
 
-    /// @dev keccak256("EntityHash(bytes32 coreHash,address owner,uint64 updatedAt,uint64 expiresAt)")
+    /// @dev keccak256("EntityHash(bytes32 coreHash,address owner,uint32 updatedAt,uint32 expiresAt)")
     bytes32 internal constant ENTITY_HASH_TYPEHASH =
-        keccak256("EntityHash(bytes32 coreHash,address owner,uint64 updatedAt,uint64 expiresAt)");
+        keccak256("EntityHash(bytes32 coreHash,address owner,uint32 updatedAt,uint32 expiresAt)");
 
     // -------------------------------------------------------------------------
     // Hash functions

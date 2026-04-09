@@ -77,7 +77,7 @@ contract PackTest is Base {
     // Assembly correctness — fuzz
     // -------------------------------------------------------------------------
 
-    function test_opKey_fuzz(uint64 rawBlock, uint32 txSeq, uint32 opSeq) public pure {
+    function test_opKey_fuzz(uint32 rawBlock, uint32 txSeq, uint32 opSeq) public pure {
         // GIVEN arbitrary inputs
         BlockNumber blockNumber = BlockNumber.wrap(rawBlock);
 
@@ -93,7 +93,7 @@ contract PackTest is Base {
     // opKey builds on txKey
     // -------------------------------------------------------------------------
 
-    function test_opKey_extendsTxKey(uint64 rawBlock, uint32 txSeq, uint32 opSeq) public pure {
+    function test_opKey_extendsTxKey(uint32 rawBlock, uint32 txSeq, uint32 opSeq) public pure {
         // GIVEN an opKey and its corresponding txKey
         BlockNumber blockNumber = BlockNumber.wrap(rawBlock);
         uint256 ok = OpKey.unwrap(EntityHashing.opKey(blockNumber, txSeq, opSeq));
@@ -166,7 +166,7 @@ contract PackTest is Base {
     // Assembly correctness — fuzz
     // -------------------------------------------------------------------------
 
-    function test_txKey_fuzz(uint64 rawBlock, uint32 txSeq) public pure {
+    function test_txKey_fuzz(uint32 rawBlock, uint32 txSeq) public pure {
         // GIVEN arbitrary inputs
         BlockNumber blockNumber = BlockNumber.wrap(rawBlock);
 
