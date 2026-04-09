@@ -52,14 +52,6 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     mapping(BlockNumber blockNumber => EntityHashing.BlockNode node) internal _blocks;
 
     // -------------------------------------------------------------------------
-    // Constants
-    // -------------------------------------------------------------------------
-
-    uint256 public constant MAX_PAYLOAD_SIZE = 24_576;
-    uint256 public constant MAX_ATTRIBUTES = 32;
-    uint256 public constant MAX_STRING_ATTR_SIZE = 1024;
-
-    // -------------------------------------------------------------------------
     // Events
     // -------------------------------------------------------------------------
 
@@ -67,10 +59,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         bytes32 indexed entityKey,
         address indexed owner,
         bytes32 entityHash,
-        BlockNumber expiresAt,
-        bytes payload,
-        string contentType,
-        EntityHashing.Attribute[] attributes
+        BlockNumber expiresAt
     );
 
     // -------------------------------------------------------------------------
@@ -216,17 +205,12 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _create(EntityHashing.Op calldata op, BlockNumber current) internal returns (bytes32 key, bytes32 entityHash_) {
         // TODO: contentType validation (e.g. non-empty, allowlist of MIME types).
 
-        // Validate payload size.
-        if (op.payload.length > MAX_PAYLOAD_SIZE) {
-            revert EntityHashing.PayloadTooLarge(op.payload.length, MAX_PAYLOAD_SIZE);
-        }
-
         // Validate attribute count.
-        if (op.attributes.length > MAX_ATTRIBUTES) {
-            revert EntityHashing.TooManyAttributes(op.attributes.length, MAX_ATTRIBUTES);
+        if (op.attributes.length > EntityHashing.MAX_ATTRIBUTES) {
+            revert EntityHashing.TooManyAttributes(op.attributes.length, EntityHashing.MAX_ATTRIBUTES);
         }
 
-        // Validate attributes: non-empty names, strict ascending order, string size limits.
+        // Validate attributes: non-empty names, strict ascending order, canonical encoding.
         for (uint256 i = 0; i < op.attributes.length; i++) {
             bytes32 name = ShortString.unwrap(op.attributes[i].name);
 
@@ -245,9 +229,9 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
                 if (op.attributes[i].fixedValue != bytes32(0)) {
                     revert EntityHashing.NonCanonicalAttribute(i);
                 }
-                if (bytes(op.attributes[i].stringValue).length > MAX_STRING_ATTR_SIZE) {
+                if (bytes(op.attributes[i].stringValue).length > EntityHashing.MAX_STRING_ATTR_SIZE) {
                     revert EntityHashing.StringAttributeTooLarge(
-                        name, bytes(op.attributes[i].stringValue).length, MAX_STRING_ATTR_SIZE
+                        name, bytes(op.attributes[i].stringValue).length, EntityHashing.MAX_STRING_ATTR_SIZE
                     );
                 }
             } else {
@@ -281,7 +265,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
             coreHash: coreHash_
         });
 
-        emit EntityCreated(key, msg.sender, entityHash_, op.expiresAt, op.payload, op.contentType, op.attributes);
+        emit EntityCreated(key, msg.sender, entityHash_, op.expiresAt);
     }
 
     function _update(EntityHashing.Op calldata op, BlockNumber current) internal returns (bytes32, bytes32) {
