@@ -31,6 +31,23 @@ library Lib {
         });
     }
 
+    function updateOp(
+        bytes32 entityKey_,
+        bytes memory payload_,
+        string memory contentType_,
+        EntityHashing.Attribute[] memory attributes_
+    ) internal pure returns (EntityHashing.Op memory) {
+        return EntityHashing.Op({
+            opType: EntityHashing.UPDATE,
+            entityKey: entityKey_,
+            payload: payload_,
+            contentType: contentType_,
+            attributes: attributes_,
+            expiresAt: BlockNumber.wrap(0),
+            newOwner: address(0)
+        });
+    }
+
     function uintAttr(string memory name, uint256 value) internal pure returns (EntityHashing.Attribute memory) {
         return
             EntityHashing.Attribute({

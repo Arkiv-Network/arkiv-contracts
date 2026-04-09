@@ -101,6 +101,15 @@ library EntityHashing {
     error ExpiryInPast(BlockNumber expiresAt, BlockNumber currentBlock);
     error TooManyAttributes(uint256 count, uint256 maxCount);
 
+    /// @dev Reverted when an entity key does not exist in storage.
+    error EntityNotFound(bytes32 entityKey);
+
+    /// @dev Reverted when the caller is not the entity owner.
+    error NotOwner(bytes32 entityKey, address caller, address owner);
+
+    /// @dev Reverted when an operation targets an expired entity.
+    error EntityExpired(bytes32 entityKey, BlockNumber expiresAt);
+
     // -------------------------------------------------------------------------
     // Constants
     // -------------------------------------------------------------------------

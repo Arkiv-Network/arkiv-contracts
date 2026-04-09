@@ -23,12 +23,15 @@ contract CreateTest is Test, EntityRegistry {
         return STUB_KEY;
     }
 
-    function _createEntityHash(bytes32, address, BlockNumber, EntityHashing.Op calldata)
-        internal
-        pure
-        override
-        returns (bytes32, bytes32)
-    {
+    function _computeEntityHash(
+        bytes32,
+        address,
+        BlockNumber,
+        address,
+        BlockNumber,
+        BlockNumber,
+        EntityHashing.Op calldata
+    ) internal pure override returns (bytes32, bytes32) {
         return (STUB_CORE_HASH, STUB_ENTITY_HASH);
     }
 

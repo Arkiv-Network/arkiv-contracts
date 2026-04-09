@@ -55,6 +55,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // -------------------------------------------------------------------------
 
     event EntityCreated(bytes32 indexed entityKey, address indexed owner, BlockNumber expiresAt, bytes32 entityHash);
+    event EntityUpdated(bytes32 indexed entityKey, address indexed owner, bytes32 entityHash);
 
     // -------------------------------------------------------------------------
     // State — linked list pointers
@@ -181,17 +182,20 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Internal functions — entity hash (requires domain separator)
     // -------------------------------------------------------------------------
 
-    /// @dev Compute the two-level EIP-712 hash for entity creation:
-    ///   coreHash: immutable content identity (survives transfers and expiry extensions)
+    /// @dev Compute the two-level EIP-712 hash:
+    ///   coreHash: immutable content identity (key, creator, createdAt, content)
     ///   entityHash: domain-wrapped hash of (coreHash, owner, updatedAt, expiresAt)
-    function _createEntityHash(bytes32 key, address creator, BlockNumber current, EntityHashing.Op calldata op)
-        internal
-        view
-        virtual
-        returns (bytes32 coreHash_, bytes32 entityHash_)
-    {
-        coreHash_ = EntityHashing.coreHash(key, creator, current, op.contentType, op.payload, op.attributes);
-        entityHash_ = _hashTypedDataV4(EntityHashing.entityStructHash(coreHash_, creator, current, op.expiresAt));
+    function _computeEntityHash(
+        bytes32 key,
+        address creator,
+        BlockNumber createdAt,
+        address owner,
+        BlockNumber updatedAt,
+        BlockNumber expiresAt,
+        EntityHashing.Op calldata op
+    ) internal view virtual returns (bytes32 coreHash_, bytes32 entityHash_) {
+        coreHash_ = EntityHashing.coreHash(key, creator, createdAt, op.contentType, op.payload, op.attributes);
+        entityHash_ = _hashTypedDataV4(EntityHashing.entityStructHash(coreHash_, owner, updatedAt, expiresAt));
     }
 
     /// @dev Mint a new entity key by post-incrementing the owner's nonce.
@@ -251,7 +255,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         key = _createEntityKey(msg.sender);
 
         bytes32 coreHash_;
-        (coreHash_, entityHash_) = _createEntityHash(key, msg.sender, current, op);
+        (coreHash_, entityHash_) = _computeEntityHash(key, msg.sender, current, msg.sender, current, op.expiresAt, op);
 
         _commitments[key] = EntityHashing.Commitment({
             creator: msg.sender,
@@ -265,10 +269,45 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         emit EntityCreated(key, msg.sender, op.expiresAt, entityHash_);
     }
 
+    /// @dev Update an existing entity's payload, contentType, and attributes.
+    /// Does not change owner or expiry. The coreHash is fully recomputed from
+    /// the new content and the entity's immutable fields (key, creator, createdAt).
+    ///
+    /// Validation:
+    ///   1. Entity must exist (creator != address(0))
+    ///   2. Entity must not be expired (expiresAt > current)
+    ///   3. Caller must be the owner
+    ///   4. Attributes validated (same rules as create)
+    ///
+    /// Storage: updates coreHash and updatedAt (2 SSTOREs on the existing Commitment).
     function _update(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
-        // Validates: entity exists + not expired + msg.sender is owner, content type, payload, attributes (same as create)
-        // Then: recompute coreHash from new content, update entity, recompute entityHash
-        revert("not implemented");
+        bytes32 key = op.entityKey;
+        EntityHashing.Commitment storage c = _commitments[key];
+
+        if (c.creator == address(0)) {
+            revert EntityHashing.EntityNotFound(key);
+        }
+
+        if (c.expiresAt <= current) {
+            revert EntityHashing.EntityExpired(key, c.expiresAt);
+        }
+
+        if (msg.sender != c.owner) {
+            revert EntityHashing.NotOwner(key, msg.sender, c.owner);
+        }
+
+        // TODO: contentType validation per RFC 6838 media type syntax.
+
+        // Recompute hashes with new content but immutable identity fields.
+        // Attribute validation (sorting, value type/length, count) runs inside coreHash.
+        (bytes32 coreHash_, bytes32 entityHash_) =
+            _computeEntityHash(key, c.creator, c.createdAt, c.owner, current, c.expiresAt, op);
+
+        c.coreHash = coreHash_;
+        c.updatedAt = current;
+
+        emit EntityUpdated(key, c.owner, entityHash_);
+        return (key, entityHash_);
     }
 
     function _extend(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
