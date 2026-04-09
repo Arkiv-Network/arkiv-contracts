@@ -4,6 +4,9 @@ pragma solidity ^0.8.24;
 import {BlockNumber} from "./BlockNumber.sol";
 import {ShortString} from "@openzeppelin/contracts/utils/ShortStrings.sol";
 
+type OpKey is uint256;
+type TxKey is uint256;
+
 /// @title EntityHashing
 /// @dev Pure encoding and hashing scheme for the Arkiv EntityRegistry.
 ///
@@ -261,23 +264,16 @@ library EntityHashing {
     // Storage key packing
     // -------------------------------------------------------------------------
 
-    /// @notice Pack a (block, tx, op) triple into a single uint256 key for
-    /// the `_hashAt` mapping. Layout: block in bits [64..127], tx in bits
-    /// [32..63], op in bits [0..31].
-    /// @param blockNumber Block number (uint64 range).
-    /// @param txSeq       Transaction sequence within the block.
-    /// @param opSeq       Operation sequence within the transaction.
-    /// @return The packed mapping key.
-    function packHashKey(uint256 blockNumber, uint32 txSeq, uint32 opSeq) internal pure returns (uint256) {
-        return (blockNumber << 64) | (uint256(txSeq) << 32) | opSeq;
+    /// @notice Pack a (block, tx) pair into a TxKey for the `_txOpCount`
+    /// mapping. Layout: block in bits [32..95], tx in bits [0..31].
+    function txKey(uint256 blockNumber, uint32 txSeq) internal pure returns (TxKey) {
+        return TxKey.wrap((blockNumber << 32) | txSeq);
     }
 
-    /// @notice Pack a (block, tx) pair into a single uint256 key for the
-    /// `_txOpCount` mapping. Layout: block in bits [32..95], tx in bits [0..31].
-    /// @param blockNumber Block number (uint64 range).
-    /// @param txSeq       Transaction sequence within the block.
-    /// @return The packed mapping key.
-    function packTxKey(uint256 blockNumber, uint32 txSeq) internal pure returns (uint256) {
-        return (blockNumber << 32) | txSeq;
+    /// @notice Pack a (block, tx, op) triple into an OpKey for the `_hashAt`
+    /// mapping. Layout: block in bits [64..127], tx in bits [32..63], op in
+    /// bits [0..31]. Extends txKey with the op dimension.
+    function opKey(uint256 blockNumber, uint32 txSeq, uint32 opSeq) internal pure returns (OpKey) {
+        return OpKey.wrap((TxKey.unwrap(txKey(blockNumber, txSeq)) << 32) | opSeq);
     }
 }

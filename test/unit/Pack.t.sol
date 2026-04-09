@@ -2,136 +2,149 @@
 pragma solidity ^0.8.24;
 
 import {Base} from "../utils/Base.t.sol";
-import {EntityHashing} from "../../src/EntityHashing.sol";
+import {EntityHashing, OpKey, TxKey} from "../../src/EntityHashing.sol";
 
 contract PackTest is Base {
     // =========================================================================
-    // packHashKey
+    // opKey
     // =========================================================================
 
     // -------------------------------------------------------------------------
     // Determinism
     // -------------------------------------------------------------------------
 
-    function test_packHashKey_deterministic() public pure {
+    function test_opKey_deterministic() public pure {
         // GIVEN the same inputs
         // WHEN packing twice
         // THEN the results are equal
-        assertEq(EntityHashing.packHashKey(1, 2, 3), EntityHashing.packHashKey(1, 2, 3));
+        assertEq(OpKey.unwrap(EntityHashing.opKey(1, 2, 3)), OpKey.unwrap(EntityHashing.opKey(1, 2, 3)));
     }
 
     // -------------------------------------------------------------------------
     // Different inputs produce different keys
     // -------------------------------------------------------------------------
 
-    function test_packHashKey_differentBlock_differs() public pure {
-        assertNotEq(EntityHashing.packHashKey(1, 1, 1), EntityHashing.packHashKey(2, 1, 1));
+    function test_opKey_differentBlock_differs() public pure {
+        assertNotEq(OpKey.unwrap(EntityHashing.opKey(1, 1, 1)), OpKey.unwrap(EntityHashing.opKey(2, 1, 1)));
     }
 
-    function test_packHashKey_differentTx_differs() public pure {
-        assertNotEq(EntityHashing.packHashKey(1, 1, 1), EntityHashing.packHashKey(1, 2, 1));
+    function test_opKey_differentTx_differs() public pure {
+        assertNotEq(OpKey.unwrap(EntityHashing.opKey(1, 1, 1)), OpKey.unwrap(EntityHashing.opKey(1, 2, 1)));
     }
 
-    function test_packHashKey_differentOp_differs() public pure {
-        assertNotEq(EntityHashing.packHashKey(1, 1, 1), EntityHashing.packHashKey(1, 1, 2));
+    function test_opKey_differentOp_differs() public pure {
+        assertNotEq(OpKey.unwrap(EntityHashing.opKey(1, 1, 1)), OpKey.unwrap(EntityHashing.opKey(1, 1, 2)));
     }
 
     // -------------------------------------------------------------------------
     // Bit layout — manual verification
     // -------------------------------------------------------------------------
 
-    function test_packHashKey_layout() public pure {
+    function test_opKey_layout() public pure {
         // GIVEN known inputs
         uint256 blockNumber = 0xAB;
         uint32 txSeq = 0xCD;
         uint32 opSeq = 0xEF;
 
         // WHEN packing
-        uint256 packed = EntityHashing.packHashKey(blockNumber, txSeq, opSeq);
+        uint256 packed = OpKey.unwrap(EntityHashing.opKey(blockNumber, txSeq, opSeq));
 
         // THEN it matches the expected bit layout: block << 64 | tx << 32 | op
         uint256 expected = (0xAB << 64) | (uint256(0xCD) << 32) | 0xEF;
         assertEq(packed, expected);
     }
 
-    function test_packHashKey_zeroInputs() public pure {
+    function test_opKey_zeroInputs() public pure {
         // GIVEN all zeros
         // THEN the packed key is zero
-        assertEq(EntityHashing.packHashKey(0, 0, 0), 0);
+        assertEq(OpKey.unwrap(EntityHashing.opKey(0, 0, 0)), 0);
     }
 
     // -------------------------------------------------------------------------
     // Assembly correctness — fuzz
     // -------------------------------------------------------------------------
 
-    function test_packHashKey_fuzz(uint256 blockNumber, uint32 txSeq, uint32 opSeq) public pure {
+    function test_opKey_fuzz(uint256 blockNumber, uint32 txSeq, uint32 opSeq) public pure {
         // GIVEN arbitrary inputs
         // WHEN packing via the library
-        uint256 actual = EntityHashing.packHashKey(blockNumber, txSeq, opSeq);
+        uint256 actual = OpKey.unwrap(EntityHashing.opKey(blockNumber, txSeq, opSeq));
 
         // THEN it matches the manual bit operation
         uint256 expected = (blockNumber << 64) | (uint256(txSeq) << 32) | opSeq;
         assertEq(actual, expected);
     }
 
+    // -------------------------------------------------------------------------
+    // opKey builds on txKey
+    // -------------------------------------------------------------------------
+
+    function test_opKey_extendsTxKey(uint64 blockNumber, uint32 txSeq, uint32 opSeq) public pure {
+        // GIVEN an opKey and its corresponding txKey (blockNumber bounded to uint64)
+        uint256 ok = OpKey.unwrap(EntityHashing.opKey(blockNumber, txSeq, opSeq));
+        uint256 tk = TxKey.unwrap(EntityHashing.txKey(blockNumber, txSeq));
+
+        // THEN the upper bits of opKey equal txKey shifted left by 32
+        assertEq(ok >> 32, tk);
+    }
+
     // =========================================================================
-    // packTxKey
+    // txKey
     // =========================================================================
 
     // -------------------------------------------------------------------------
     // Determinism
     // -------------------------------------------------------------------------
 
-    function test_packTxKey_deterministic() public pure {
+    function test_txKey_deterministic() public pure {
         // GIVEN the same inputs
         // WHEN packing twice
         // THEN the results are equal
-        assertEq(EntityHashing.packTxKey(1, 2), EntityHashing.packTxKey(1, 2));
+        assertEq(TxKey.unwrap(EntityHashing.txKey(1, 2)), TxKey.unwrap(EntityHashing.txKey(1, 2)));
     }
 
     // -------------------------------------------------------------------------
     // Different inputs produce different keys
     // -------------------------------------------------------------------------
 
-    function test_packTxKey_differentBlock_differs() public pure {
-        assertNotEq(EntityHashing.packTxKey(1, 1), EntityHashing.packTxKey(2, 1));
+    function test_txKey_differentBlock_differs() public pure {
+        assertNotEq(TxKey.unwrap(EntityHashing.txKey(1, 1)), TxKey.unwrap(EntityHashing.txKey(2, 1)));
     }
 
-    function test_packTxKey_differentTx_differs() public pure {
-        assertNotEq(EntityHashing.packTxKey(1, 1), EntityHashing.packTxKey(1, 2));
+    function test_txKey_differentTx_differs() public pure {
+        assertNotEq(TxKey.unwrap(EntityHashing.txKey(1, 1)), TxKey.unwrap(EntityHashing.txKey(1, 2)));
     }
 
     // -------------------------------------------------------------------------
     // Bit layout — manual verification
     // -------------------------------------------------------------------------
 
-    function test_packTxKey_layout() public pure {
+    function test_txKey_layout() public pure {
         // GIVEN known inputs
         uint256 blockNumber = 0xAB;
         uint32 txSeq = 0xCD;
 
         // WHEN packing
-        uint256 packed = EntityHashing.packTxKey(blockNumber, txSeq);
+        uint256 packed = TxKey.unwrap(EntityHashing.txKey(blockNumber, txSeq));
 
         // THEN it matches the expected bit layout: block << 32 | tx
         uint256 expected = (0xAB << 32) | 0xCD;
         assertEq(packed, expected);
     }
 
-    function test_packTxKey_zeroInputs() public pure {
+    function test_txKey_zeroInputs() public pure {
         // GIVEN all zeros
         // THEN the packed key is zero
-        assertEq(EntityHashing.packTxKey(0, 0), 0);
+        assertEq(TxKey.unwrap(EntityHashing.txKey(0, 0)), 0);
     }
 
     // -------------------------------------------------------------------------
     // Assembly correctness — fuzz
     // -------------------------------------------------------------------------
 
-    function test_packTxKey_fuzz(uint256 blockNumber, uint32 txSeq) public pure {
+    function test_txKey_fuzz(uint256 blockNumber, uint32 txSeq) public pure {
         // GIVEN arbitrary inputs
         // WHEN packing via the library
-        uint256 actual = EntityHashing.packTxKey(blockNumber, txSeq);
+        uint256 actual = TxKey.unwrap(EntityHashing.txKey(blockNumber, txSeq));
 
         // THEN it matches the manual bit operation
         uint256 expected = (blockNumber << 32) | txSeq;
