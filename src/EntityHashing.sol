@@ -120,6 +120,9 @@ library EntityHashing {
     /// @dev Reverted when a STRING attribute value exceeds the maximum size.
     error StringAttributeTooLarge(bytes32 name, uint256 size, uint256 maxSize);
 
+    /// @dev Reverted when an attribute has non-zero unused fields.
+    error NonCanonicalAttribute(uint256 index);
+
     /// @dev Reverted when a payload exceeds the maximum size.
     error PayloadTooLarge(uint256 size, uint256 maxSize);
 

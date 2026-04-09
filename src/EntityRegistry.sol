@@ -240,10 +240,17 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
             }
 
             if (op.attributes[i].valueType == EntityHashing.AttributeType.STRING) {
+                if (op.attributes[i].fixedValue != bytes32(0)) {
+                    revert EntityHashing.NonCanonicalAttribute(i);
+                }
                 if (bytes(op.attributes[i].stringValue).length > MAX_STRING_ATTR_SIZE) {
                     revert EntityHashing.StringAttributeTooLarge(
                         name, bytes(op.attributes[i].stringValue).length, MAX_STRING_ATTR_SIZE
                     );
+                }
+            } else {
+                if (bytes(op.attributes[i].stringValue).length != 0) {
+                    revert EntityHashing.NonCanonicalAttribute(i);
                 }
             }
         }
