@@ -63,6 +63,9 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     event EntityExtended(
         bytes32 indexed entityKey, address indexed owner, BlockNumber indexed newExpiresAt, bytes32 entityHash
     );
+    event EntityTransferred(
+        bytes32 indexed entityKey, address indexed previousOwner, address indexed newOwner, bytes32 entityHash
+    );
 
     // -------------------------------------------------------------------------
     // State — linked list pointers
@@ -367,10 +370,44 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         return (key, entityHash_);
     }
 
+    /// @dev Transfer entity ownership. Does not change payload, attributes, or expiry.
+    /// The entityHash is recomputed from the stored coreHash with the new owner.
+    ///
+    /// Validation:
+    ///   1. Entity must exist (creator != address(0))
+    ///   2. Entity must not be expired (expiresAt > current)
+    ///   3. Caller must be the current owner
+    ///   4. New owner must not be the zero address
+    ///
+    /// Storage: updates owner and updatedAt (2 SSTOREs — owner in slot 1, updatedAt in slot 0).
     function _transfer(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
-        // Validates: entity exists + not expired + msg.sender is owner, newOwner != address(0)
-        // Then: set owner to newOwner + updatedAt, recompute entityHash from stored coreHash
-        revert("not implemented");
+        bytes32 key = op.entityKey;
+        EntityHashing.Commitment storage c = _commitments[key];
+
+        if (c.creator == address(0)) {
+            revert EntityHashing.EntityNotFound(key);
+        }
+
+        if (c.expiresAt <= current) {
+            revert EntityHashing.EntityExpired(key, c.expiresAt);
+        }
+
+        if (msg.sender != c.owner) {
+            revert EntityHashing.NotOwner(key, msg.sender, c.owner);
+        }
+
+        if (op.newOwner == address(0)) {
+            revert EntityHashing.TransferToZeroAddress(key);
+        }
+
+        address previousOwner = c.owner;
+        c.owner = op.newOwner;
+        c.updatedAt = current;
+
+        bytes32 entityHash_ = _entityHash(c.coreHash, op.newOwner, current, c.expiresAt);
+
+        emit EntityTransferred(key, previousOwner, op.newOwner, entityHash_);
+        return (key, entityHash_);
     }
 
     function _delete(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {

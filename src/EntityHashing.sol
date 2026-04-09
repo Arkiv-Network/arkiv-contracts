@@ -113,6 +113,9 @@ library EntityHashing {
     /// @dev Reverted when new expiresAt is not strictly greater than current.
     error ExpiryNotExtended(bytes32 entityKey, BlockNumber newExpiresAt, BlockNumber currentExpiresAt);
 
+    /// @dev Reverted when transfer target is the zero address.
+    error TransferToZeroAddress(bytes32 entityKey);
+
     // -------------------------------------------------------------------------
     // Constants
     // -------------------------------------------------------------------------

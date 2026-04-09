@@ -48,6 +48,19 @@ library Lib {
         });
     }
 
+    function transferOp(bytes32 entityKey_, address newOwner_) internal pure returns (EntityHashing.Op memory) {
+        EntityHashing.Attribute[] memory empty = new EntityHashing.Attribute[](0);
+        return EntityHashing.Op({
+            opType: EntityHashing.TRANSFER,
+            entityKey: entityKey_,
+            payload: "",
+            contentType: "",
+            attributes: empty,
+            expiresAt: BlockNumber.wrap(0),
+            newOwner: newOwner_
+        });
+    }
+
     function extendOp(bytes32 entityKey_, BlockNumber expiresAt_) internal pure returns (EntityHashing.Op memory) {
         EntityHashing.Attribute[] memory empty = new EntityHashing.Attribute[](0);
         return EntityHashing.Op({
