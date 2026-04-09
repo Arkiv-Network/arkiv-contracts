@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-type BlockNumber is uint32;
+type BlockNumber is uint64;
 
 using {
     BlockNumber_eq as ==,
@@ -48,5 +48,5 @@ function BlockNumber_sub(BlockNumber a, BlockNumber b) pure returns (BlockNumber
 
 /// @dev Cast the current block.number to BlockNumber.
 function currentBlock() view returns (BlockNumber) {
-    return BlockNumber.wrap(uint32(block.number));
+    return BlockNumber.wrap(uint64(block.number));
 }

@@ -119,7 +119,7 @@ contract EntityStructHashTest is Base {
     // Assembly correctness — fuzz against pure-Solidity reference
     // -------------------------------------------------------------------------
 
-    function test_entityStructHash_fuzz(bytes32 coreHash_, address owner, uint32 rawUpdatedAt, uint32 rawExpiresAt)
+    function test_entityStructHash_fuzz(bytes32 coreHash_, address owner, uint64 rawUpdatedAt, uint64 rawExpiresAt)
         public
         pure
     {
