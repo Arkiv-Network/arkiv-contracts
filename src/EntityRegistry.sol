@@ -189,6 +189,17 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Internal functions — entity hash (requires domain separator)
     // -------------------------------------------------------------------------
 
+    /// @dev Domain-wrap an entity struct hash. Used by both _computeEntityHash
+    /// and operations that recompute entityHash without changing coreHash (extend, transfer).
+    function _wrapEntityHash(bytes32 coreHash_, address owner, BlockNumber updatedAt, BlockNumber expiresAt)
+        internal
+        view
+        virtual
+        returns (bytes32)
+    {
+        return _hashTypedDataV4(EntityHashing.entityStructHash(coreHash_, owner, updatedAt, expiresAt));
+    }
+
     /// @dev Compute the two-level EIP-712 hash:
     ///   coreHash: immutable content identity (key, creator, createdAt, content)
     ///   entityHash: domain-wrapped hash of (coreHash, owner, updatedAt, expiresAt)
@@ -202,7 +213,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         EntityHashing.Op calldata op
     ) internal view virtual returns (bytes32 coreHash_, bytes32 entityHash_) {
         coreHash_ = EntityHashing.coreHash(key, creator, createdAt, op.contentType, op.payload, op.attributes);
-        entityHash_ = _hashTypedDataV4(EntityHashing.entityStructHash(coreHash_, owner, updatedAt, expiresAt));
+        entityHash_ = _wrapEntityHash(coreHash_, owner, updatedAt, expiresAt);
     }
 
     /// @dev Mint a new entity key by post-incrementing the owner's nonce.
@@ -350,7 +361,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         c.expiresAt = op.expiresAt;
         c.updatedAt = current;
 
-        bytes32 entityHash_ = _entityHash(c.coreHash, c.owner, current, op.expiresAt);
+        bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, current, op.expiresAt);
 
         emit EntityExtended(key, c.owner, entityHash_, op.expiresAt);
         return (key, entityHash_);

@@ -67,9 +67,8 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         (bytes32 coreHash_, bytes32 entityHash_) =
             this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
 
-        // Manually compute: domain-wrapped entityStructHash
-        bytes32 structHash = EntityHashing.entityStructHash(coreHash_, alice, current, op.expiresAt);
-        bytes32 expected = _hashTypedDataV4(structHash);
+        // Verify entityHash matches _wrapEntityHash for the same inputs
+        bytes32 expected = _wrapEntityHash(coreHash_, alice, current, op.expiresAt);
 
         assertEq(entityHash_, expected);
     }

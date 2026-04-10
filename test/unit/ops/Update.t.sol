@@ -177,8 +177,7 @@ contract UpdateTest is Test, EntityRegistry {
         (, bytes32 entityHash_) = this.doUpdate(op);
 
         EntityHashing.Commitment memory c = getCommitment(testKey);
-        bytes32 expected =
-            _hashTypedDataV4(EntityHashing.entityStructHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt));
+        bytes32 expected = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
         assertEq(entityHash_, expected);
     }
 
