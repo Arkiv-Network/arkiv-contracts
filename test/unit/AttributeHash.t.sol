@@ -161,4 +161,66 @@ contract AttributeHashTest is Base {
         vm.expectRevert(EntityHashing.AttributesNotSorted.selector);
         registry.exposed_attributesHash(attrs);
     }
+
+    // -------------------------------------------------------------------------
+    // Value type validation
+    // -------------------------------------------------------------------------
+
+    function test_attributeHash_revertsOnUintWrongLength() public {
+        EntityHashing.Attribute memory attr =
+            EntityHashing.Attribute({name: Lib.packName("count"), valueType: EntityHashing.ATTR_UINT, value: hex"01"});
+
+        vm.expectRevert(
+            abi.encodeWithSelector(EntityHashing.InvalidValueLength.selector, attr.name, EntityHashing.ATTR_UINT, 1)
+        );
+        _hashOne(attr);
+    }
+
+    function test_attributeHash_revertsOnEntityKeyWrongLength() public {
+        EntityHashing.Attribute memory attr = EntityHashing.Attribute({
+            name: Lib.packName("ref"),
+            valueType: EntityHashing.ATTR_ENTITY_KEY,
+            value: hex"abcd"
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                EntityHashing.InvalidValueLength.selector, attr.name, EntityHashing.ATTR_ENTITY_KEY, 2
+            )
+        );
+        _hashOne(attr);
+    }
+
+    function test_attributeHash_revertsOnStringTooLarge() public {
+        bytes memory bigValue = new bytes(1025);
+        EntityHashing.Attribute memory attr =
+            EntityHashing.Attribute({name: Lib.packName("bio"), valueType: EntityHashing.ATTR_STRING, value: bigValue});
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                EntityHashing.InvalidValueLength.selector, attr.name, EntityHashing.ATTR_STRING, 1025
+            )
+        );
+        _hashOne(attr);
+    }
+
+    function test_attributeHash_acceptsStringAtMaxSize() public view {
+        bytes memory maxValue = new bytes(1024);
+        EntityHashing.Attribute memory attr = EntityHashing.Attribute({
+            name: Lib.packName("bio"),
+            valueType: EntityHashing.ATTR_STRING,
+            value: maxValue
+        });
+
+        // Should not revert
+        _hashOne(attr);
+    }
+
+    function test_attributeHash_revertsOnInvalidValueType() public {
+        EntityHashing.Attribute memory attr =
+            EntityHashing.Attribute({name: Lib.packName("bad"), valueType: 99, value: hex"00"});
+
+        vm.expectRevert(abi.encodeWithSelector(EntityHashing.InvalidValueType.selector, attr.name, 99));
+        _hashOne(attr);
+    }
 }

@@ -90,6 +90,14 @@ library EntityHashing {
     /// @dev Reverted when `execute()` is called with an empty ops array.
     error EmptyBatch();
     error AttributesNotSorted();
+    error InvalidValueLength(bytes32 name, uint8 valueType, uint256 length);
+    error InvalidValueType(bytes32 name, uint8 valueType);
+
+    // -------------------------------------------------------------------------
+    // Constants — validation limits
+    // -------------------------------------------------------------------------
+
+    uint256 internal constant MAX_STRING_ATTR_SIZE = 1024;
 
     // -------------------------------------------------------------------------
     // Constants — EIP-712 typehashes
@@ -122,6 +130,17 @@ library EntityHashing {
         returns (bytes32, bytes32)
     {
         if (attr.name <= prevName) revert AttributesNotSorted();
+
+        uint8 vt = attr.valueType;
+        uint256 len = attr.value.length;
+        if (vt == ATTR_UINT || vt == ATTR_ENTITY_KEY) {
+            if (len != 32) revert InvalidValueLength(attr.name, vt, len);
+        } else if (vt == ATTR_STRING) {
+            if (len > MAX_STRING_ATTR_SIZE) revert InvalidValueLength(attr.name, vt, len);
+        } else {
+            revert InvalidValueType(attr.name, vt);
+        }
+
         bytes32 attrHash = keccak256(abi.encode(ATTRIBUTE_TYPEHASH, attr.name, attr.valueType, keccak256(attr.value)));
         return (attr.name, keccak256(abi.encodePacked(chain, attrHash)));
     }
