@@ -50,19 +50,19 @@ library EntityHashing {
     uint8 public constant ATTR_STRING = 1;
     uint8 public constant ATTR_ENTITY_KEY = 2;
 
-    /// @dev A typed key-value pair attached to an entity. Attributes must
-    /// be sorted ascending by keccak256(name) for deterministic hash
+    /// @dev A typed key-value pair attached to an entity. The `name` is a
+    /// bytes32-packed UTF-8 identifier (left-aligned, zero-padded).
+    /// Attributes must be sorted ascending by name for deterministic hash
     /// computation and name-uniqueness enforcement.
     struct Attribute {
-        string name;
+        bytes32 name;
         uint8 valueType;
         bytes value;
     }
 
     /// @dev On-chain representation of a registered entity. Stored in the
     /// EntityRegistry's entity mapping. The `attributes` array must be
-    /// sorted ascending by keccak256(name) to match the ordering enforced
-    /// at creation.
+    /// sorted ascending by name to match the ordering enforced at creation.
     struct Entity {
         address creator;
         address owner;
@@ -95,8 +95,8 @@ library EntityHashing {
     // Constants — EIP-712 typehashes
     // -------------------------------------------------------------------------
 
-    /// @dev keccak256("Attribute(string name,uint8 valueType,bytes value)")
-    bytes32 internal constant ATTRIBUTE_TYPEHASH = keccak256("Attribute(string name,uint8 valueType,bytes value)");
+    /// @dev keccak256("Attribute(bytes32 name,uint8 valueType,bytes value)")
+    bytes32 internal constant ATTRIBUTE_TYPEHASH = keccak256("Attribute(bytes32 name,uint8 valueType,bytes value)");
 
     /// @dev keccak256("CoreHash(bytes32 entityKey,address creator,uint32 createdAt,string contentType,bytes payload,bytes32 attributesHash)")
     bytes32 internal constant CORE_HASH_TYPEHASH = keccak256(
@@ -112,28 +112,27 @@ library EntityHashing {
     // -------------------------------------------------------------------------
 
     /// @notice Hash a single attribute and chain it onto the rolling hash.
-    /// Validates that this attribute's name hash is strictly greater than
-    /// the previous, enforcing sorted order and name uniqueness.
-    /// @return nameHash  The keccak256(name) for this attribute (becomes prevNameHash for the next call).
-    /// @return chain     The updated rolling hash.
-    function attributeHash(bytes32 prevNameHash, bytes32 chain, Attribute calldata attr)
+    /// Validates that this attribute's name is strictly greater than the
+    /// previous (lexicographic on the packed bytes32), enforcing sorted
+    /// order and name uniqueness.
+    /// @return The updated rolling hash.
+    function attributeHash(bytes32 prevName, bytes32 chain, Attribute calldata attr)
         internal
         pure
-        returns (bytes32 nameHash, bytes32)
+        returns (bytes32, bytes32)
     {
-        nameHash = keccak256(bytes(attr.name));
-        if (nameHash <= prevNameHash) revert AttributesNotSorted();
-        bytes32 attrHash = keccak256(abi.encode(ATTRIBUTE_TYPEHASH, nameHash, attr.valueType, keccak256(attr.value)));
-        return (nameHash, keccak256(abi.encodePacked(chain, attrHash)));
+        if (attr.name <= prevName) revert AttributesNotSorted();
+        bytes32 attrHash = keccak256(abi.encode(ATTRIBUTE_TYPEHASH, attr.name, attr.valueType, keccak256(attr.value)));
+        return (attr.name, keccak256(abi.encodePacked(chain, attrHash)));
     }
 
     /// @notice Validate and rolling-hash a sorted attribute array.
     /// An empty array returns bytes32(0).
     function attributesHash(Attribute[] calldata attributes) internal pure returns (bytes32) {
         bytes32 chain;
-        bytes32 prevNameHash;
+        bytes32 prevName;
         for (uint256 i = 0; i < attributes.length; i++) {
-            (prevNameHash, chain) = attributeHash(prevNameHash, chain, attributes[i]);
+            (prevName, chain) = attributeHash(prevName, chain, attributes[i]);
         }
         return chain;
     }
