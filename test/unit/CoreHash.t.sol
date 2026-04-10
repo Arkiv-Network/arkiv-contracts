@@ -12,16 +12,13 @@ contract CoreHashTest is Base {
     // -------------------------------------------------------------------------
 
     function test_coreHash_deterministic() public {
-        // GIVEN identical inputs
         bytes32 key = keccak256("key");
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](1);
         attrs[0] = Lib.uintAttr("count", 1);
 
-        // WHEN computing coreHash twice with the same inputs
         bytes32 hashA = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
         bytes32 hashB = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
 
-        // THEN the hashes are equal
         assertEq(hashA, hashB);
     }
 
@@ -30,7 +27,6 @@ contract CoreHashTest is Base {
     // -------------------------------------------------------------------------
 
     function test_coreHash_differentKey_differs() public {
-        // GIVEN two calls differing only in key
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
         bytes32 hashA =
@@ -38,60 +34,50 @@ contract CoreHashTest is Base {
         bytes32 hashB =
             registry.exposed_coreHash(keccak256("key2"), alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
 
-        // THEN the hashes differ
         assertNotEq(hashA, hashB);
     }
 
     function test_coreHash_differentCreator_differs() public {
-        // GIVEN two calls differing only in creator
         bytes32 key = keccak256("key");
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
         bytes32 hashA = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
         bytes32 hashB = registry.exposed_coreHash(key, bob, BlockNumber.wrap(100), "text/plain", "hello", attrs);
 
-        // THEN the hashes differ
         assertNotEq(hashA, hashB);
     }
 
     function test_coreHash_differentCreatedAt_differs() public {
-        // GIVEN two calls differing only in createdAt
         bytes32 key = keccak256("key");
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
         bytes32 hashA = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
         bytes32 hashB = registry.exposed_coreHash(key, alice, BlockNumber.wrap(200), "text/plain", "hello", attrs);
 
-        // THEN the hashes differ
         assertNotEq(hashA, hashB);
     }
 
     function test_coreHash_differentContentType_differs() public {
-        // GIVEN two calls differing only in contentType
         bytes32 key = keccak256("key");
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
         bytes32 hashA = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
         bytes32 hashB = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "application/json", "hello", attrs);
 
-        // THEN the hashes differ
         assertNotEq(hashA, hashB);
     }
 
     function test_coreHash_differentPayload_differs() public {
-        // GIVEN two calls differing only in payload
         bytes32 key = keccak256("key");
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
         bytes32 hashA = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
         bytes32 hashB = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "world", attrs);
 
-        // THEN the hashes differ
         assertNotEq(hashA, hashB);
     }
 
     function test_coreHash_differentAttributes_differs() public {
-        // GIVEN two calls differing only in attribute values
         bytes32 key = keccak256("key");
 
         EntityHashing.Attribute[] memory attrsA = new EntityHashing.Attribute[](1);
@@ -103,12 +89,10 @@ contract CoreHashTest is Base {
         bytes32 hashA = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrsA);
         bytes32 hashB = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrsB);
 
-        // THEN the hashes differ
         assertNotEq(hashA, hashB);
     }
 
     function test_coreHash_emptyVsNonEmptyAttributes_differs() public {
-        // GIVEN one call with no attributes and one with attributes
         bytes32 key = keccak256("key");
 
         EntityHashing.Attribute[] memory empty = new EntityHashing.Attribute[](0);
@@ -118,31 +102,23 @@ contract CoreHashTest is Base {
         bytes32 hashA = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", empty);
         bytes32 hashB = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", one);
 
-        // THEN the hashes differ
         assertNotEq(hashA, hashB);
     }
 
     // -------------------------------------------------------------------------
-    // Attribute order sensitivity
+    // Attribute order — unsorted reverts
     // -------------------------------------------------------------------------
 
-    function test_coreHash_attributeOrderMatters() public {
-        // GIVEN two attribute arrays with the same elements in different order
+    function test_coreHash_unsortedAttributes_reverts() public {
         bytes32 key = keccak256("key");
 
-        EntityHashing.Attribute[] memory attrsAB = new EntityHashing.Attribute[](2);
-        attrsAB[0] = Lib.uintAttr("aaa", 1);
-        attrsAB[1] = Lib.uintAttr("bbb", 2);
+        // "bbb" > "aaa" lexicographically, so [bbb, aaa] is wrong order
+        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](2);
+        attrs[0] = Lib.uintAttr("bbb", 2);
+        attrs[1] = Lib.uintAttr("aaa", 1);
 
-        EntityHashing.Attribute[] memory attrsBA = new EntityHashing.Attribute[](2);
-        attrsBA[0] = Lib.uintAttr("bbb", 2);
-        attrsBA[1] = Lib.uintAttr("aaa", 1);
-
-        bytes32 hashAB = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrsAB);
-        bytes32 hashBA = registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrsBA);
-
-        // THEN they differ — this is why the contract requires sorted attributes
-        assertNotEq(hashAB, hashBA);
+        vm.expectRevert(EntityHashing.AttributesNotSorted.selector);
+        registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
     }
 
     // -------------------------------------------------------------------------
@@ -150,7 +126,6 @@ contract CoreHashTest is Base {
     // -------------------------------------------------------------------------
 
     function test_coreHash_matchesManualEIP712Encoding() public {
-        // GIVEN inputs with two attributes
         bytes32 key = keccak256("key");
         BlockNumber createdAt = BlockNumber.wrap(100);
         bytes memory payload = "hello";
@@ -160,10 +135,15 @@ contract CoreHashTest is Base {
         attrs[0] = Lib.uintAttr("aaa", 10);
         attrs[1] = Lib.stringAttr("bbb", "val");
 
-        // WHEN computing manually per EIP-712
-        bytes32[] memory attrHashes = new bytes32[](2);
-        attrHashes[0] = registry.exposed_attributeHash(attrs[0]);
-        attrHashes[1] = registry.exposed_attributeHash(attrs[1]);
+        // Compute rolling attribute chain manually
+        bytes32 hashA = keccak256(
+            abi.encode(EntityHashing.ATTRIBUTE_TYPEHASH, attrs[0].name, attrs[0].valueType, keccak256(attrs[0].value))
+        );
+        bytes32 hashB = keccak256(
+            abi.encode(EntityHashing.ATTRIBUTE_TYPEHASH, attrs[1].name, attrs[1].valueType, keccak256(attrs[1].value))
+        );
+        bytes32 attrChain = keccak256(abi.encodePacked(bytes32(0), hashA));
+        attrChain = keccak256(abi.encodePacked(attrChain, hashB));
 
         bytes32 expected = keccak256(
             abi.encode(
@@ -173,21 +153,17 @@ contract CoreHashTest is Base {
                 createdAt,
                 keccak256(bytes(contentType)),
                 keccak256(payload),
-                keccak256(abi.encodePacked(attrHashes))
+                attrChain
             )
         );
 
-        // THEN it matches the library's computation
         assertEq(registry.exposed_coreHash(key, alice, createdAt, contentType, payload, attrs), expected);
     }
 
     function test_coreHash_emptyPayloadAndAttributes() public {
-        // GIVEN empty payload and no attributes
         bytes32 key = keccak256("key");
-        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
-        // WHEN computing manually
-        bytes32[] memory attrHashes = new bytes32[](0);
+        // Empty attributes → rolling chain = bytes32(0)
         bytes32 expected = keccak256(
             abi.encode(
                 EntityHashing.CORE_HASH_TYPEHASH,
@@ -196,16 +172,16 @@ contract CoreHashTest is Base {
                 BlockNumber.wrap(100),
                 keccak256(bytes("text/plain")),
                 keccak256(""),
-                keccak256(abi.encodePacked(attrHashes))
+                bytes32(0)
             )
         );
 
-        // THEN it matches the library
+        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
         assertEq(registry.exposed_coreHash(key, alice, BlockNumber.wrap(100), "text/plain", "", attrs), expected);
     }
 
     // -------------------------------------------------------------------------
-    // Assembly correctness — fuzz against pure-Solidity reference
+    // Fuzz — verify encoding consistency
     // -------------------------------------------------------------------------
 
     function test_coreHash_fuzz(
@@ -215,15 +191,12 @@ contract CoreHashTest is Base {
         string calldata contentType,
         bytes calldata payload
     ) public {
-        // GIVEN arbitrary core inputs with no attributes
         BlockNumber createdAt = BlockNumber.wrap(rawCreatedAt);
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
-        // WHEN computing via the assembly implementation
         bytes32 actual = registry.exposed_coreHash(key, creator, createdAt, contentType, payload, attrs);
 
-        // THEN it matches the pure-Solidity reference
-        bytes32[] memory attrHashes = new bytes32[](0);
+        // Empty attributes → attrChain = bytes32(0)
         bytes32 expected = keccak256(
             abi.encode(
                 EntityHashing.CORE_HASH_TYPEHASH,
@@ -232,7 +205,7 @@ contract CoreHashTest is Base {
                 createdAt,
                 keccak256(bytes(contentType)),
                 keccak256(payload),
-                keccak256(abi.encodePacked(attrHashes))
+                bytes32(0)
             )
         );
         assertEq(actual, expected);

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {ShortString} from "@openzeppelin/contracts/utils/ShortStrings.sol";
 import {Base} from "../utils/Base.t.sol";
 import {Lib} from "../utils/Lib.sol";
 import {EntityHashing} from "../../src/EntityHashing.sol";
@@ -224,66 +223,42 @@ contract AttributeHashTest is Base {
     }
 
     // -------------------------------------------------------------------------
-    // Assembly correctness — fuzz against pure-Solidity reference
+    // Fuzz — verify encoding against manual reference
     // -------------------------------------------------------------------------
 
-    /// @dev Reference implementation using only Solidity (no assembly).
-    /// Used to verify the assembly-optimised attributeHash produces
-    /// identical results across arbitrary inputs.
-    function _referenceAttributeHash(EntityHashing.Attribute memory attr) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                EntityHashing.ATTRIBUTE_TYPEHASH,
-                attr.name,
-                attr.valueType,
-                attr.fixedValue,
-                keccak256(bytes(attr.stringValue))
-            )
-        );
+    function _referenceAttrHash(EntityHashing.Attribute memory attr) internal pure returns (bytes32) {
+        return keccak256(abi.encode(EntityHashing.ATTRIBUTE_TYPEHASH, attr.name, attr.valueType, keccak256(attr.value)));
+    }
+
+    function _referenceChain(bytes32 prev, bytes32 attrHash) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(prev, attrHash));
     }
 
     function test_attributeHash_fuzz_uint(bytes32 name, uint256 value) public {
-        // GIVEN an arbitrary UINT attribute
         vm.assume(name != bytes32(0));
-        EntityHashing.Attribute memory attr = EntityHashing.Attribute({
-            name: ShortString.wrap(name),
-            valueType: EntityHashing.AttributeType.UINT,
-            fixedValue: bytes32(value),
-            stringValue: ""
-        });
+        EntityHashing.Attribute memory attr =
+            EntityHashing.Attribute({name: name, valueType: EntityHashing.ATTR_UINT, value: abi.encode(value)});
 
-        // WHEN hashing via the assembly implementation
-        // THEN it matches the pure-Solidity reference
-        assertEq(registry.exposed_attributeHash(attr), _referenceAttributeHash(attr));
+        (, bytes32 chain) = registry.exposed_attributeHash(bytes32(0), bytes32(0), attr);
+        assertEq(chain, _referenceChain(bytes32(0), _referenceAttrHash(attr)));
     }
 
     function test_attributeHash_fuzz_entityKey(bytes32 name, bytes32 value) public {
-        // GIVEN an arbitrary ENTITY_KEY attribute
         vm.assume(name != bytes32(0));
-        EntityHashing.Attribute memory attr = EntityHashing.Attribute({
-            name: ShortString.wrap(name),
-            valueType: EntityHashing.AttributeType.ENTITY_KEY,
-            fixedValue: value,
-            stringValue: ""
-        });
+        EntityHashing.Attribute memory attr =
+            EntityHashing.Attribute({name: name, valueType: EntityHashing.ATTR_ENTITY_KEY, value: abi.encode(value)});
 
-        // WHEN hashing via the assembly implementation
-        // THEN it matches the pure-Solidity reference
-        assertEq(registry.exposed_attributeHash(attr), _referenceAttributeHash(attr));
+        (, bytes32 chain) = registry.exposed_attributeHash(bytes32(0), bytes32(0), attr);
+        assertEq(chain, _referenceChain(bytes32(0), _referenceAttrHash(attr)));
     }
 
-    function test_attributeHash_fuzz_string(bytes32 name, string calldata value) public {
-        // GIVEN an arbitrary STRING attribute
+    function test_attributeHash_fuzz_string(bytes32 name, bytes calldata value) public {
         vm.assume(name != bytes32(0));
-        EntityHashing.Attribute memory attr = EntityHashing.Attribute({
-            name: ShortString.wrap(name),
-            valueType: EntityHashing.AttributeType.STRING,
-            fixedValue: bytes32(0),
-            stringValue: value
-        });
+        vm.assume(value.length <= 1024);
+        EntityHashing.Attribute memory attr =
+            EntityHashing.Attribute({name: name, valueType: EntityHashing.ATTR_STRING, value: value});
 
-        // WHEN hashing via the assembly implementation
-        // THEN it matches the pure-Solidity reference
-        assertEq(registry.exposed_attributeHash(attr), _referenceAttributeHash(attr));
+        (, bytes32 chain) = registry.exposed_attributeHash(bytes32(0), bytes32(0), attr);
+        assertEq(chain, _referenceChain(bytes32(0), _referenceAttrHash(attr)));
     }
 }
