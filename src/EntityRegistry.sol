@@ -220,7 +220,18 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         internal
         returns (bytes32 key, bytes32 entityHash_)
     {
-        // TODO: contentType validation (e.g. non-empty, allowlist of MIME types).
+        // TODO: contentType validation per RFC 6838 media type syntax.
+        //
+        // Format: type "/" subtype (no parameters)
+        //   - Exactly one "/" separator
+        //   - Each part: 1–127 chars
+        //   - First char: alphanumeric (a-z, A-Z, 0-9)
+        //   - Remaining chars: alphanumeric + ! # $ & - ^ _ . +
+        //   - Total length ≤ 255 bytes
+        //
+        // Implementation: 256-bit bitmap for valid charset, single pass over
+        // bytes(contentType). ~30 gas/byte — negligible for typical values
+        // like "application/json".
 
         if (op.attributes.length > EntityHashing.MAX_ATTRIBUTES) {
             revert EntityHashing.TooManyAttributes(op.attributes.length, EntityHashing.MAX_ATTRIBUTES);
