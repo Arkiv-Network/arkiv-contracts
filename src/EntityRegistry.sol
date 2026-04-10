@@ -411,21 +411,10 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _delete(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
-
-        if (c.creator == address(0)) {
-            revert EntityHashing.EntityNotFound(key);
-        }
-
-        if (c.expiresAt <= current) {
-            revert EntityHashing.EntityExpired(key, c.expiresAt);
-        }
-
-        if (msg.sender != c.owner) {
-            revert EntityHashing.NotOwner(key, msg.sender, c.owner);
-        }
+        _guardEntityMutation(key, c, current);
 
         // Snapshot the entity hash before deletion.
-        bytes32 entityHash_ = _entityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
+        bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
         address owner = c.owner;
 
         delete _commitments[key];

@@ -14,7 +14,8 @@ contract DeleteTest is Test, EntityRegistry {
     BlockNumber expiresAt;
     bytes32 testKey;
 
-    function _validateAttributes(EntityHashing.Attribute[] calldata) internal pure override {}
+    // Stub guard — tested separately in GuardEntityMutation.t.sol.
+    function _guardEntityMutation(bytes32, EntityHashing.Commitment storage, BlockNumber) internal view override {}
 
     function doCreate(EntityHashing.Op calldata op) external returns (bytes32, bytes32) {
         return _create(op, currentBlock());
@@ -31,53 +32,6 @@ contract DeleteTest is Test, EntityRegistry {
         EntityHashing.Op memory createOp = Lib.createOp("hello", "text/plain", attrs, expiresAt);
         vm.prank(alice);
         (testKey,) = this.doCreate(createOp);
-    }
-
-    // =========================================================================
-    // Validation — entity not found
-    // =========================================================================
-
-    function test_delete_nonExistentEntity_reverts() public {
-        bytes32 bogus = keccak256("bogus");
-        EntityHashing.Op memory op = Lib.deleteOp(bogus);
-
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityNotFound.selector, bogus));
-        this.doDelete(op);
-    }
-
-    // =========================================================================
-    // Validation — expired entity
-    // =========================================================================
-
-    function test_delete_expiredEntity_reverts() public {
-        vm.roll(BlockNumber.unwrap(expiresAt) + 1);
-
-        EntityHashing.Op memory op = Lib.deleteOp(testKey);
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityExpired.selector, testKey, expiresAt));
-        this.doDelete(op);
-    }
-
-    function test_delete_atExpiryBlock_reverts() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
-
-        EntityHashing.Op memory op = Lib.deleteOp(testKey);
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityExpired.selector, testKey, expiresAt));
-        this.doDelete(op);
-    }
-
-    // =========================================================================
-    // Validation — not owner
-    // =========================================================================
-
-    function test_delete_notOwner_reverts() public {
-        EntityHashing.Op memory op = Lib.deleteOp(testKey);
-
-        vm.prank(bob);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.NotOwner.selector, testKey, bob, alice));
-        this.doDelete(op);
     }
 
     // =========================================================================
@@ -99,18 +53,6 @@ contract DeleteTest is Test, EntityRegistry {
         assertEq(BlockNumber.unwrap(c.expiresAt), 0);
     }
 
-    function test_delete_entityNotFoundAfterDelete() public {
-        EntityHashing.Op memory op = Lib.deleteOp(testKey);
-
-        vm.prank(alice);
-        this.doDelete(op);
-
-        // Trying to delete again should fail with EntityNotFound.
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityNotFound.selector, testKey));
-        this.doDelete(op);
-    }
-
     // =========================================================================
     // State — returns correct key
     // =========================================================================
@@ -129,9 +71,8 @@ contract DeleteTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_delete_returnsSnapshotHash() public {
-        // Compute expected hash from commitment before deletion.
         EntityHashing.Commitment memory c = getCommitment(testKey);
-        bytes32 expected = _entityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
+        bytes32 expected = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
 
         EntityHashing.Op memory op = Lib.deleteOp(testKey);
         vm.prank(alice);
