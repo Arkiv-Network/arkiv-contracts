@@ -7,8 +7,8 @@ import {Lib} from "../../utils/Lib.sol";
 import {EntityHashing} from "../../../src/EntityHashing.sol";
 import {EntityRegistry} from "../../../src/EntityRegistry.sol";
 
-/// @dev Tests _create logic (expiry, commitment, hashing, events) with a
-/// stubbed _createEntityKey so key generation is isolated.
+/// @dev Tests _create logic (expiry, commitment, events) with stubbed key
+/// generation and hash computation so the test focuses on state transitions.
 contract CreateTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
@@ -16,24 +16,24 @@ contract CreateTest is Test, EntityRegistry {
     BlockNumber expiresAt;
 
     bytes32 constant STUB_KEY = keccak256("stub-entity-key");
+    bytes32 constant STUB_CORE_HASH = keccak256("stub-core-hash");
+    bytes32 constant STUB_ENTITY_HASH = keccak256("stub-entity-hash");
 
     function _createEntityKey(address) internal pure override returns (bytes32) {
         return STUB_KEY;
     }
 
-    function doCreate(EntityHashing.Op calldata op) external returns (bytes32, bytes32) {
-        return _create(op, currentBlock());
+    function _createEntityHash(bytes32, address, BlockNumber, EntityHashing.Op calldata)
+        internal
+        pure
+        override
+        returns (bytes32, bytes32)
+    {
+        return (STUB_CORE_HASH, STUB_ENTITY_HASH);
     }
 
-    function hashCore(
-        bytes32 key,
-        address creator,
-        BlockNumber createdAt,
-        string calldata contentType,
-        bytes calldata payload,
-        EntityHashing.Attribute[] calldata attributes
-    ) external pure returns (bytes32) {
-        return EntityHashing.coreHash(key, creator, createdAt, contentType, payload, attributes);
+    function doCreate(EntityHashing.Op calldata op) external returns (bytes32, bytes32) {
+        return _create(op, currentBlock());
     }
 
     function setUp() public {
@@ -94,7 +94,7 @@ contract CreateTest is Test, EntityRegistry {
         assertEq(BlockNumber.unwrap(c.createdAt), uint32(block.number));
         assertEq(BlockNumber.unwrap(c.updatedAt), uint32(block.number));
         assertEq(BlockNumber.unwrap(c.expiresAt), BlockNumber.unwrap(expiresAt));
-        assertTrue(c.coreHash != bytes32(0));
+        assertEq(c.coreHash, STUB_CORE_HASH);
     }
 
     // =========================================================================
@@ -105,52 +105,22 @@ contract CreateTest is Test, EntityRegistry {
         EntityHashing.Op memory op = _defaultOp();
 
         vm.prank(alice);
-        vm.expectEmit(true, true, false, false);
-        emit EntityCreated(STUB_KEY, alice, expiresAt, bytes32(0));
+        vm.expectEmit(true, true, true, true);
+        emit EntityCreated(STUB_KEY, alice, expiresAt, STUB_ENTITY_HASH);
         this.doCreate(op);
     }
 
     // =========================================================================
-    // Hash correctness
+    // Return values
     // =========================================================================
 
-    function test_create_coreHashMatchesManualComputation() public {
-        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](1);
-        attrs[0] = Lib.uintAttr("count", 42);
-        EntityHashing.Op memory op = Lib.createOp("hello", "text/plain", attrs, expiresAt);
-
-        vm.prank(alice);
-        this.doCreate(op);
-
-        EntityHashing.Commitment memory c = getCommitment(STUB_KEY);
-        bytes32 expected = this.hashCore(STUB_KEY, alice, c.createdAt, "text/plain", "hello", attrs);
-        assertEq(c.coreHash, expected);
-    }
-
-    function test_create_entityHashMatchesManualComputation() public {
+    function test_create_returnsKeyAndEntityHash() public {
         EntityHashing.Op memory op = _defaultOp();
-
-        vm.prank(alice);
-        (, bytes32 entityHash_) = this.doCreate(op);
-
-        EntityHashing.Commitment memory c = getCommitment(STUB_KEY);
-        bytes32 expected = _entityHash(c.coreHash, alice, c.updatedAt, c.expiresAt);
-        assertEq(entityHash_, expected);
-    }
-
-    // =========================================================================
-    // Edge cases
-    // =========================================================================
-
-    function test_create_emptyPayloadAndAttributes() public {
-        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        EntityHashing.Op memory op = Lib.createOp("", "text/plain", attrs, expiresAt);
 
         vm.prank(alice);
         (bytes32 key, bytes32 entityHash_) = this.doCreate(op);
 
         assertEq(key, STUB_KEY);
-        assertTrue(entityHash_ != bytes32(0));
+        assertEq(entityHash_, STUB_ENTITY_HASH);
     }
 }
-

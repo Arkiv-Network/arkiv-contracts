@@ -27,11 +27,4 @@ contract EntityRegistryHarness is EntityRegistry {
         return EntityHashing.coreHash(key, creator, createdAt, contentType, payload, attributes);
     }
 
-    function exposed_entityHash(bytes32 coreHash_, address owner, BlockNumber updatedAt, BlockNumber expiresAt)
-        external
-        view
-        returns (bytes32)
-    {
-        return _entityHash(coreHash_, owner, updatedAt, expiresAt);
-    }
 }

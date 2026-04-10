@@ -181,15 +181,17 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Internal functions — entity hash (requires domain separator)
     // -------------------------------------------------------------------------
 
-    /// @dev Wraps EntityHashing.entityStructHash with the EIP-712 domain
-    /// separator. This is the only hash function that cannot live in the
-    /// library because it reads contract storage via _hashTypedDataV4.
-    function _entityHash(bytes32 coreHash_, address owner, BlockNumber updatedAt, BlockNumber expiresAt)
-        internal
-        view
-        returns (bytes32)
-    {
-        return _hashTypedDataV4(EntityHashing.entityStructHash(coreHash_, owner, updatedAt, expiresAt));
+    /// @dev Compute the two-level EIP-712 hash for entity creation:
+    ///   coreHash: immutable content identity (survives transfers and expiry extensions)
+    ///   entityHash: domain-wrapped hash of (coreHash, owner, updatedAt, expiresAt)
+    function _createEntityHash(
+        bytes32 key,
+        address creator,
+        BlockNumber current,
+        EntityHashing.Op calldata op
+    ) internal virtual view returns (bytes32 coreHash_, bytes32 entityHash_) {
+        coreHash_ = EntityHashing.coreHash(key, creator, current, op.contentType, op.payload, op.attributes);
+        entityHash_ = _hashTypedDataV4(EntityHashing.entityStructHash(coreHash_, creator, current, op.expiresAt));
     }
 
     /// @dev Mint a new entity key by post-incrementing the owner's nonce.
@@ -248,15 +250,9 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
         key = _createEntityKey(msg.sender);
 
-        // Two-level EIP-712 hash:
-        //   coreHash: immutable content identity (survives transfers and expiry extensions)
-        //   entityHash: full entity state including mutable fields (owner, updatedAt, expiresAt)
-        bytes32 coreHash_ = EntityHashing.coreHash(key, msg.sender, current, op.contentType, op.payload, op.attributes);
-        entityHash_ = _entityHash(coreHash_, msg.sender, current, op.expiresAt);
+        bytes32 coreHash_;
+        (coreHash_, entityHash_) = _createEntityHash(key, msg.sender, current, op);
 
-        // Store the minimal on-chain commitment (3 slots). Payload and attributes
-        // are not stored — they live in calldata and are recoverable from the
-        // transaction. The coreHash commits to their content.
         _commitments[key] = EntityHashing.Commitment({
             creator: msg.sender,
             createdAt: current,
