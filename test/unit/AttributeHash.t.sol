@@ -15,6 +15,15 @@ contract AttributeHashTest is Base {
         return chain;
     }
 
+    function _hashMany(EntityHashing.Attribute[] memory attrs) internal view returns (bytes32) {
+        bytes32 chain;
+        bytes32 prevName;
+        for (uint256 i = 0; i < attrs.length; i++) {
+            (prevName, chain) = registry.exposed_attributeHash(prevName, chain, attrs[i]);
+        }
+        return chain;
+    }
+
     // -------------------------------------------------------------------------
     // Determinism — identical inputs produce identical hashes
     // -------------------------------------------------------------------------
@@ -118,7 +127,7 @@ contract AttributeHashTest is Base {
 
     function test_attributesHash_empty_returnsZero() public view {
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        assertEq(registry.exposed_attributesHash(attrs), bytes32(0));
+        assertEq(_hashMany(attrs), bytes32(0));
     }
 
     function test_attributesHash_two_matchesManualChain() public view {
@@ -136,30 +145,28 @@ contract AttributeHashTest is Base {
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](2);
         attrs[0] = a;
         attrs[1] = b;
-        assertEq(registry.exposed_attributesHash(attrs), chain);
+        assertEq(_hashMany(attrs), chain);
     }
 
     // -------------------------------------------------------------------------
     // Sorting / uniqueness validation
     // -------------------------------------------------------------------------
 
-    function test_attributesHash_revertsOnUnsortedNames() public {
-        // "label" > "count" lexicographically, so [label, count] is wrong order
-        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](2);
-        attrs[0] = Lib.stringAttr("label", "hello");
-        attrs[1] = Lib.uintAttr("count", 42);
+    function test_attributeHash_revertsOnUnsortedNames() public {
+        // "label" > "count", so passing "label" as prevName then "count" should revert
+        bytes32 labelName = Lib.packName("label");
+        EntityHashing.Attribute memory attr = Lib.uintAttr("count", 42);
 
         vm.expectRevert(EntityHashing.AttributesNotSorted.selector);
-        registry.exposed_attributesHash(attrs);
+        registry.exposed_attributeHash(labelName, bytes32(0), attr);
     }
 
-    function test_attributesHash_revertsOnDuplicateNames() public {
-        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](2);
-        attrs[0] = Lib.uintAttr("count", 1);
-        attrs[1] = Lib.uintAttr("count", 2);
+    function test_attributeHash_revertsOnDuplicateNames() public {
+        bytes32 countName = Lib.packName("count");
+        EntityHashing.Attribute memory attr = Lib.uintAttr("count", 2);
 
         vm.expectRevert(EntityHashing.AttributesNotSorted.selector);
-        registry.exposed_attributesHash(attrs);
+        registry.exposed_attributeHash(countName, bytes32(0), attr);
     }
 
     // -------------------------------------------------------------------------

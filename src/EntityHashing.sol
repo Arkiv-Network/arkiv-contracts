@@ -145,19 +145,9 @@ library EntityHashing {
         return (attr.name, keccak256(abi.encodePacked(chain, attrHash)));
     }
 
-    /// @notice Validate and rolling-hash a sorted attribute array.
-    /// An empty array returns bytes32(0).
-    function attributesHash(Attribute[] calldata attributes) internal pure returns (bytes32) {
-        bytes32 chain;
-        bytes32 prevName;
-        for (uint256 i = 0; i < attributes.length; i++) {
-            (prevName, chain) = attributeHash(prevName, chain, attributes[i]);
-        }
-        return chain;
-    }
-
     /// @notice Compute the EIP-712 struct hash of an entity's immutable core
     /// content (everything except owner, updatedAt, expiresAt).
+    /// Validates and rolling-hashes the attribute array inline.
     function coreHash(
         bytes32 key,
         address creator,
@@ -166,15 +156,14 @@ library EntityHashing {
         bytes calldata payload,
         Attribute[] calldata attributes
     ) internal pure returns (bytes32) {
+        bytes32 attrChain;
+        bytes32 prevName;
+        for (uint256 i = 0; i < attributes.length; i++) {
+            (prevName, attrChain) = attributeHash(prevName, attrChain, attributes[i]);
+        }
         return keccak256(
             abi.encode(
-                CORE_HASH_TYPEHASH,
-                key,
-                creator,
-                createdAt,
-                keccak256(bytes(contentType)),
-                keccak256(payload),
-                attributesHash(attributes)
+                CORE_HASH_TYPEHASH, key, creator, createdAt, keccak256(bytes(contentType)), keccak256(payload), attrChain
             )
         );
     }
