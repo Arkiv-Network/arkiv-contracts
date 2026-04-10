@@ -219,6 +219,24 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         entityHash_ = _wrapEntityHash(coreHash_, owner, updatedAt, expiresAt);
     }
 
+    /// @dev Require that the entity exists, is not expired, and the caller is the owner.
+    /// Shared guard for update, extend, transfer, and delete.
+    function _guardEntityMutation(bytes32 key, EntityHashing.Commitment storage c, BlockNumber current)
+        internal
+        view
+        virtual
+    {
+        if (c.creator == address(0)) {
+            revert EntityHashing.EntityNotFound(key);
+        }
+        if (c.expiresAt <= current) {
+            revert EntityHashing.EntityExpired(key, c.expiresAt);
+        }
+        if (msg.sender != c.owner) {
+            revert EntityHashing.NotOwner(key, msg.sender, c.owner);
+        }
+    }
+
     /// @dev Mint a new entity key by post-incrementing the owner's nonce.
     /// Uniqueness is guaranteed by the monotonic nonce — no existence check needed.
     function _createEntityKey(address owner) internal virtual returns (bytes32) {
@@ -304,18 +322,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _update(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
-
-        if (c.creator == address(0)) {
-            revert EntityHashing.EntityNotFound(key);
-        }
-
-        if (c.expiresAt <= current) {
-            revert EntityHashing.EntityExpired(key, c.expiresAt);
-        }
-
-        if (msg.sender != c.owner) {
-            revert EntityHashing.NotOwner(key, msg.sender, c.owner);
-        }
+        _guardEntityMutation(key, c, current);
 
         // TODO: contentType validation per RFC 6838 media type syntax.
 
@@ -344,18 +351,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _extend(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
-
-        if (c.creator == address(0)) {
-            revert EntityHashing.EntityNotFound(key);
-        }
-
-        if (c.expiresAt <= current) {
-            revert EntityHashing.EntityExpired(key, c.expiresAt);
-        }
-
-        if (msg.sender != c.owner) {
-            revert EntityHashing.NotOwner(key, msg.sender, c.owner);
-        }
+        _guardEntityMutation(key, c, current);
 
         if (op.expiresAt <= c.expiresAt) {
             revert EntityHashing.ExpiryNotExtended(key, op.expiresAt, c.expiresAt);
@@ -383,18 +379,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _transfer(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
-
-        if (c.creator == address(0)) {
-            revert EntityHashing.EntityNotFound(key);
-        }
-
-        if (c.expiresAt <= current) {
-            revert EntityHashing.EntityExpired(key, c.expiresAt);
-        }
-
-        if (msg.sender != c.owner) {
-            revert EntityHashing.NotOwner(key, msg.sender, c.owner);
-        }
+        _guardEntityMutation(key, c, current);
 
         if (op.newOwner == address(0)) {
             revert EntityHashing.TransferToZeroAddress(key);

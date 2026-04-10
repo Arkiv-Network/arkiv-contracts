@@ -14,6 +14,9 @@ contract UpdateTest is Test, EntityRegistry {
     BlockNumber expiresAt;
     bytes32 testKey;
 
+    // Stub guard — tested separately in GuardEntityMutation.t.sol.
+    function _guardEntityMutation(bytes32, EntityHashing.Commitment storage, BlockNumber) internal view override {}
+
     // Calldata wrappers.
     function doCreate(EntityHashing.Op calldata op) external returns (bytes32, bytes32) {
         return _create(op, currentBlock());
@@ -51,54 +54,6 @@ contract UpdateTest is Test, EntityRegistry {
     function _simpleUpdateOp() internal view returns (EntityHashing.Op memory) {
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
         return Lib.updateOp(testKey, "world", "text/plain", attrs);
-    }
-
-    // =========================================================================
-    // Validation — entity not found
-    // =========================================================================
-
-    function test_update_nonExistentEntity_reverts() public {
-        bytes32 bogus = keccak256("bogus");
-        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        EntityHashing.Op memory op = Lib.updateOp(bogus, "data", "text/plain", attrs);
-
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityNotFound.selector, bogus));
-        this.doUpdate(op);
-    }
-
-    // =========================================================================
-    // Validation — expired entity
-    // =========================================================================
-
-    function test_update_expiredEntity_reverts() public {
-        vm.roll(BlockNumber.unwrap(expiresAt) + 1);
-
-        EntityHashing.Op memory op = _simpleUpdateOp();
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityExpired.selector, testKey, expiresAt));
-        this.doUpdate(op);
-    }
-
-    function test_update_atExpiryBlock_reverts() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
-
-        EntityHashing.Op memory op = _simpleUpdateOp();
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityExpired.selector, testKey, expiresAt));
-        this.doUpdate(op);
-    }
-
-    // =========================================================================
-    // Validation — not owner
-    // =========================================================================
-
-    function test_update_notOwner_reverts() public {
-        EntityHashing.Op memory op = _simpleUpdateOp();
-
-        vm.prank(bob);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.NotOwner.selector, testKey, bob, alice));
-        this.doUpdate(op);
     }
 
     // =========================================================================

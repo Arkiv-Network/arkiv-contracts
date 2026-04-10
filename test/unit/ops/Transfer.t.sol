@@ -15,7 +15,8 @@ contract TransferTest is Test, EntityRegistry {
     BlockNumber expiresAt;
     bytes32 testKey;
 
-
+    // Stub guard — tested separately in GuardEntityMutation.t.sol.
+    function _guardEntityMutation(bytes32, EntityHashing.Commitment storage, BlockNumber) internal view override {}
 
     function doCreate(EntityHashing.Op calldata op) external returns (bytes32, bytes32) {
         return _create(op, currentBlock());
@@ -32,53 +33,6 @@ contract TransferTest is Test, EntityRegistry {
         EntityHashing.Op memory createOp = Lib.createOp("hello", "text/plain", attrs, expiresAt);
         vm.prank(alice);
         (testKey,) = this.doCreate(createOp);
-    }
-
-    // =========================================================================
-    // Validation — entity not found
-    // =========================================================================
-
-    function test_transfer_nonExistentEntity_reverts() public {
-        bytes32 bogus = keccak256("bogus");
-        EntityHashing.Op memory op = Lib.transferOp(bogus, bob);
-
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityNotFound.selector, bogus));
-        this.doTransfer(op);
-    }
-
-    // =========================================================================
-    // Validation — expired entity
-    // =========================================================================
-
-    function test_transfer_expiredEntity_reverts() public {
-        vm.roll(BlockNumber.unwrap(expiresAt) + 1);
-
-        EntityHashing.Op memory op = Lib.transferOp(testKey, bob);
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityExpired.selector, testKey, expiresAt));
-        this.doTransfer(op);
-    }
-
-    function test_transfer_atExpiryBlock_reverts() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
-
-        EntityHashing.Op memory op = Lib.transferOp(testKey, bob);
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityExpired.selector, testKey, expiresAt));
-        this.doTransfer(op);
-    }
-
-    // =========================================================================
-    // Validation — not owner
-    // =========================================================================
-
-    function test_transfer_notOwner_reverts() public {
-        EntityHashing.Op memory op = Lib.transferOp(testKey, charlie);
-
-        vm.prank(bob);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.NotOwner.selector, testKey, bob, alice));
-        this.doTransfer(op);
     }
 
     // =========================================================================
@@ -149,19 +103,6 @@ contract TransferTest is Test, EntityRegistry {
 
         EntityHashing.Commitment memory c = getCommitment(testKey);
         assertEq(c.owner, charlie);
-    }
-
-    function test_transfer_previousOwnerCannotOperate() public {
-        // alice → bob
-        EntityHashing.Op memory op1 = Lib.transferOp(testKey, bob);
-        vm.prank(alice);
-        this.doTransfer(op1);
-
-        // alice tries again
-        EntityHashing.Op memory op2 = Lib.transferOp(testKey, charlie);
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.NotOwner.selector, testKey, alice, bob));
-        this.doTransfer(op2);
     }
 
     // =========================================================================
