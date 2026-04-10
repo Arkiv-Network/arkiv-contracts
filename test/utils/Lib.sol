@@ -14,7 +14,10 @@ library Lib {
     }
 
     function uintAttr(string memory name, uint256 value) internal pure returns (EntityHashing.Attribute memory) {
-        return EntityHashing.Attribute({name: packName(name), valueType: EntityHashing.ATTR_UINT, value: abi.encode(value)});
+        return
+            EntityHashing.Attribute({
+                name: packName(name), valueType: EntityHashing.ATTR_UINT, value: abi.encode(value)
+            });
     }
 
     function stringAttr(string memory name, string memory value)
@@ -22,12 +25,15 @@ library Lib {
         pure
         returns (EntityHashing.Attribute memory)
     {
-        return EntityHashing.Attribute({name: packName(name), valueType: EntityHashing.ATTR_STRING, value: bytes(value)});
+        return EntityHashing.Attribute({
+            name: packName(name), valueType: EntityHashing.ATTR_STRING, value: bytes(value)
+        });
     }
 
     function entityKeyAttr(string memory name, bytes32 value) internal pure returns (EntityHashing.Attribute memory) {
-        return
-            EntityHashing.Attribute({name: packName(name), valueType: EntityHashing.ATTR_ENTITY_KEY, value: abi.encode(value)});
+        return EntityHashing.Attribute({
+            name: packName(name), valueType: EntityHashing.ATTR_ENTITY_KEY, value: abi.encode(value)
+        });
     }
 
     function payload(uint256 size) internal pure returns (bytes memory) {

@@ -163,7 +163,13 @@ library EntityHashing {
         }
         return keccak256(
             abi.encode(
-                CORE_HASH_TYPEHASH, key, creator, createdAt, keccak256(bytes(contentType)), keccak256(payload), attrChain
+                CORE_HASH_TYPEHASH,
+                key,
+                creator,
+                createdAt,
+                keccak256(bytes(contentType)),
+                keccak256(payload),
+                attrChain
             )
         );
     }

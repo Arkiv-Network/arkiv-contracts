@@ -54,9 +54,7 @@ contract AttributeHashTest is Base {
     }
 
     function test_attributeHash_differentType_differs() public view {
-        assertNotEq(
-            _hashOne(Lib.uintAttr("ref", 1)), _hashOne(Lib.entityKeyAttr("ref", bytes32(uint256(1))))
-        );
+        assertNotEq(_hashOne(Lib.uintAttr("ref", 1)), _hashOne(Lib.entityKeyAttr("ref", bytes32(uint256(1)))));
     }
 
     function test_attributeHash_differentStringValue_differs() public view {
@@ -135,10 +133,8 @@ contract AttributeHashTest is Base {
         EntityHashing.Attribute memory a = Lib.uintAttr("count", 42);
         EntityHashing.Attribute memory b = Lib.stringAttr("label", "hello");
 
-        bytes32 hashA =
-            keccak256(abi.encode(EntityHashing.ATTRIBUTE_TYPEHASH, a.name, a.valueType, keccak256(a.value)));
-        bytes32 hashB =
-            keccak256(abi.encode(EntityHashing.ATTRIBUTE_TYPEHASH, b.name, b.valueType, keccak256(b.value)));
+        bytes32 hashA = keccak256(abi.encode(EntityHashing.ATTRIBUTE_TYPEHASH, a.name, a.valueType, keccak256(a.value)));
+        bytes32 hashB = keccak256(abi.encode(EntityHashing.ATTRIBUTE_TYPEHASH, b.name, b.valueType, keccak256(b.value)));
         bytes32 chain = keccak256(abi.encodePacked(bytes32(0), hashA));
         chain = keccak256(abi.encodePacked(chain, hashB));
 
@@ -185,9 +181,7 @@ contract AttributeHashTest is Base {
 
     function test_attributeHash_revertsOnEntityKeyWrongLength() public {
         EntityHashing.Attribute memory attr = EntityHashing.Attribute({
-            name: Lib.packName("ref"),
-            valueType: EntityHashing.ATTR_ENTITY_KEY,
-            value: hex"abcd"
+            name: Lib.packName("ref"), valueType: EntityHashing.ATTR_ENTITY_KEY, value: hex"abcd"
         });
 
         vm.expectRevert(
@@ -213,11 +207,8 @@ contract AttributeHashTest is Base {
 
     function test_attributeHash_acceptsStringAtMaxSize() public view {
         bytes memory maxValue = new bytes(1024);
-        EntityHashing.Attribute memory attr = EntityHashing.Attribute({
-            name: Lib.packName("bio"),
-            valueType: EntityHashing.ATTR_STRING,
-            value: maxValue
-        });
+        EntityHashing.Attribute memory attr =
+            EntityHashing.Attribute({name: Lib.packName("bio"), valueType: EntityHashing.ATTR_STRING, value: maxValue});
 
         // Should not revert
         _hashOne(attr);
