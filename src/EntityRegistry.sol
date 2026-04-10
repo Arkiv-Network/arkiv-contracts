@@ -192,6 +192,13 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         return _hashTypedDataV4(EntityHashing.entityStructHash(coreHash_, owner, updatedAt, expiresAt));
     }
 
+    /// @dev Mint a new entity key by post-incrementing the owner's nonce.
+    /// Uniqueness is guaranteed by the monotonic nonce — no existence check needed.
+    function _createEntityKey(address owner) internal returns (bytes32) {
+        uint32 nonce = nonces[owner]++;
+        return EntityHashing.entityKey(block.chainid, address(this), owner, nonce);
+    }
+
     // -------------------------------------------------------------------------
     // Internal functions — entity operations
     // -------------------------------------------------------------------------
@@ -245,10 +252,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
             revert EntityHashing.ExpiryInPast(op.expiresAt, current);
         }
 
-        // Derive a globally unique entity key: keccak256(chainId, registry, owner, nonce).
-        // The post-increment nonce guarantees uniqueness without an existence check.
-        uint32 nonce = nonces[msg.sender]++;
-        key = EntityHashing.entityKey(block.chainid, address(this), msg.sender, nonce);
+        key = _createEntityKey(msg.sender);
 
         // Two-level EIP-712 hash:
         //   coreHash: immutable content identity (survives transfers and expiry extensions)
