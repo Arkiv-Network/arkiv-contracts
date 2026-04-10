@@ -2,7 +2,6 @@
 pragma solidity ^0.8.24;
 
 import {BlockNumber} from "./BlockNumber.sol";
-import {ShortString} from "@openzeppelin/contracts/utils/ShortStrings.sol";
 
 /// @title EntityHashing
 /// @dev Pure encoding and hashing scheme for the Arkiv EntityRegistry.
@@ -47,26 +46,23 @@ library EntityHashing {
     /// @dev Discriminator for attribute value types. Encoded into the
     /// attribute hash so that different types with identical raw bytes
     /// produce distinct hashes.
-    enum AttributeType {
-        UINT,
-        STRING,
-        ENTITY_KEY
-    }
+    uint8 public constant ATTR_UINT = 0;
+    uint8 public constant ATTR_STRING = 1;
+    uint8 public constant ATTR_ENTITY_KEY = 2;
 
-    /// @dev A typed key-value pair attached to an entity. The `name` field
-    /// uses OpenZeppelin's ShortString (up to 31 UTF-8 bytes packed into
-    /// bytes32) for gas-efficient storage and comparison. Attributes must
-    /// be sorted ascending by name for deterministic hash computation.
+    /// @dev A typed key-value pair attached to an entity. Attributes must
+    /// be sorted ascending by keccak256(name) for deterministic hash
+    /// computation and name-uniqueness enforcement.
     struct Attribute {
-        ShortString name;
-        AttributeType valueType;
-        bytes32 fixedValue; // UINT (uint256) or ENTITY_KEY (bytes32)
-        string stringValue; // STRING
+        string name;
+        uint8 valueType;
+        bytes value;
     }
 
     /// @dev On-chain representation of a registered entity. Stored in the
     /// EntityRegistry's entity mapping. The `attributes` array must be
-    /// sorted ascending by name to match the ordering enforced at creation.
+    /// sorted ascending by keccak256(name) to match the ordering enforced
+    /// at creation.
     struct Entity {
         address creator;
         address owner;
@@ -93,20 +89,18 @@ library EntityHashing {
 
     /// @dev Reverted when `execute()` is called with an empty ops array.
     error EmptyBatch();
+    error AttributesNotSorted();
 
     // -------------------------------------------------------------------------
     // Constants — EIP-712 typehashes
     // -------------------------------------------------------------------------
 
-    /// @dev keccak256("Attribute(bytes32 name,uint8 valueType,bytes32 fixedValue,string stringValue)")
-    bytes32 internal constant ATTRIBUTE_TYPEHASH =
-        keccak256("Attribute(bytes32 name,uint8 valueType,bytes32 fixedValue,string stringValue)");
+    /// @dev keccak256("Attribute(string name,uint8 valueType,bytes value)")
+    bytes32 internal constant ATTRIBUTE_TYPEHASH = keccak256("Attribute(string name,uint8 valueType,bytes value)");
 
-    /// @dev keccak256("CoreHash(bytes32 entityKey,...,Attribute[] attributes)Attribute(...)")
-    /// Includes the referenced Attribute type string per EIP-712 § hashStruct.
+    /// @dev keccak256("CoreHash(bytes32 entityKey,address creator,uint32 createdAt,string contentType,bytes payload,bytes32 attributesHash)")
     bytes32 internal constant CORE_HASH_TYPEHASH = keccak256(
-        "CoreHash(bytes32 entityKey,address creator,uint32 createdAt,string contentType,bytes payload,Attribute[] attributes)"
-        "Attribute(bytes32 name,uint8 valueType,bytes32 fixedValue,string stringValue)"
+        "CoreHash(bytes32 entityKey,address creator,uint32 createdAt,string contentType,bytes payload,bytes32 attributesHash)"
     );
 
     /// @dev keccak256("EntityHash(bytes32 coreHash,address owner,uint32 updatedAt,uint32 expiresAt)")
@@ -117,26 +111,35 @@ library EntityHashing {
     // Hash functions
     // -------------------------------------------------------------------------
 
-    /// @notice Compute the EIP-712 struct hash of a single attribute.
-    /// @param attr The attribute to hash.
-    /// @return The keccak256 EIP-712 struct hash.
-    function attributeHash(Attribute calldata attr) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                ATTRIBUTE_TYPEHASH, attr.name, attr.valueType, attr.fixedValue, keccak256(bytes(attr.stringValue))
-            )
-        );
+    /// @notice Hash a single attribute and chain it onto the rolling hash.
+    /// Validates that this attribute's name hash is strictly greater than
+    /// the previous, enforcing sorted order and name uniqueness.
+    /// @return nameHash  The keccak256(name) for this attribute (becomes prevNameHash for the next call).
+    /// @return chain     The updated rolling hash.
+    function attributeHash(bytes32 prevNameHash, bytes32 chain, Attribute calldata attr)
+        internal
+        pure
+        returns (bytes32 nameHash, bytes32)
+    {
+        nameHash = keccak256(bytes(attr.name));
+        if (nameHash <= prevNameHash) revert AttributesNotSorted();
+        bytes32 attrHash = keccak256(abi.encode(ATTRIBUTE_TYPEHASH, nameHash, attr.valueType, keccak256(attr.value)));
+        return (nameHash, keccak256(abi.encodePacked(chain, attrHash)));
+    }
+
+    /// @notice Validate and rolling-hash a sorted attribute array.
+    /// An empty array returns bytes32(0).
+    function attributesHash(Attribute[] calldata attributes) internal pure returns (bytes32) {
+        bytes32 chain;
+        bytes32 prevNameHash;
+        for (uint256 i = 0; i < attributes.length; i++) {
+            (prevNameHash, chain) = attributeHash(prevNameHash, chain, attributes[i]);
+        }
+        return chain;
     }
 
     /// @notice Compute the EIP-712 struct hash of an entity's immutable core
     /// content (everything except owner, updatedAt, expiresAt).
-    /// @param key       Unique entity key (derived from entityKey()).
-    /// @param creator   Address that created the entity.
-    /// @param createdAt Block number of entity creation.
-    /// @param contentType  MIME-like content type descriptor.
-    /// @param payload   Opaque application-specific payload bytes.
-    /// @param attributes Sorted attribute array.
-    /// @return The keccak256 EIP-712 struct hash.
     function coreHash(
         bytes32 key,
         address creator,
@@ -145,10 +148,6 @@ library EntityHashing {
         bytes calldata payload,
         Attribute[] calldata attributes
     ) internal pure returns (bytes32) {
-        bytes32[] memory attrHashes = new bytes32[](attributes.length);
-        for (uint256 i = 0; i < attributes.length; i++) {
-            attrHashes[i] = attributeHash(attributes[i]);
-        }
         return keccak256(
             abi.encode(
                 CORE_HASH_TYPEHASH,
@@ -157,7 +156,7 @@ library EntityHashing {
                 createdAt,
                 keccak256(bytes(contentType)),
                 keccak256(payload),
-                keccak256(abi.encodePacked(attrHashes))
+                attributesHash(attributes)
             )
         );
     }

@@ -1,19 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {ShortStrings} from "@openzeppelin/contracts/utils/ShortStrings.sol";
 import {EntityHashing} from "../../src/EntityHashing.sol";
 
 library Lib {
-    using ShortStrings for *;
-
     function uintAttr(string memory name, uint256 value) internal pure returns (EntityHashing.Attribute memory) {
-        return EntityHashing.Attribute({
-            name: name.toShortString(),
-            valueType: EntityHashing.AttributeType.UINT,
-            fixedValue: bytes32(value),
-            stringValue: ""
-        });
+        return EntityHashing.Attribute({name: name, valueType: EntityHashing.ATTR_UINT, value: abi.encode(value)});
     }
 
     function stringAttr(string memory name, string memory value)
@@ -21,21 +13,11 @@ library Lib {
         pure
         returns (EntityHashing.Attribute memory)
     {
-        return EntityHashing.Attribute({
-            name: name.toShortString(),
-            valueType: EntityHashing.AttributeType.STRING,
-            fixedValue: bytes32(0),
-            stringValue: value
-        });
+        return EntityHashing.Attribute({name: name, valueType: EntityHashing.ATTR_STRING, value: bytes(value)});
     }
 
     function entityKeyAttr(string memory name, bytes32 value) internal pure returns (EntityHashing.Attribute memory) {
-        return EntityHashing.Attribute({
-            name: name.toShortString(),
-            valueType: EntityHashing.AttributeType.ENTITY_KEY,
-            fixedValue: value,
-            stringValue: ""
-        });
+        return EntityHashing.Attribute({name: name, valueType: EntityHashing.ATTR_ENTITY_KEY, value: abi.encode(value)});
     }
 
     function payload(uint256 size) internal pure returns (bytes memory) {
