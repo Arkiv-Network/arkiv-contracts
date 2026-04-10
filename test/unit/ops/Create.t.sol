@@ -7,13 +7,20 @@ import {Lib} from "../../utils/Lib.sol";
 import {EntityHashing} from "../../../src/EntityHashing.sol";
 import {EntityRegistry} from "../../../src/EntityRegistry.sol";
 
+/// @dev Tests _create logic (expiry, commitment, hashing, events) with a
+/// stubbed _createEntityKey so key generation is isolated.
 contract CreateTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
 
     BlockNumber expiresAt;
 
-    // Calldata wrappers for internal/library functions.
+    bytes32 constant STUB_KEY = keccak256("stub-entity-key");
+
+    function _createEntityKey(address) internal pure override returns (bytes32) {
+        return STUB_KEY;
+    }
+
     function doCreate(EntityHashing.Op calldata op) external returns (bytes32, bytes32) {
         return _create(op, currentBlock());
     }
@@ -32,10 +39,6 @@ contract CreateTest is Test, EntityRegistry {
     function setUp() public {
         expiresAt = currentBlock() + BlockNumber.wrap(1000);
     }
-
-    // =========================================================================
-    // Helpers
-    // =========================================================================
 
     function _defaultOp() internal view returns (EntityHashing.Op memory) {
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
@@ -72,7 +75,7 @@ contract CreateTest is Test, EntityRegistry {
 
         vm.prank(alice);
         (bytes32 key,) = this.doCreate(op);
-        assertTrue(key != bytes32(0));
+        assertEq(key, STUB_KEY);
     }
 
     // =========================================================================
@@ -83,9 +86,9 @@ contract CreateTest is Test, EntityRegistry {
         EntityHashing.Op memory op = _defaultOp();
 
         vm.prank(alice);
-        (bytes32 key,) = this.doCreate(op);
+        this.doCreate(op);
 
-        EntityHashing.Commitment memory c = getCommitment(key);
+        EntityHashing.Commitment memory c = getCommitment(STUB_KEY);
         assertEq(c.creator, alice);
         assertEq(c.owner, alice);
         assertEq(BlockNumber.unwrap(c.createdAt), uint32(block.number));
@@ -95,86 +98,15 @@ contract CreateTest is Test, EntityRegistry {
     }
 
     // =========================================================================
-    // State — nonce
-    // =========================================================================
-
-    function test_create_incrementsNonce() public {
-        assertEq(nonces[alice], 0);
-
-        EntityHashing.Op memory op = _defaultOp();
-
-        vm.prank(alice);
-        this.doCreate(op);
-        assertEq(nonces[alice], 1);
-
-        vm.prank(alice);
-        this.doCreate(op);
-        assertEq(nonces[alice], 2);
-    }
-
-    function test_create_independentNoncesPerSender() public {
-        EntityHashing.Op memory op = _defaultOp();
-
-        vm.prank(alice);
-        this.doCreate(op);
-
-        vm.prank(bob);
-        this.doCreate(op);
-
-        assertEq(nonces[alice], 1);
-        assertEq(nonces[bob], 1);
-    }
-
-    // =========================================================================
-    // State — entity key determinism
-    // =========================================================================
-
-    function test_create_keyMatchesEntityKeyFunction() public {
-        bytes32 expectedKey = entityKey(alice, 0);
-
-        EntityHashing.Op memory op = _defaultOp();
-        vm.prank(alice);
-        (bytes32 key,) = this.doCreate(op);
-
-        assertEq(key, expectedKey);
-    }
-
-    function test_create_secondKeyMatchesNonce1() public {
-        EntityHashing.Op memory op = _defaultOp();
-
-        vm.prank(alice);
-        this.doCreate(op);
-
-        bytes32 expectedKey = entityKey(alice, 1);
-        vm.prank(alice);
-        (bytes32 key,) = this.doCreate(op);
-
-        assertEq(key, expectedKey);
-    }
-
-    function test_create_differentSenders_differentKeys() public {
-        EntityHashing.Op memory op = _defaultOp();
-
-        vm.prank(alice);
-        (bytes32 keyAlice,) = this.doCreate(op);
-
-        vm.prank(bob);
-        (bytes32 keyBob,) = this.doCreate(op);
-
-        assertNotEq(keyAlice, keyBob);
-    }
-
-    // =========================================================================
     // Event
     // =========================================================================
 
     function test_create_emitsEntityCreated() public {
         EntityHashing.Op memory op = _defaultOp();
-        bytes32 expectedKey = entityKey(alice, 0);
 
         vm.prank(alice);
         vm.expectEmit(true, true, false, false);
-        emit EntityCreated(expectedKey, alice, expiresAt, bytes32(0));
+        emit EntityCreated(STUB_KEY, alice, expiresAt, bytes32(0));
         this.doCreate(op);
     }
 
@@ -188,10 +120,10 @@ contract CreateTest is Test, EntityRegistry {
         EntityHashing.Op memory op = Lib.createOp("hello", "text/plain", attrs, expiresAt);
 
         vm.prank(alice);
-        (bytes32 key,) = this.doCreate(op);
+        this.doCreate(op);
 
-        EntityHashing.Commitment memory c = getCommitment(key);
-        bytes32 expected = this.hashCore(key, alice, c.createdAt, "text/plain", "hello", attrs);
+        EntityHashing.Commitment memory c = getCommitment(STUB_KEY);
+        bytes32 expected = this.hashCore(STUB_KEY, alice, c.createdAt, "text/plain", "hello", attrs);
         assertEq(c.coreHash, expected);
     }
 
@@ -199,9 +131,9 @@ contract CreateTest is Test, EntityRegistry {
         EntityHashing.Op memory op = _defaultOp();
 
         vm.prank(alice);
-        (bytes32 key, bytes32 entityHash_) = this.doCreate(op);
+        (, bytes32 entityHash_) = this.doCreate(op);
 
-        EntityHashing.Commitment memory c = getCommitment(key);
+        EntityHashing.Commitment memory c = getCommitment(STUB_KEY);
         bytes32 expected = _entityHash(c.coreHash, alice, c.updatedAt, c.expiresAt);
         assertEq(entityHash_, expected);
     }
@@ -217,7 +149,8 @@ contract CreateTest is Test, EntityRegistry {
         vm.prank(alice);
         (bytes32 key, bytes32 entityHash_) = this.doCreate(op);
 
-        assertTrue(key != bytes32(0));
+        assertEq(key, STUB_KEY);
         assertTrue(entityHash_ != bytes32(0));
     }
 }
+

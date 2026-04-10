@@ -194,7 +194,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
     /// @dev Mint a new entity key by post-incrementing the owner's nonce.
     /// Uniqueness is guaranteed by the monotonic nonce — no existence check needed.
-    function _createEntityKey(address owner) internal returns (bytes32) {
+    function _createEntityKey(address owner) internal virtual returns (bytes32) {
         uint32 nonce = nonces[owner]++;
         return EntityHashing.entityKey(block.chainid, address(this), owner, nonce);
     }
