@@ -54,7 +54,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Events
     // -------------------------------------------------------------------------
 
-    event EntityCreated(bytes32 indexed entityKey, address indexed owner, bytes32 entityHash, BlockNumber expiresAt);
+    event EntityCreated(bytes32 indexed entityKey, address indexed owner, BlockNumber expiresAt, bytes32 entityHash);
 
     // -------------------------------------------------------------------------
     // State — linked list pointers
@@ -272,7 +272,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
             coreHash: coreHash_
         });
 
-        emit EntityCreated(key, msg.sender, entityHash_, op.expiresAt);
+        emit EntityCreated(key, msg.sender, op.expiresAt, entityHash_);
     }
 
     function _update(EntityHashing.Op calldata op, BlockNumber current) internal returns (bytes32, bytes32) {

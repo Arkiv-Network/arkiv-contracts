@@ -297,11 +297,11 @@ contract CreateTest is Base {
 
         vm.prank(alice);
         vm.expectEmit(true, true, false, false);
-        emit EntityCreated(expectedKey, alice, bytes32(0), expiresAt);
+        emit EntityCreated(expectedKey, alice, expiresAt, bytes32(0));
         registry.exposed_create(op);
     }
 
-    event EntityCreated(bytes32 indexed entityKey, address indexed owner, bytes32 entityHash, BlockNumber expiresAt);
+    event EntityCreated(bytes32 indexed entityKey, address indexed owner, BlockNumber expiresAt, bytes32 entityHash);
 
     // =========================================================================
     // Hash correctness
