@@ -445,7 +445,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
             revert EntityHashing.EntityNotExpired(key, c.expiresAt);
         }
 
-        bytes32 entityHash_ = _entityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
+        bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
         address owner = c.owner;
 
         delete _commitments[key];

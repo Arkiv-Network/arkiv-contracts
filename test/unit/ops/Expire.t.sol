@@ -14,8 +14,6 @@ contract ExpireTest is Test, EntityRegistry {
     BlockNumber expiresAt;
     bytes32 testKey;
 
-    function _validateAttributes(EntityHashing.Attribute[] calldata) internal pure override {}
-
     function doCreate(EntityHashing.Op calldata op) external returns (bytes32, bytes32) {
         return _create(op, currentBlock());
     }
@@ -136,7 +134,7 @@ contract ExpireTest is Test, EntityRegistry {
     function test_expire_returnsSnapshotHash() public {
         // Compute expected hash from commitment before expiry.
         EntityHashing.Commitment memory c = getCommitment(testKey);
-        bytes32 expected = _entityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
+        bytes32 expected = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
 
         vm.roll(BlockNumber.unwrap(expiresAt));
 
