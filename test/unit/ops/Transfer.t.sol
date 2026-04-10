@@ -15,7 +15,7 @@ contract TransferTest is Test, EntityRegistry {
     BlockNumber expiresAt;
     bytes32 testKey;
 
-    function _validateAttributes(EntityHashing.Attribute[] calldata) internal pure override {}
+
 
     function doCreate(EntityHashing.Op calldata op) external returns (bytes32, bytes32) {
         return _create(op, currentBlock());
@@ -188,7 +188,7 @@ contract TransferTest is Test, EntityRegistry {
         (, bytes32 entityHash_) = this.doTransfer(op);
 
         EntityHashing.Commitment memory c = getCommitment(testKey);
-        bytes32 expected = _entityHash(c.coreHash, bob, c.updatedAt, c.expiresAt);
+        bytes32 expected = _wrapEntityHash(c.coreHash, bob, c.updatedAt, c.expiresAt);
         assertEq(entityHash_, expected);
     }
 
@@ -196,7 +196,7 @@ contract TransferTest is Test, EntityRegistry {
         // Get hash with alice as owner.
         EntityHashing.Commitment memory beforeTransfer = getCommitment(testKey);
         bytes32 hashAlice =
-            _entityHash(beforeTransfer.coreHash, alice, beforeTransfer.updatedAt, beforeTransfer.expiresAt);
+            _wrapEntityHash(beforeTransfer.coreHash, alice, beforeTransfer.updatedAt, beforeTransfer.expiresAt);
 
         // Transfer to bob.
         EntityHashing.Op memory op = Lib.transferOp(testKey, bob);

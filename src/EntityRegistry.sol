@@ -404,7 +404,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         c.owner = op.newOwner;
         c.updatedAt = current;
 
-        bytes32 entityHash_ = _entityHash(c.coreHash, op.newOwner, current, c.expiresAt);
+        bytes32 entityHash_ = _wrapEntityHash(c.coreHash, op.newOwner, current, c.expiresAt);
 
         emit EntityTransferred(key, previousOwner, op.newOwner, entityHash_);
         return (key, entityHash_);
