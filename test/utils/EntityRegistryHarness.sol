@@ -26,5 +26,4 @@ contract EntityRegistryHarness is EntityRegistry {
     ) external pure returns (bytes32) {
         return EntityHashing.coreHash(key, creator, createdAt, contentType, payload, attributes);
     }
-
 }

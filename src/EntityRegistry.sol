@@ -184,12 +184,12 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// @dev Compute the two-level EIP-712 hash for entity creation:
     ///   coreHash: immutable content identity (survives transfers and expiry extensions)
     ///   entityHash: domain-wrapped hash of (coreHash, owner, updatedAt, expiresAt)
-    function _createEntityHash(
-        bytes32 key,
-        address creator,
-        BlockNumber current,
-        EntityHashing.Op calldata op
-    ) internal virtual view returns (bytes32 coreHash_, bytes32 entityHash_) {
+    function _createEntityHash(bytes32 key, address creator, BlockNumber current, EntityHashing.Op calldata op)
+        internal
+        view
+        virtual
+        returns (bytes32 coreHash_, bytes32 entityHash_)
+    {
         coreHash_ = EntityHashing.coreHash(key, creator, current, op.contentType, op.payload, op.attributes);
         entityHash_ = _hashTypedDataV4(EntityHashing.entityStructHash(coreHash_, creator, current, op.expiresAt));
     }

@@ -12,12 +12,11 @@ import {EntityRegistry} from "../../src/EntityRegistry.sol";
 contract CreateEntityHashTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
 
-    function doCreateEntityHash(
-        bytes32 key,
-        address creator,
-        BlockNumber current,
-        EntityHashing.Op calldata op
-    ) external view returns (bytes32, bytes32) {
+    function doCreateEntityHash(bytes32 key, address creator, BlockNumber current, EntityHashing.Op calldata op)
+        external
+        view
+        returns (bytes32, bytes32)
+    {
         return _createEntityHash(key, creator, current, op);
     }
 
