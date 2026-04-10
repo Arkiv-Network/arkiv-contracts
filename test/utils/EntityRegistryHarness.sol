@@ -14,10 +14,6 @@ contract EntityRegistryHarness is EntityRegistry {
         return EntityHashing.attributeHash(prevName, chain, attr);
     }
 
-    function exposed_attributesHash(EntityHashing.Attribute[] calldata attributes) external pure returns (bytes32) {
-        return EntityHashing.attributesHash(attributes);
-    }
-
     function exposed_coreHash(
         bytes32 key,
         address creator,
