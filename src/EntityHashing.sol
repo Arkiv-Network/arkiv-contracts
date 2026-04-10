@@ -184,71 +184,28 @@ library EntityHashing {
     /// @param owner     Current owner address.
     /// @param updatedAt Block number of last update.
     /// @param expiresAt Expiry block number.
-    /// @return result The keccak256 EIP-712 struct hash (unwrapped).
+    /// @return The keccak256 EIP-712 struct hash (unwrapped).
     function entityStructHash(bytes32 coreHash_, address owner, BlockNumber updatedAt, BlockNumber expiresAt)
         internal
         pure
-        returns (bytes32 result)
+        returns (bytes32)
     {
-        bytes32 th = ENTITY_HASH_TYPEHASH;
-        assembly {
-            let m := mload(0x40)
-            mstore(m, th)
-            mstore(add(m, 0x20), coreHash_)
-            mstore(add(m, 0x40), owner)
-            mstore(add(m, 0x60), updatedAt)
-            mstore(add(m, 0x80), expiresAt)
-            result := keccak256(m, 0xa0) // 5 × 32 = 160
-        }
+        return keccak256(abi.encode(ENTITY_HASH_TYPEHASH, coreHash_, owner, updatedAt, expiresAt));
     }
 
     /// @notice Derive a globally unique entity key from the chain, registry,
     /// owner, and nonce. Deterministic and collision-resistant across chains
     /// and registry deployments.
-    /// @param chainId   The chain ID (typically block.chainid).
-    /// @param registry  The registry contract address.
-    /// @param owner     The entity owner.
-    /// @param nonce     The owner's entity creation nonce.
-    /// @return result The keccak256 entity key.
-    function entityKey(uint256 chainId, address registry, address owner, uint32 nonce)
-        internal
-        pure
-        returns (bytes32 result)
-    {
-        // encodePacked layout: chainId (32) | registry (20) | owner (20) | nonce (4) = 76 bytes
-        assembly {
-            let m := mload(0x40)
-            mstore(m, chainId)
-            mstore(add(m, 0x20), shl(96, registry))
-            mstore(add(m, 0x34), shl(96, owner))
-            mstore(add(m, 0x48), shl(224, nonce))
-            result := keccak256(m, 76)
-        }
+    function entityKey(uint256 chainId, address registry, address owner, uint32 nonce) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(chainId, registry, owner, nonce));
     }
 
     /// @notice Compute the next changeset hash by chaining an operation onto
     /// the previous hash. The changeset is an append-only hash chain where
     /// each link encodes the operation type, entity key, and resulting
     /// entity hash.
-    /// @param prev        The changeset hash before this operation.
-    /// @param opType      The operation type being recorded.
-    /// @param key         The entity key affected.
-    /// @param entityHash_ The entity hash after the operation.
-    /// @return result The new changeset hash.
-    function chainOp(bytes32 prev, uint8 opType, bytes32 key, bytes32 entityHash_)
-        internal
-        pure
-        returns (bytes32 result)
-    {
-        // encodePacked layout: prev (32) | opType (1) | key (32) | entityHash_ (32) = 97 bytes
-        assembly {
-            let m := mload(0x40)
-            mstore(m, prev)
-            mstore8(add(m, 0x20), opType)
-            mstore(add(m, 0x21), key)
-            mstore(add(m, 0x41), entityHash_)
-            result := keccak256(m, 97)
-        }
+    function chainOp(bytes32 prev, uint8 opType, bytes32 key, bytes32 entityHash_) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(prev, opType, key, entityHash_));
     }
 
     // -------------------------------------------------------------------------
