@@ -6,8 +6,16 @@ import {EntityRegistry} from "../../src/EntityRegistry.sol";
 import {EntityHashing} from "../../src/EntityHashing.sol";
 
 contract EntityRegistryHarness is EntityRegistry {
-    function exposed_attributeHash(EntityHashing.Attribute calldata attr) external pure returns (bytes32) {
-        return EntityHashing.attributeHash(attr);
+    function exposed_attributeHash(bytes32 prevNameHash, bytes32 chain, EntityHashing.Attribute calldata attr)
+        external
+        pure
+        returns (bytes32 nameHash, bytes32 newChain)
+    {
+        return EntityHashing.attributeHash(prevNameHash, chain, attr);
+    }
+
+    function exposed_attributesHash(EntityHashing.Attribute[] calldata attributes) external pure returns (bytes32) {
+        return EntityHashing.attributesHash(attributes);
     }
 
     function exposed_coreHash(
