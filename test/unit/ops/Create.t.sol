@@ -2,19 +2,15 @@
 pragma solidity ^0.8.24;
 
 import {BlockNumber, currentBlock} from "../../../src/BlockNumber.sol";
-import {ShortStrings, ShortString} from "@openzeppelin/contracts/utils/ShortStrings.sol";
 import {Base} from "../../utils/Base.t.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {EntityHashing} from "../../../src/EntityHashing.sol";
 
 contract CreateTest is Base {
-    using ShortStrings for *;
-
     BlockNumber expiresAt;
 
     function setUp() public override {
         super.setUp();
-        // Default expiry: current block + 1000
         expiresAt = currentBlock() + BlockNumber.wrap(1000);
     }
 
@@ -42,9 +38,8 @@ contract CreateTest is Base {
     function test_create_tooManyAttributes_reverts() public {
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](33);
         for (uint256 i = 0; i < 33; i++) {
-            // Each name must be unique and sorted — use single-char ascending
             bytes memory name = new bytes(1);
-            name[0] = bytes1(uint8(0x41 + i)); // A, B, C, ...
+            name[0] = bytes1(uint8(0x41 + i));
             attrs[i] = Lib.uintAttr(string(name), i);
         }
 
@@ -75,15 +70,12 @@ contract CreateTest is Base {
     function test_create_emptyAttributeName_reverts() public {
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](1);
         attrs[0] = EntityHashing.Attribute({
-            name: ShortString.wrap(bytes32(0)),
-            valueType: EntityHashing.AttributeType.UINT,
-            fixedValue: bytes32(uint256(1)),
-            stringValue: ""
+            name: bytes32(0), valueType: EntityHashing.ATTR_UINT, value: abi.encode(uint256(1))
         });
 
         EntityHashing.Op memory op = _defaultOpWithAttrs(attrs);
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EmptyAttributeName.selector, 0));
+        vm.expectRevert(EntityHashing.AttributesNotSorted.selector);
         registry.exposed_create(op);
     }
 
@@ -98,7 +90,7 @@ contract CreateTest is Base {
 
         EntityHashing.Op memory op = _defaultOpWithAttrs(attrs);
         vm.prank(alice);
-        vm.expectRevert(); // AttributesNotSorted
+        vm.expectRevert(EntityHashing.AttributesNotSorted.selector);
         registry.exposed_create(op);
     }
 
@@ -109,7 +101,7 @@ contract CreateTest is Base {
 
         EntityHashing.Op memory op = _defaultOpWithAttrs(attrs);
         vm.prank(alice);
-        vm.expectRevert(); // AttributesNotSorted
+        vm.expectRevert(EntityHashing.AttributesNotSorted.selector);
         registry.exposed_create(op);
     }
 
@@ -125,88 +117,52 @@ contract CreateTest is Base {
     }
 
     // =========================================================================
-    // Validation — canonical encoding
-    // =========================================================================
-
-    function test_create_stringAttr_nonZeroFixedValue_reverts() public {
-        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](1);
-        attrs[0] = EntityHashing.Attribute({
-            name: "aaa".toShortString(),
-            valueType: EntityHashing.AttributeType.STRING,
-            fixedValue: bytes32(uint256(1)),
-            stringValue: "hello"
-        });
-
-        EntityHashing.Op memory op = _defaultOpWithAttrs(attrs);
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.NonCanonicalAttribute.selector, 0));
-        registry.exposed_create(op);
-    }
-
-    function test_create_uintAttr_nonEmptyStringValue_reverts() public {
-        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](1);
-        attrs[0] = EntityHashing.Attribute({
-            name: "aaa".toShortString(),
-            valueType: EntityHashing.AttributeType.UINT,
-            fixedValue: bytes32(uint256(42)),
-            stringValue: "should be empty"
-        });
-
-        EntityHashing.Op memory op = _defaultOpWithAttrs(attrs);
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.NonCanonicalAttribute.selector, 0));
-        registry.exposed_create(op);
-    }
-
-    function test_create_entityKeyAttr_nonEmptyStringValue_reverts() public {
-        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](1);
-        attrs[0] = EntityHashing.Attribute({
-            name: "aaa".toShortString(),
-            valueType: EntityHashing.AttributeType.ENTITY_KEY,
-            fixedValue: keccak256("key"),
-            stringValue: "should be empty"
-        });
-
-        EntityHashing.Op memory op = _defaultOpWithAttrs(attrs);
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.NonCanonicalAttribute.selector, 0));
-        registry.exposed_create(op);
-    }
-
-    // =========================================================================
-    // Validation — string attribute size
+    // Validation — value type/length (via attributeHash)
     // =========================================================================
 
     function test_create_stringAttrTooLarge_reverts() public {
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](1);
-        bytes memory largeString = new bytes(1025);
         attrs[0] = EntityHashing.Attribute({
-            name: "aaa".toShortString(),
-            valueType: EntityHashing.AttributeType.STRING,
-            fixedValue: bytes32(0),
-            stringValue: string(largeString)
+            name: Lib.packName("aaa"), valueType: EntityHashing.ATTR_STRING, value: new bytes(1025)
         });
 
         EntityHashing.Op memory op = _defaultOpWithAttrs(attrs);
         vm.prank(alice);
-        vm.expectRevert(); // StringAttributeTooLarge
+        vm.expectRevert(); // InvalidValueLength
         registry.exposed_create(op);
     }
 
     function test_create_stringAttrAtMaxSize_succeeds() public {
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](1);
-        bytes memory maxString = new bytes(1024);
         attrs[0] = EntityHashing.Attribute({
-            name: "aaa".toShortString(),
-            valueType: EntityHashing.AttributeType.STRING,
-            fixedValue: bytes32(0),
-            stringValue: string(maxString)
+            name: Lib.packName("aaa"), valueType: EntityHashing.ATTR_STRING, value: new bytes(1024)
         });
 
         EntityHashing.Op memory op = _defaultOpWithAttrs(attrs);
         vm.prank(alice);
         (bytes32 key,) = registry.exposed_create(op);
         assertTrue(key != bytes32(0));
+    }
+
+    function test_create_uintAttrWrongLength_reverts() public {
+        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](1);
+        attrs[0] =
+            EntityHashing.Attribute({name: Lib.packName("aaa"), valueType: EntityHashing.ATTR_UINT, value: hex"01"});
+
+        EntityHashing.Op memory op = _defaultOpWithAttrs(attrs);
+        vm.prank(alice);
+        vm.expectRevert(); // InvalidValueLength
+        registry.exposed_create(op);
+    }
+
+    function test_create_invalidValueType_reverts() public {
+        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](1);
+        attrs[0] = EntityHashing.Attribute({name: Lib.packName("aaa"), valueType: 99, value: hex"00"});
+
+        EntityHashing.Op memory op = _defaultOpWithAttrs(attrs);
+        vm.prank(alice);
+        vm.expectRevert(); // InvalidValueType
+        registry.exposed_create(op);
     }
 
     // =========================================================================
@@ -223,7 +179,6 @@ contract CreateTest is Base {
     }
 
     function test_create_expiryInPast_reverts() public {
-        // Roll forward so we can set expiry in the past
         vm.roll(block.number + 100);
 
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
@@ -298,7 +253,6 @@ contract CreateTest is Base {
     // =========================================================================
 
     function test_create_keyMatchesEntityKeyFunction() public {
-        // Pre-compute expected key at nonce 0
         bytes32 expectedKey = registry.entityKey(alice, 0);
 
         EntityHashing.Op memory op = _defaultOp();
@@ -347,7 +301,6 @@ contract CreateTest is Base {
         registry.exposed_create(op);
     }
 
-    // Redeclare event for vm.expectEmit matching
     event EntityCreated(bytes32 indexed entityKey, address indexed owner, bytes32 entityHash, BlockNumber expiresAt);
 
     // =========================================================================
@@ -364,7 +317,6 @@ contract CreateTest is Base {
 
         EntityHashing.Commitment memory c = registry.getCommitment(key);
 
-        // Manually compute coreHash
         bytes32 expected = registry.exposed_coreHash(key, alice, c.createdAt, "text/plain", "hello", attrs);
         assertEq(c.coreHash, expected);
     }

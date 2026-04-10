@@ -98,29 +98,7 @@ library EntityHashing {
     error AttributesNotSorted();
     error InvalidValueLength(bytes32 name, uint8 valueType, uint256 length);
     error InvalidValueType(bytes32 name, uint8 valueType);
-
-    // -------------------------------------------------------------------------
-    // Constants — validation limits
-    // -------------------------------------------------------------------------
-
-    uint256 internal constant MAX_STRING_ATTR_SIZE = 1024;
-
-    /// @dev Reverted when expiresAt is not in the future.
     error ExpiryInPast(BlockNumber expiresAt, BlockNumber currentBlock);
-
-    /// @dev Reverted when attributes are not sorted in strict ascending order by name.
-    error AttributesNotSorted(bytes32 current, bytes32 previous);
-
-    /// @dev Reverted when an attribute has an empty name.
-    error EmptyAttributeName(uint256 index);
-
-    /// @dev Reverted when an attribute has non-zero unused fields.
-    error NonCanonicalAttribute(uint256 index);
-
-    /// @dev Reverted when a STRING attribute value exceeds the maximum size.
-    error StringAttributeTooLarge(bytes32 name, uint256 size, uint256 maxSize);
-
-    /// @dev Reverted when too many attributes are provided.
     error TooManyAttributes(uint256 count, uint256 maxCount);
 
     // -------------------------------------------------------------------------

@@ -2,7 +2,6 @@
 pragma solidity ^0.8.24;
 
 import {BlockNumber, currentBlock} from "./BlockNumber.sol";
-import {ShortString} from "@openzeppelin/contracts/utils/ShortStrings.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {EntityHashing, OpKey, TxKey} from "./EntityHashing.sol";
 
@@ -205,8 +204,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     ///
     /// Validation order:
     ///   1. Attribute count (bounded by MAX_ATTRIBUTES)
-    ///   2. Per-attribute: non-empty name, strict ascending sort, canonical
-    ///      encoding (unused fields must be zero), string size limit
+    ///   2. Per-attribute validation (sorting, value type/length) via coreHash → attributeHash
     ///   3. Expiry must be strictly in the future
     ///
     /// Hash computation:
@@ -227,44 +225,8 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         if (op.attributes.length > EntityHashing.MAX_ATTRIBUTES) {
             revert EntityHashing.TooManyAttributes(op.attributes.length, EntityHashing.MAX_ATTRIBUTES);
         }
-
-        // Validate each attribute:
-        //   - Name must be non-zero (ShortString with empty content is bytes32(0)).
-        //   - Names must be in strict ascending order by raw bytes32 value.
-        //     ShortString stores content from the MSB with length in the LSB,
-        //     so bytes32 comparison preserves lexicographic order for ASCII names.
-        //   - Canonical encoding: STRING attrs must have fixedValue == 0,
-        //     UINT/ENTITY_KEY attrs must have empty stringValue. This ensures
-        //     each attribute has exactly one encoding that produces a given hash.
-        for (uint256 i = 0; i < op.attributes.length; i++) {
-            bytes32 name = ShortString.unwrap(op.attributes[i].name);
-
-            if (name == bytes32(0)) {
-                revert EntityHashing.EmptyAttributeName(i);
-            }
-
-            if (i > 0) {
-                bytes32 prev = ShortString.unwrap(op.attributes[i - 1].name);
-                if (name <= prev) {
-                    revert EntityHashing.AttributesNotSorted(name, prev);
-                }
-            }
-
-            if (op.attributes[i].valueType == EntityHashing.AttributeType.STRING) {
-                if (op.attributes[i].fixedValue != bytes32(0)) {
-                    revert EntityHashing.NonCanonicalAttribute(i);
-                }
-                if (bytes(op.attributes[i].stringValue).length > EntityHashing.MAX_STRING_ATTR_SIZE) {
-                    revert EntityHashing.StringAttributeTooLarge(
-                        name, bytes(op.attributes[i].stringValue).length, EntityHashing.MAX_STRING_ATTR_SIZE
-                    );
-                }
-            } else {
-                if (bytes(op.attributes[i].stringValue).length != 0) {
-                    revert EntityHashing.NonCanonicalAttribute(i);
-                }
-            }
-        }
+        // Per-attribute validation (sorting, value type/length) is handled
+        // inside coreHash → attributeHash.
 
         // expiresAt must be strictly after the current block. Equality is
         // rejected because the entity would already be expirable in this block.
