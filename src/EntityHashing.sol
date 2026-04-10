@@ -165,6 +165,9 @@ library EntityHashing {
         bytes calldata payload,
         Attribute[] calldata attributes
     ) internal pure returns (bytes32) {
+        if (attributes.length > MAX_ATTRIBUTES) {
+            revert TooManyAttributes(attributes.length, MAX_ATTRIBUTES);
+        }
         bytes32 attrChain;
         bytes32 prevName;
         for (uint256 i = 0; i < attributes.length; i++) {

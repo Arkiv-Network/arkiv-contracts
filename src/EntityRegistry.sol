@@ -200,18 +200,6 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     }
 
     // -------------------------------------------------------------------------
-    // Internal functions — validation
-    // -------------------------------------------------------------------------
-
-    /// @dev Validate attribute count. Per-attribute validation (sorting,
-    /// value type/length) is handled inside coreHash → attributeHash.
-    function _validateAttributes(EntityHashing.Attribute[] calldata attributes) internal pure virtual {
-        if (attributes.length > EntityHashing.MAX_ATTRIBUTES) {
-            revert EntityHashing.TooManyAttributes(attributes.length, EntityHashing.MAX_ATTRIBUTES);
-        }
-    }
-
-    // -------------------------------------------------------------------------
     // Internal functions — entity operations
     // -------------------------------------------------------------------------
 
@@ -252,8 +240,6 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         // Implementation: 256-bit bitmap for valid charset, single pass over
         // bytes(contentType). ~30 gas/byte — negligible for typical values
         // like "application/json".
-        _validateAttributes(op.attributes);
-
         // expiresAt must be strictly after the current block. Equality is
         // rejected because the entity would already be expirable in this block.
         if (op.expiresAt <= current) {

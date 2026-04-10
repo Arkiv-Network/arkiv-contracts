@@ -13,9 +13,6 @@ contract CreateTest is Test, EntityRegistry {
 
     BlockNumber expiresAt;
 
-    // Stub out validation — tested separately in ValidateAttributes.t.sol.
-    function _validateAttributes(EntityHashing.Attribute[] calldata) internal pure override {}
-
     // Calldata wrappers for internal/library functions.
     function doCreate(EntityHashing.Op calldata op) external returns (bytes32, bytes32) {
         return _create(op, currentBlock());
