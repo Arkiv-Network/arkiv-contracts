@@ -45,7 +45,9 @@ contract AttributeHashTest is Base {
     }
 
     function test_attributeHash_differentType_differs() public view {
-        assertNotEq(_hashOne(Lib.uintAttr("ref", 1)), _hashOne(Lib.entityKeyAttr("ref", bytes32(uint256(1)))));
+        assertNotEq(
+            _hashOne(Lib.uintAttr("ref", 1)), _hashOne(Lib.entityKeyAttr("ref", bytes32(uint256(1))))
+        );
     }
 
     function test_attributeHash_differentStringValue_differs() public view {
@@ -71,12 +73,7 @@ contract AttributeHashTest is Base {
             abi.encodePacked(
                 bytes32(0),
                 keccak256(
-                    abi.encode(
-                        EntityHashing.ATTRIBUTE_TYPEHASH,
-                        keccak256(bytes(attr.name)),
-                        attr.valueType,
-                        keccak256(attr.value)
-                    )
+                    abi.encode(EntityHashing.ATTRIBUTE_TYPEHASH, attr.name, attr.valueType, keccak256(attr.value))
                 )
             )
         );
@@ -91,12 +88,7 @@ contract AttributeHashTest is Base {
             abi.encodePacked(
                 bytes32(0),
                 keccak256(
-                    abi.encode(
-                        EntityHashing.ATTRIBUTE_TYPEHASH,
-                        keccak256(bytes(attr.name)),
-                        attr.valueType,
-                        keccak256(attr.value)
-                    )
+                    abi.encode(EntityHashing.ATTRIBUTE_TYPEHASH, attr.name, attr.valueType, keccak256(attr.value))
                 )
             )
         );
@@ -112,12 +104,7 @@ contract AttributeHashTest is Base {
             abi.encodePacked(
                 bytes32(0),
                 keccak256(
-                    abi.encode(
-                        EntityHashing.ATTRIBUTE_TYPEHASH,
-                        keccak256(bytes(attr.name)),
-                        attr.valueType,
-                        keccak256(attr.value)
-                    )
+                    abi.encode(EntityHashing.ATTRIBUTE_TYPEHASH, attr.name, attr.valueType, keccak256(attr.value))
                 )
             )
         );
@@ -135,16 +122,14 @@ contract AttributeHashTest is Base {
     }
 
     function test_attributesHash_two_matchesManualChain() public view {
-        // "label" hash < "count" hash, so label must come first
-        EntityHashing.Attribute memory a = Lib.stringAttr("label", "hello");
-        EntityHashing.Attribute memory b = Lib.uintAttr("count", 42);
+        // Lexicographic: "count" (0x636f...) < "label" (0x6c61...)
+        EntityHashing.Attribute memory a = Lib.uintAttr("count", 42);
+        EntityHashing.Attribute memory b = Lib.stringAttr("label", "hello");
 
-        bytes32 hashA = keccak256(
-            abi.encode(EntityHashing.ATTRIBUTE_TYPEHASH, keccak256("label"), a.valueType, keccak256(a.value))
-        );
-        bytes32 hashB = keccak256(
-            abi.encode(EntityHashing.ATTRIBUTE_TYPEHASH, keccak256("count"), b.valueType, keccak256(b.value))
-        );
+        bytes32 hashA =
+            keccak256(abi.encode(EntityHashing.ATTRIBUTE_TYPEHASH, a.name, a.valueType, keccak256(a.value)));
+        bytes32 hashB =
+            keccak256(abi.encode(EntityHashing.ATTRIBUTE_TYPEHASH, b.name, b.valueType, keccak256(b.value)));
         bytes32 chain = keccak256(abi.encodePacked(bytes32(0), hashA));
         chain = keccak256(abi.encodePacked(chain, hashB));
 
@@ -159,10 +144,10 @@ contract AttributeHashTest is Base {
     // -------------------------------------------------------------------------
 
     function test_attributesHash_revertsOnUnsortedNames() public {
-        // "count" hash > "label" hash, so [count, label] is wrong order
+        // "label" > "count" lexicographically, so [label, count] is wrong order
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](2);
-        attrs[0] = Lib.uintAttr("count", 42);
-        attrs[1] = Lib.stringAttr("label", "hello");
+        attrs[0] = Lib.stringAttr("label", "hello");
+        attrs[1] = Lib.uintAttr("count", 42);
 
         vm.expectRevert(EntityHashing.AttributesNotSorted.selector);
         registry.exposed_attributesHash(attrs);
