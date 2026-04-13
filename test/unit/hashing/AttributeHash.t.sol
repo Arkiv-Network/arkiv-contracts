@@ -187,10 +187,21 @@ contract AttributeHashTest is Test, EntityRegistry {
         );
     }
 
-    function test_attributeHash_revertsOnInvalidValueType() public {
+    function test_attributeHash_revertsOnUninitializedValueType() public {
+        EntityHashing.Attribute memory attr = EntityHashing.Attribute({
+            name: Lib.packName("bad"), valueType: EntityHashing.UNINITIALIZED, value: abi.encode(uint256(1))
+        });
+        vm.expectRevert(
+            abi.encodeWithSelector(EntityHashing.InvalidValueType.selector, attr.name, EntityHashing.UNINITIALIZED)
+        );
+        _hashOne(attr);
+    }
+
+    function test_attributeHash_revertsOnValueTypeAboveRange() public {
+        uint8 aboveRange = EntityHashing.ATTR_ENTITY_KEY + 1;
         EntityHashing.Attribute memory attr =
-            EntityHashing.Attribute({name: Lib.packName("bad"), valueType: 99, value: hex"00"});
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.InvalidValueType.selector, attr.name, 99));
+            EntityHashing.Attribute({name: Lib.packName("bad"), valueType: aboveRange, value: hex"00"});
+        vm.expectRevert(abi.encodeWithSelector(EntityHashing.InvalidValueType.selector, attr.name, aboveRange));
         _hashOne(attr);
     }
 
