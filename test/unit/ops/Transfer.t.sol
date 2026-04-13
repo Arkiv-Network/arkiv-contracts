@@ -47,6 +47,14 @@ contract TransferTest is Test, EntityRegistry {
         this.doTransfer(op);
     }
 
+    function test_transfer_toSelf_reverts() public {
+        EntityHashing.Op memory op = Lib.transferOp(testKey, alice);
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(EntityHashing.TransferToSelf.selector, testKey));
+        this.doTransfer(op);
+    }
+
     // =========================================================================
     // State — commitment updates
     // =========================================================================

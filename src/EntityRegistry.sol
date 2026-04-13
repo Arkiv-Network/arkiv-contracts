@@ -405,6 +405,9 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         if (op.newOwner == address(0)) {
             revert EntityHashing.TransferToZeroAddress(key);
         }
+        if (op.newOwner == c.owner) {
+            revert EntityHashing.TransferToSelf(key);
+        }
 
         address previousOwner = c.owner;
         c.owner = op.newOwner;
