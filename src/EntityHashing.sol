@@ -21,12 +21,17 @@ library EntityHashing {
     // Type declarations
     // -------------------------------------------------------------------------
 
-    uint8 public constant CREATE = 0;
-    uint8 public constant UPDATE = 1;
-    uint8 public constant EXTEND = 2;
-    uint8 public constant TRANSFER = 3;
-    uint8 public constant DELETE = 4;
-    uint8 public constant EXPIRE = 5;
+    /// @dev Sentinel value for uninitialized or invalid opType / valueType.
+    /// Solidity zero-initializes uint8 fields, so any Op or Attribute with
+    /// an unset discriminator will carry this value and be rejected.
+    uint8 public constant UNINITIALIZED = 0;
+
+    uint8 public constant CREATE = 1;
+    uint8 public constant UPDATE = 2;
+    uint8 public constant EXTEND = 3;
+    uint8 public constant TRANSFER = 4;
+    uint8 public constant DELETE = 5;
+    uint8 public constant EXPIRE = 6;
 
     /// @dev Batch element: describes a single entity operation within an
     /// `execute()` call. Fields are interpreted according to `opType`:
@@ -49,9 +54,9 @@ library EntityHashing {
     /// @dev Discriminator for attribute value types. Encoded into the
     /// attribute hash so that different types with identical raw bytes
     /// produce distinct hashes.
-    uint8 public constant ATTR_UINT = 0;
-    uint8 public constant ATTR_STRING = 1;
-    uint8 public constant ATTR_ENTITY_KEY = 2;
+    uint8 public constant ATTR_UINT = 1;
+    uint8 public constant ATTR_STRING = 2;
+    uint8 public constant ATTR_ENTITY_KEY = 3;
 
     /// @dev A typed key-value pair attached to an entity. The `name` is a
     /// bytes32-packed UTF-8 identifier (left-aligned, zero-padded).
