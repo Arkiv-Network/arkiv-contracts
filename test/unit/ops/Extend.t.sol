@@ -203,8 +203,8 @@ contract ExtendTest is Test, EntityRegistry {
         EntityHashing.Op memory op = Lib.extendOp(testKey, newExpiry);
 
         vm.prank(alice);
-        vm.expectEmit(true, true, false, false);
-        emit EntityExtended(testKey, alice, bytes32(0), newExpiry);
+        vm.expectEmit(true, true, true, false);
+        emit EntityExtended(testKey, alice, newExpiry, bytes32(0));
         this.doExtend(op);
     }
 }

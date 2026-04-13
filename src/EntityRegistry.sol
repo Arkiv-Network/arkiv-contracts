@@ -61,7 +61,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         bytes32 indexed entityKey, address indexed owner, BlockNumber indexed expiresAt, bytes32 entityHash
     );
     event EntityExtended(
-        bytes32 indexed entityKey, address indexed owner, bytes32 entityHash, BlockNumber newExpiresAt
+        bytes32 indexed entityKey, address indexed owner, BlockNumber indexed newExpiresAt, bytes32 entityHash
     );
 
     // -------------------------------------------------------------------------
@@ -363,7 +363,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
         bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, current, op.expiresAt);
 
-        emit EntityExtended(key, c.owner, entityHash_, op.expiresAt);
+        emit EntityExtended(key, c.owner, op.expiresAt, entityHash_);
         return (key, entityHash_);
     }
 
