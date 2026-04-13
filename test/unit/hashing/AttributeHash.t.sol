@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {EntityHashing} from "../../../src/EntityHashing.sol";
 import {EntityRegistry} from "../../../src/EntityRegistry.sol";
+import {IDENT_CHARSET, IDENT_LEADING} from "../../../src/Ident32.sol";
 
 contract AttributeHashTest is Test, EntityRegistry {
     function doAttributeHash(bytes32 prevName, bytes32 chain, EntityHashing.Attribute calldata attr)
@@ -215,8 +216,25 @@ contract AttributeHashTest is Test, EntityRegistry {
         return keccak256(abi.encodePacked(prev, h));
     }
 
+    /// @dev Check that a bytes32 is a valid Ident32 (a-z leading, then a-z0-9._- , left-aligned).
+    function _isValidIdent(bytes32 name) internal pure returns (bool) {
+        uint8 b0 = uint8(name[0]);
+        if ((IDENT_LEADING >> b0) & 1 == 0) return false;
+        bool ended;
+        for (uint256 i = 1; i < 32; i++) {
+            uint8 b = uint8(name[i]);
+            if (b == 0) {
+                ended = true;
+                continue;
+            }
+            if (ended) return false;
+            if ((IDENT_CHARSET >> b) & 1 == 0) return false;
+        }
+        return true;
+    }
+
     function test_attributeHash_fuzz_uint(bytes32 name, uint256 value) public {
-        vm.assume(name != bytes32(0));
+        vm.assume(_isValidIdent(name));
         EntityHashing.Attribute memory attr =
             EntityHashing.Attribute({name: name, valueType: EntityHashing.ATTR_UINT, value: abi.encode(value)});
         (, bytes32 chain) = this.doAttributeHash(bytes32(0), bytes32(0), attr);
@@ -224,7 +242,7 @@ contract AttributeHashTest is Test, EntityRegistry {
     }
 
     function test_attributeHash_fuzz_entityKey(bytes32 name, bytes32 value) public {
-        vm.assume(name != bytes32(0));
+        vm.assume(_isValidIdent(name));
         EntityHashing.Attribute memory attr =
             EntityHashing.Attribute({name: name, valueType: EntityHashing.ATTR_ENTITY_KEY, value: abi.encode(value)});
         (, bytes32 chain) = this.doAttributeHash(bytes32(0), bytes32(0), attr);
@@ -232,7 +250,7 @@ contract AttributeHashTest is Test, EntityRegistry {
     }
 
     function test_attributeHash_fuzz_string(bytes32 name, bytes calldata value) public {
-        vm.assume(name != bytes32(0));
+        vm.assume(_isValidIdent(name));
         vm.assume(value.length <= 1024);
         EntityHashing.Attribute memory attr =
             EntityHashing.Attribute({name: name, valueType: EntityHashing.ATTR_STRING, value: value});

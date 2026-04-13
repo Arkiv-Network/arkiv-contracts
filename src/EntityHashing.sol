@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {BlockNumber} from "./BlockNumber.sol";
 import {Mime128} from "./types/Mime128.sol";
+import {validateIdent32} from "./Ident32.sol";
 
 type OpKey is uint256;
 type TxKey is uint256;
@@ -212,6 +213,7 @@ library EntityHashing {
         pure
         returns (bytes32, bytes32)
     {
+        validateIdent32(attr.name);
         if (attr.name <= prevName) revert AttributesNotSorted();
 
         uint8 vt = attr.valueType;
