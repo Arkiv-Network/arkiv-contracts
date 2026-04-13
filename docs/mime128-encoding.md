@@ -97,7 +97,30 @@ The validator does one bitmap lookup and one state transition per byte. For typi
 | `application/json` | 16 | ~320 |
 | `text/plain; charset=utf-8` | 25 | ~500 |
 
-These figures are for the raw validation loop. The overhead is negligible relative to any operation that stores the result (a cold `SSTORE` alone costs 20,000 gas).
+These figures are for the raw validation loop in pure Solidity. The overhead is negligible relative to any operation that stores the result (a cold `SSTORE` alone costs 20,000 gas).
+
+#### Assembly optimization opportunity
+
+The current implementation uses Solidity's `word[j]` indexing and nested `for` loops with `i / 32` and `i % 32` arithmetic. The compiler generates bounds checks, stack management, and division opcodes that are unnecessary when iterating a known-size `bytes32[4]`. An inline assembly rewrite would eliminate several sources of overhead:
+
+| Source | Solidity cost | Assembly cost | Saving |
+|---|---|---|---|
+| Byte extraction (`word[j]`) | ~8 gas (bounds check + `BYTE`) | 3 gas (`BYTE` opcode) | ~5 gas/byte |
+| Loop index division/modulo | ~10 gas (`DIV` + `MOD` per byte) | 0 (flat counter or unrolled) | ~10 gas/byte |
+| State variable stack management | ~6 gas (repeated `MLOAD`/`MSTORE`) | 3 gas (register in stack) | ~3 gas/byte |
+| Branch for zero check + bitmap | ~16 gas (Solidity conditionals) | ~10 gas (raw `JUMPI`) | ~6 gas/byte |
+
+Estimated per-byte cost drops from ~20 gas (Solidity) to ~8 gas (assembly), roughly a 2.5x improvement:
+
+| Content type | Bytes | Solidity (current) | Assembly (estimated) |
+|---|---|---|---|
+| `text/plain` | 10 | ~200 gas | ~80 gas |
+| `application/json` | 16 | ~320 gas | ~130 gas |
+| `text/plain; charset=utf-8` | 25 | ~500 gas | ~200 gas |
+
+The assembly version would process one `bytes32` word at a time — load the word once (`CALLDATALOAD`, 3 gas), then extract 32 bytes via the `BYTE` opcode without any memory operations. The state machine logic stays identical; only the byte iteration and extraction change. The bitmap constant loads once at function entry and stays on the stack for the entire loop.
+
+Whether this optimization is worth the auditability trade-off depends on call frequency. For a registration function called infrequently, the Solidity implementation is sufficient. For validation on every `CREATE`/`UPDATE` operation, the assembly version may be justified.
 
 ### Hashing
 
