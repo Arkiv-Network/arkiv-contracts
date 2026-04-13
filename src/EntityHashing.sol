@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {BlockNumber} from "./BlockNumber.sol";
+import {Ident32, validateIdent32} from "./Ident32.sol";
 import {Mime128} from "./types/Mime128.sol";
-import {validateIdent32} from "./Ident32.sol";
 
 type OpKey is uint256;
 type TxKey is uint256;
@@ -65,7 +65,7 @@ library EntityHashing {
     /// Attributes must be sorted ascending by name for deterministic hash
     /// computation and name-uniqueness enforcement.
     struct Attribute {
-        bytes32 name;
+        Ident32 name;
         uint8 valueType;
         bytes value;
     }
@@ -103,8 +103,8 @@ library EntityHashing {
     /// @dev Reverted when `execute()` is called with an empty ops array.
     error EmptyBatch();
     error AttributesNotSorted();
-    error InvalidValueLength(bytes32 name, uint8 valueType, uint256 length);
-    error InvalidValueType(bytes32 name, uint8 valueType);
+    error InvalidValueLength(Ident32 name, uint8 valueType, uint256 length);
+    error InvalidValueType(Ident32 name, uint8 valueType);
     /// @dev Reverted when opType is unrecognized (including 0 / uninitialized).
     error InvalidOpType(uint8 opType);
 
@@ -208,10 +208,10 @@ library EntityHashing {
     /// previous (lexicographic on the packed bytes32), enforcing sorted
     /// order and name uniqueness.
     /// @return The updated rolling hash.
-    function attributeHash(bytes32 prevName, bytes32 chain, Attribute calldata attr)
+    function attributeHash(Ident32 prevName, bytes32 chain, Attribute calldata attr)
         internal
         pure
-        returns (bytes32, bytes32)
+        returns (Ident32, bytes32)
     {
         validateIdent32(attr.name);
         if (attr.name <= prevName) revert AttributesNotSorted();
@@ -226,7 +226,8 @@ library EntityHashing {
             revert InvalidValueType(attr.name, vt);
         }
 
-        bytes32 attrHash = keccak256(abi.encode(ATTRIBUTE_TYPEHASH, attr.name, attr.valueType, keccak256(attr.value)));
+        bytes32 attrHash =
+            keccak256(abi.encode(ATTRIBUTE_TYPEHASH, Ident32.unwrap(attr.name), attr.valueType, keccak256(attr.value)));
         return (attr.name, keccak256(abi.encodePacked(chain, attrHash)));
     }
 
@@ -245,7 +246,7 @@ library EntityHashing {
             revert TooManyAttributes(attributes.length, MAX_ATTRIBUTES);
         }
         bytes32 attrChain;
-        bytes32 prevName;
+        Ident32 prevName;
         for (uint256 i = 0; i < attributes.length; i++) {
             (prevName, attrChain) = attributeHash(prevName, attrChain, attributes[i]);
         }

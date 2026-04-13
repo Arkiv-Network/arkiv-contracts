@@ -3,12 +3,12 @@ pragma solidity ^0.8.24;
 
 import {BlockNumber} from "../../src/BlockNumber.sol";
 import {EntityHashing} from "../../src/EntityHashing.sol";
+import {Ident32, encodeIdent32} from "../../src/Ident32.sol";
 import {Mime128} from "../../src/types/Mime128.sol";
-import {encodeIdent32} from "../../src/Ident32.sol";
 
 library Lib {
-    /// @dev Pack a string into a validated, left-aligned, zero-padded bytes32.
-    function packName(string memory name) internal pure returns (bytes32) {
+    /// @dev Pack a string into a validated, left-aligned, zero-padded Ident32.
+    function packName(string memory name) internal pure returns (Ident32) {
         return encodeIdent32(name);
     }
 

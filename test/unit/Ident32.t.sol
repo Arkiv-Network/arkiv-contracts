@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {
+    Ident32,
     Ident32Empty,
     Ident32TooLong,
     Ident32InvalidByte,
@@ -18,11 +19,11 @@ contract Ident32Test is Test {
     // Calldata wrapper
     // -------------------------------------------------------------------------
 
-    function doValidate(bytes32 value) external pure returns (uint256) {
+    function doValidate(Ident32 value) external pure returns (uint256) {
         return validateIdent32(value);
     }
 
-    function doEncode(string calldata value) external pure returns (bytes32) {
+    function doEncode(string calldata value) external pure returns (Ident32) {
         return encodeIdent32(value);
     }
 
@@ -104,7 +105,7 @@ contract Ident32Test is Test {
     }
 
     function test_validate_maxLength32() public view {
-        bytes32 v = encodeIdent32("abcdefghijklmnopqrstuvwxyz012345");
+        Ident32 v = encodeIdent32("abcdefghijklmnopqrstuvwxyz012345");
         assertEq(this.doValidate(v), 32);
     }
 
@@ -113,25 +114,25 @@ contract Ident32Test is Test {
     // =========================================================================
 
     function test_validate_rejectsLeadingDigit() public {
-        bytes32 v = encodeIdent32("0count");
+        Ident32 v = encodeIdent32("0count");
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(0), bytes1("0")));
         this.doValidate(v);
     }
 
     function test_validate_rejectsLeadingDot() public {
-        bytes32 v = encodeIdent32(".hidden");
+        Ident32 v = encodeIdent32(".hidden");
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(0), bytes1(".")));
         this.doValidate(v);
     }
 
     function test_validate_rejectsLeadingHyphen() public {
-        bytes32 v = encodeIdent32("-flag");
+        Ident32 v = encodeIdent32("-flag");
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(0), bytes1("-")));
         this.doValidate(v);
     }
 
     function test_validate_rejectsLeadingUnderscore() public {
-        bytes32 v = encodeIdent32("_private");
+        Ident32 v = encodeIdent32("_private");
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(0), bytes1("_")));
         this.doValidate(v);
     }
@@ -149,105 +150,98 @@ contract Ident32Test is Test {
     // =========================================================================
 
     function test_validate_rejectsUppercase_A() public {
-        bytes32 v;
-        v = bytes32(bytes1("A"));
+        Ident32 v = Ident32.wrap(bytes32(bytes1("A")));
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(0), bytes1("A")));
         this.doValidate(v);
     }
 
     function test_validate_rejectsUppercase_Z() public {
-        bytes32 v;
-        v = bytes32(bytes1("Z"));
+        Ident32 v = Ident32.wrap(bytes32(bytes1("Z")));
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(0), bytes1("Z")));
         this.doValidate(v);
     }
 
     function test_validate_rejectsUppercaseInMiddle() public {
-        bytes32 v = encodeIdent32("abcde");
-        // Manually set byte 2 to 'X'
-        v = v | (bytes32(bytes1("X")) >> (2 * 8));
-        // Clear the original 'c' at position 2
-        v = v & ~(bytes32(bytes1(0xFF)) >> (2 * 8));
-        v = v | (bytes32(bytes1("X")) >> (2 * 8));
+        bytes32 raw = Ident32.unwrap(encodeIdent32("abcde"));
+        // Clear the original 'c' at position 2 and set to 'X'
+        raw = raw & ~(bytes32(bytes1(0xFF)) >> (2 * 8));
+        raw = raw | (bytes32(bytes1("X")) >> (2 * 8));
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(2), bytes1("X")));
-        this.doValidate(v);
+        this.doValidate(Ident32.wrap(raw));
     }
 
     function test_validate_rejectsSpace() public {
-        bytes32 v = encodeIdent32("ab");
-        v = v | (bytes32(bytes1(" ")) >> (2 * 8));
+        bytes32 raw = Ident32.unwrap(encodeIdent32("ab"));
+        raw = raw | (bytes32(bytes1(" ")) >> (2 * 8));
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(2), bytes1(" ")));
-        this.doValidate(v);
+        this.doValidate(Ident32.wrap(raw));
     }
 
     function test_validate_rejectsControlChar() public {
-        bytes32 v;
-        v = bytes32(bytes1(0x09)); // tab
+        Ident32 v = Ident32.wrap(bytes32(bytes1(0x09))); // tab
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(0), bytes1(0x09)));
         this.doValidate(v);
     }
 
     function test_validate_rejectsDel() public {
-        bytes32 v;
-        v = bytes32(bytes1(0x7F));
+        Ident32 v = Ident32.wrap(bytes32(bytes1(0x7F)));
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(0), bytes1(0x7F)));
         this.doValidate(v);
     }
 
     function test_validate_rejectsHighByte() public {
-        bytes32 v;
-        v = bytes32(bytes1(0x80));
+        Ident32 v = Ident32.wrap(bytes32(bytes1(0x80)));
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(0), bytes1(0x80)));
         this.doValidate(v);
     }
 
     function test_validate_rejectsSlash() public {
-        bytes32 v = encodeIdent32("ab");
-        v = v | (bytes32(bytes1("/")) >> (2 * 8));
+        bytes32 raw = Ident32.unwrap(encodeIdent32("ab"));
+        raw = raw | (bytes32(bytes1("/")) >> (2 * 8));
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(2), bytes1("/")));
-        this.doValidate(v);
+        this.doValidate(Ident32.wrap(raw));
     }
 
     function test_validate_rejectsColon() public {
-        bytes32 v = encodeIdent32("ab");
-        v = v | (bytes32(bytes1(":")) >> (2 * 8));
+        bytes32 raw = Ident32.unwrap(encodeIdent32("ab"));
+        raw = raw | (bytes32(bytes1(":")) >> (2 * 8));
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(2), bytes1(":")));
-        this.doValidate(v);
+        this.doValidate(Ident32.wrap(raw));
     }
 
     function test_validate_rejectsSemicolon() public {
-        bytes32 v = encodeIdent32("ab");
-        v = v | (bytes32(bytes1(";")) >> (2 * 8));
+        bytes32 raw = Ident32.unwrap(encodeIdent32("ab"));
+        raw = raw | (bytes32(bytes1(";")) >> (2 * 8));
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(2), bytes1(";")));
-        this.doValidate(v);
+        this.doValidate(Ident32.wrap(raw));
     }
 
     function test_validate_rejectsEquals() public {
-        bytes32 v = encodeIdent32("ab");
-        v = v | (bytes32(bytes1("=")) >> (2 * 8));
+        bytes32 raw = Ident32.unwrap(encodeIdent32("ab"));
+        raw = raw | (bytes32(bytes1("=")) >> (2 * 8));
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(2), bytes1("=")));
-        this.doValidate(v);
+        this.doValidate(Ident32.wrap(raw));
     }
 
     function test_validate_rejectsAt() public {
-        bytes32 v = encodeIdent32("ab");
-        v = v | (bytes32(bytes1("@")) >> (2 * 8));
+        bytes32 raw = Ident32.unwrap(encodeIdent32("ab"));
+        raw = raw | (bytes32(bytes1("@")) >> (2 * 8));
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(2), bytes1("@")));
-        this.doValidate(v);
+        this.doValidate(Ident32.wrap(raw));
     }
 
     function test_validate_rejectsExclamation() public {
-        bytes32 v = encodeIdent32("ab");
-        v = v | (bytes32(bytes1("!")) >> (2 * 8));
+        bytes32 raw = Ident32.unwrap(encodeIdent32("ab"));
+        raw = raw | (bytes32(bytes1("!")) >> (2 * 8));
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(2), bytes1("!")));
-        this.doValidate(v);
+        this.doValidate(Ident32.wrap(raw));
     }
 
     function test_validate_rejectsHash() public {
-        bytes32 v = encodeIdent32("ab");
-        v = v | (bytes32(bytes1("#")) >> (2 * 8));
+        bytes32 raw = Ident32.unwrap(encodeIdent32("ab"));
+        raw = raw | (bytes32(bytes1("#")) >> (2 * 8));
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(2), bytes1("#")));
-        this.doValidate(v);
+        this.doValidate(Ident32.wrap(raw));
     }
 
     // =========================================================================
@@ -256,12 +250,12 @@ contract Ident32Test is Test {
 
     function test_validate_rejectsEmpty() public {
         vm.expectRevert(Ident32Empty.selector);
-        this.doValidate(bytes32(0));
+        this.doValidate(Ident32.wrap(bytes32(0)));
     }
 
     function test_validate_rejectsEmbeddedNull() public {
         // "ab\0cd" — null at position 2, then non-zero at 3
-        bytes32 v = bytes32(bytes4(0x61620063)); // a b \0 c
+        Ident32 v = Ident32.wrap(bytes32(bytes4(0x61620063))); // a b \0 c
         vm.expectRevert(abi.encodeWithSelector(Ident32InvalidByte.selector, uint256(3), bytes1("c")));
         this.doValidate(v);
     }
