@@ -6,6 +6,7 @@ import {Test, Vm} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {EntityHashing} from "../../../src/EntityHashing.sol";
 import {EntityRegistry} from "../../../src/EntityRegistry.sol";
+import {Mime128, encodeMime128} from "../../../src/Mime128.sol";
 
 contract UpdateTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
@@ -13,6 +14,10 @@ contract UpdateTest is Test, EntityRegistry {
 
     BlockNumber expiresAt;
     bytes32 testKey;
+
+    Mime128 textPlain;
+    Mime128 appJson;
+
 
     // Calldata wrappers.
     function doCreate(EntityHashing.Op calldata op) external returns (bytes32, bytes32) {
@@ -27,7 +32,7 @@ contract UpdateTest is Test, EntityRegistry {
         bytes32 key,
         address creator,
         BlockNumber createdAt,
-        string calldata contentType,
+        Mime128 calldata contentType,
         bytes calldata payload,
         EntityHashing.Attribute[] calldata attributes
     ) external pure returns (bytes32) {
@@ -35,11 +40,14 @@ contract UpdateTest is Test, EntityRegistry {
     }
 
     function setUp() public {
+        textPlain = encodeMime128("text/plain");
+        appJson = encodeMime128("application/json");
+
         expiresAt = currentBlock() + BlockNumber.wrap(1000);
 
         // Create an entity owned by alice.
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        EntityHashing.Op memory createOp = Lib.createOp("hello", "text/plain", attrs, expiresAt);
+        EntityHashing.Op memory createOp = Lib.createOp("hello", textPlain, attrs, expiresAt);
         vm.prank(alice);
         (testKey,) = this.doCreate(createOp);
     }
@@ -50,7 +58,7 @@ contract UpdateTest is Test, EntityRegistry {
 
     function _simpleUpdateOp() internal view returns (EntityHashing.Op memory) {
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        return Lib.updateOp(testKey, "world", "text/plain", attrs);
+        return Lib.updateOp(testKey, "world", textPlain, attrs);
     }
 
     // =========================================================================
@@ -112,13 +120,13 @@ contract UpdateTest is Test, EntityRegistry {
     function test_update_coreHashMatchesManualComputation() public {
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](1);
         attrs[0] = Lib.uintAttr("count", 99);
-        EntityHashing.Op memory op = Lib.updateOp(testKey, "new payload", "text/plain", attrs);
+        EntityHashing.Op memory op = Lib.updateOp(testKey, "new payload", textPlain, attrs);
 
         vm.prank(alice);
         this.doUpdate(op);
 
         EntityHashing.Commitment memory c = getCommitment(testKey);
-        bytes32 expected = this.hashCore(testKey, c.creator, c.createdAt, "text/plain", "new payload", attrs);
+        bytes32 expected = this.hashCore(testKey, c.creator, c.createdAt, textPlain, "new payload", attrs);
         assertEq(c.coreHash, expected);
     }
 
@@ -164,7 +172,7 @@ contract UpdateTest is Test, EntityRegistry {
 
         // Update with the exact same content as the original create.
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        EntityHashing.Op memory op = Lib.updateOp(testKey, "hello", "text/plain", attrs);
+        EntityHashing.Op memory op = Lib.updateOp(testKey, "hello", textPlain, attrs);
 
         vm.prank(alice);
         this.doUpdate(op);
@@ -175,7 +183,7 @@ contract UpdateTest is Test, EntityRegistry {
 
     function test_update_emptyPayloadAndAttributes() public {
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        EntityHashing.Op memory op = Lib.updateOp(testKey, "", "text/plain", attrs);
+        EntityHashing.Op memory op = Lib.updateOp(testKey, "", textPlain, attrs);
 
         vm.prank(alice);
         (bytes32 key, bytes32 entityHash_) = this.doUpdate(op);
@@ -187,7 +195,7 @@ contract UpdateTest is Test, EntityRegistry {
     function test_update_multipleUpdatesChain() public {
         // First update.
         EntityHashing.Attribute[] memory attrs1 = new EntityHashing.Attribute[](0);
-        EntityHashing.Op memory op1 = Lib.updateOp(testKey, "v2", "text/plain", attrs1);
+        EntityHashing.Op memory op1 = Lib.updateOp(testKey, "v2", textPlain, attrs1);
         vm.prank(alice);
         this.doUpdate(op1);
 
@@ -196,7 +204,7 @@ contract UpdateTest is Test, EntityRegistry {
         // Second update with different content.
         EntityHashing.Attribute[] memory attrs2 = new EntityHashing.Attribute[](1);
         attrs2[0] = Lib.uintAttr("version", 3);
-        EntityHashing.Op memory op2 = Lib.updateOp(testKey, "v3", "application/json", attrs2);
+        EntityHashing.Op memory op2 = Lib.updateOp(testKey, "v3", appJson, attrs2);
         vm.prank(alice);
         this.doUpdate(op2);
 

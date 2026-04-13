@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {BlockNumber} from "./BlockNumber.sol";
+import {Mime128} from "./Mime128.sol";
 
 type OpKey is uint256;
 type TxKey is uint256;
@@ -45,7 +46,7 @@ library EntityHashing {
         uint8 opType;
         bytes32 entityKey;
         bytes payload;
-        string contentType;
+        Mime128 contentType;
         Attribute[] attributes;
         BlockNumber expiresAt;
         address newOwner;
@@ -144,9 +145,9 @@ library EntityHashing {
     /// @dev keccak256("Attribute(bytes32 name,uint8 valueType,bytes value)")
     bytes32 internal constant ATTRIBUTE_TYPEHASH = keccak256("Attribute(bytes32 name,uint8 valueType,bytes value)");
 
-    /// @dev keccak256("CoreHash(bytes32 entityKey,address creator,uint32 createdAt,string contentType,bytes payload,bytes32 attributesHash)")
+    /// @dev keccak256("CoreHash(bytes32 entityKey,address creator,uint32 createdAt,bytes32[4] contentType,bytes payload,bytes32 attributesHash)")
     bytes32 internal constant CORE_HASH_TYPEHASH = keccak256(
-        "CoreHash(bytes32 entityKey,address creator,uint32 createdAt,string contentType,bytes payload,bytes32 attributesHash)"
+        "CoreHash(bytes32 entityKey,address creator,uint32 createdAt,bytes32[4] contentType,bytes payload,bytes32 attributesHash)"
     );
 
     /// @dev keccak256("EntityHash(bytes32 coreHash,address owner,uint32 updatedAt,uint32 expiresAt)")
@@ -234,7 +235,7 @@ library EntityHashing {
         bytes32 key,
         address creator,
         BlockNumber createdAt,
-        string calldata contentType,
+        Mime128 calldata contentType,
         bytes calldata payload,
         Attribute[] calldata attributes
     ) internal pure returns (bytes32) {
@@ -252,7 +253,9 @@ library EntityHashing {
                 key,
                 creator,
                 createdAt,
-                keccak256(bytes(contentType)),
+                keccak256(
+                    abi.encode(contentType.data[0], contentType.data[1], contentType.data[2], contentType.data[3])
+                ),
                 keccak256(payload),
                 attrChain
             )

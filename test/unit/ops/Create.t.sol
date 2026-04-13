@@ -6,6 +6,7 @@ import {Test} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {EntityHashing} from "../../../src/EntityHashing.sol";
 import {EntityRegistry} from "../../../src/EntityRegistry.sol";
+import {encodeMime128} from "../../../src/Mime128.sol";
 
 /// @dev Tests _create logic (expiry, commitment, events) with stubbed key
 /// generation and hash computation so the test focuses on state transitions.
@@ -45,7 +46,7 @@ contract CreateTest is Test, EntityRegistry {
 
     function _defaultOp() internal view returns (EntityHashing.Op memory) {
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        return Lib.createOp("hello", "text/plain", attrs, expiresAt);
+        return Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
     }
 
     // =========================================================================
@@ -54,7 +55,7 @@ contract CreateTest is Test, EntityRegistry {
 
     function test_create_expiryEqualToCurrentBlock_reverts() public {
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        EntityHashing.Op memory op = Lib.createOp("hello", "text/plain", attrs, currentBlock());
+        EntityHashing.Op memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, currentBlock());
 
         vm.prank(alice);
         vm.expectRevert(); // ExpiryInPast
@@ -65,7 +66,7 @@ contract CreateTest is Test, EntityRegistry {
         vm.roll(block.number + 100);
 
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        EntityHashing.Op memory op = Lib.createOp("hello", "text/plain", attrs, BlockNumber.wrap(1));
+        EntityHashing.Op memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, BlockNumber.wrap(1));
 
         vm.prank(alice);
         vm.expectRevert(); // ExpiryInPast
@@ -74,7 +75,8 @@ contract CreateTest is Test, EntityRegistry {
 
     function test_create_expiryOneBlockAhead_succeeds() public {
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        EntityHashing.Op memory op = Lib.createOp("hello", "text/plain", attrs, currentBlock() + BlockNumber.wrap(1));
+        EntityHashing.Op memory op =
+            Lib.createOp("hello", encodeMime128("text/plain"), attrs, currentBlock() + BlockNumber.wrap(1));
 
         vm.prank(alice);
         (bytes32 key,) = this.doCreate(op);

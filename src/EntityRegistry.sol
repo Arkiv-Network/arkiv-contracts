@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {BlockNumber, currentBlock} from "./BlockNumber.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {EntityHashing, OpKey, TxKey} from "./EntityHashing.sol";
+import {validateMime128} from "./Mime128.sol";
 
 /// @title EntityRegistry
 /// @dev Stateful entity registry. All encoding and hashing logic is delegated
@@ -250,6 +251,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         virtual
         returns (bytes32 key, bytes32 entityHash_)
     {
+        validateMime128(op.contentType);
         EntityHashing.requireFutureExpiry(op.expiresAt, current);
 
         key = _createEntityKey(msg.sender);
@@ -288,7 +290,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         EntityHashing.requireActive(key, c, current);
         EntityHashing.requireOwner(key, c);
 
-        // TODO: contentType validation per RFC 6838 media type syntax.
+        validateMime128(op.contentType);
 
         // Recompute hashes with new content but immutable identity fields.
         // Attribute validation (sorting, value type/length, count) runs inside coreHash.

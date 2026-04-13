@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {BlockNumber} from "../../../src/BlockNumber.sol";
+import {Mime128, encodeMime128} from "../../../src/Mime128.sol";
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {EntityHashing} from "../../../src/EntityHashing.sol";
@@ -11,11 +12,19 @@ contract CoreHashTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
 
+    Mime128 textPlain;
+    Mime128 appJson;
+
+    function setUp() public {
+        textPlain = encodeMime128("text/plain");
+        appJson = encodeMime128("application/json");
+    }
+
     function hashCore(
         bytes32 key,
         address creator,
         BlockNumber createdAt,
-        string calldata contentType,
+        Mime128 calldata contentType,
         bytes calldata payload,
         EntityHashing.Attribute[] calldata attributes
     ) external pure returns (bytes32) {
@@ -31,8 +40,8 @@ contract CoreHashTest is Test, EntityRegistry {
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](1);
         attrs[0] = Lib.uintAttr("count", 1);
 
-        bytes32 hashA = this.hashCore(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
-        bytes32 hashB = this.hashCore(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
+        bytes32 hashA = this.hashCore(key, alice, BlockNumber.wrap(100), textPlain, "hello", attrs);
+        bytes32 hashB = this.hashCore(key, alice, BlockNumber.wrap(100), textPlain, "hello", attrs);
 
         assertEq(hashA, hashB);
     }
@@ -44,8 +53,8 @@ contract CoreHashTest is Test, EntityRegistry {
     function test_coreHash_differentKey_differs() public {
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
-        bytes32 hashA = this.hashCore(keccak256("key1"), alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
-        bytes32 hashB = this.hashCore(keccak256("key2"), alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
+        bytes32 hashA = this.hashCore(keccak256("key1"), alice, BlockNumber.wrap(100), textPlain, "hello", attrs);
+        bytes32 hashB = this.hashCore(keccak256("key2"), alice, BlockNumber.wrap(100), textPlain, "hello", attrs);
 
         assertNotEq(hashA, hashB);
     }
@@ -54,8 +63,8 @@ contract CoreHashTest is Test, EntityRegistry {
         bytes32 key = keccak256("key");
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
-        bytes32 hashA = this.hashCore(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
-        bytes32 hashB = this.hashCore(key, bob, BlockNumber.wrap(100), "text/plain", "hello", attrs);
+        bytes32 hashA = this.hashCore(key, alice, BlockNumber.wrap(100), textPlain, "hello", attrs);
+        bytes32 hashB = this.hashCore(key, bob, BlockNumber.wrap(100), textPlain, "hello", attrs);
 
         assertNotEq(hashA, hashB);
     }
@@ -64,8 +73,8 @@ contract CoreHashTest is Test, EntityRegistry {
         bytes32 key = keccak256("key");
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
-        bytes32 hashA = this.hashCore(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
-        bytes32 hashB = this.hashCore(key, alice, BlockNumber.wrap(200), "text/plain", "hello", attrs);
+        bytes32 hashA = this.hashCore(key, alice, BlockNumber.wrap(100), textPlain, "hello", attrs);
+        bytes32 hashB = this.hashCore(key, alice, BlockNumber.wrap(200), textPlain, "hello", attrs);
 
         assertNotEq(hashA, hashB);
     }
@@ -74,8 +83,8 @@ contract CoreHashTest is Test, EntityRegistry {
         bytes32 key = keccak256("key");
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
-        bytes32 hashA = this.hashCore(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
-        bytes32 hashB = this.hashCore(key, alice, BlockNumber.wrap(100), "application/json", "hello", attrs);
+        bytes32 hashA = this.hashCore(key, alice, BlockNumber.wrap(100), textPlain, "hello", attrs);
+        bytes32 hashB = this.hashCore(key, alice, BlockNumber.wrap(100), appJson, "hello", attrs);
 
         assertNotEq(hashA, hashB);
     }
@@ -84,8 +93,8 @@ contract CoreHashTest is Test, EntityRegistry {
         bytes32 key = keccak256("key");
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
 
-        bytes32 hashA = this.hashCore(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
-        bytes32 hashB = this.hashCore(key, alice, BlockNumber.wrap(100), "text/plain", "world", attrs);
+        bytes32 hashA = this.hashCore(key, alice, BlockNumber.wrap(100), textPlain, "hello", attrs);
+        bytes32 hashB = this.hashCore(key, alice, BlockNumber.wrap(100), textPlain, "world", attrs);
 
         assertNotEq(hashA, hashB);
     }
@@ -99,8 +108,8 @@ contract CoreHashTest is Test, EntityRegistry {
         EntityHashing.Attribute[] memory attrsB = new EntityHashing.Attribute[](1);
         attrsB[0] = Lib.uintAttr("count", 2);
 
-        bytes32 hashA = this.hashCore(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrsA);
-        bytes32 hashB = this.hashCore(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrsB);
+        bytes32 hashA = this.hashCore(key, alice, BlockNumber.wrap(100), textPlain, "hello", attrsA);
+        bytes32 hashB = this.hashCore(key, alice, BlockNumber.wrap(100), textPlain, "hello", attrsB);
 
         assertNotEq(hashA, hashB);
     }
@@ -112,8 +121,8 @@ contract CoreHashTest is Test, EntityRegistry {
         EntityHashing.Attribute[] memory one = new EntityHashing.Attribute[](1);
         one[0] = Lib.uintAttr("count", 1);
 
-        bytes32 hashA = this.hashCore(key, alice, BlockNumber.wrap(100), "text/plain", "hello", empty);
-        bytes32 hashB = this.hashCore(key, alice, BlockNumber.wrap(100), "text/plain", "hello", one);
+        bytes32 hashA = this.hashCore(key, alice, BlockNumber.wrap(100), textPlain, "hello", empty);
+        bytes32 hashB = this.hashCore(key, alice, BlockNumber.wrap(100), textPlain, "hello", one);
 
         assertNotEq(hashA, hashB);
     }
@@ -130,7 +139,7 @@ contract CoreHashTest is Test, EntityRegistry {
         attrs[1] = Lib.uintAttr("aaa", 1);
 
         vm.expectRevert(EntityHashing.AttributesNotSorted.selector);
-        this.hashCore(key, alice, BlockNumber.wrap(100), "text/plain", "hello", attrs);
+        this.hashCore(key, alice, BlockNumber.wrap(100), textPlain, "hello", attrs);
     }
 
     // -------------------------------------------------------------------------
@@ -141,7 +150,6 @@ contract CoreHashTest is Test, EntityRegistry {
         bytes32 key = keccak256("key");
         BlockNumber createdAt = BlockNumber.wrap(100);
         bytes memory payload = "hello";
-        string memory contentType = "text/plain";
 
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](2);
         attrs[0] = Lib.uintAttr("aaa", 10);
@@ -156,67 +164,29 @@ contract CoreHashTest is Test, EntityRegistry {
         bytes32 attrChain = keccak256(abi.encodePacked(bytes32(0), hashA));
         attrChain = keccak256(abi.encodePacked(attrChain, hashB));
 
+        bytes32 ctHash =
+            keccak256(abi.encode(textPlain.data[0], textPlain.data[1], textPlain.data[2], textPlain.data[3]));
+
         bytes32 expected = keccak256(
-            abi.encode(
-                EntityHashing.CORE_HASH_TYPEHASH,
-                key,
-                alice,
-                createdAt,
-                keccak256(bytes(contentType)),
-                keccak256(payload),
-                attrChain
-            )
+            abi.encode(EntityHashing.CORE_HASH_TYPEHASH, key, alice, createdAt, ctHash, keccak256(payload), attrChain)
         );
 
-        assertEq(this.hashCore(key, alice, createdAt, contentType, payload, attrs), expected);
+        assertEq(this.hashCore(key, alice, createdAt, textPlain, payload, attrs), expected);
     }
 
     function test_coreHash_emptyPayloadAndAttributes() public {
         bytes32 key = keccak256("key");
 
+        bytes32 ctHash =
+            keccak256(abi.encode(textPlain.data[0], textPlain.data[1], textPlain.data[2], textPlain.data[3]));
+
         bytes32 expected = keccak256(
             abi.encode(
-                EntityHashing.CORE_HASH_TYPEHASH,
-                key,
-                alice,
-                BlockNumber.wrap(100),
-                keccak256(bytes("text/plain")),
-                keccak256(""),
-                bytes32(0)
+                EntityHashing.CORE_HASH_TYPEHASH, key, alice, BlockNumber.wrap(100), ctHash, keccak256(""), bytes32(0)
             )
         );
 
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        assertEq(this.hashCore(key, alice, BlockNumber.wrap(100), "text/plain", "", attrs), expected);
-    }
-
-    // -------------------------------------------------------------------------
-    // Fuzz — verify encoding consistency
-    // -------------------------------------------------------------------------
-
-    function test_coreHash_fuzz(
-        bytes32 key,
-        address creator,
-        uint32 rawCreatedAt,
-        string calldata contentType,
-        bytes calldata payload
-    ) public {
-        BlockNumber createdAt = BlockNumber.wrap(rawCreatedAt);
-        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-
-        bytes32 actual = this.hashCore(key, creator, createdAt, contentType, payload, attrs);
-
-        bytes32 expected = keccak256(
-            abi.encode(
-                EntityHashing.CORE_HASH_TYPEHASH,
-                key,
-                creator,
-                createdAt,
-                keccak256(bytes(contentType)),
-                keccak256(payload),
-                bytes32(0)
-            )
-        );
-        assertEq(actual, expected);
+        assertEq(this.hashCore(key, alice, BlockNumber.wrap(100), textPlain, "", attrs), expected);
     }
 }

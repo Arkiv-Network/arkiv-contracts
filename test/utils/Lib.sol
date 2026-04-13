@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {BlockNumber} from "../../src/BlockNumber.sol";
 import {EntityHashing} from "../../src/EntityHashing.sol";
+import {Mime128} from "../../src/Mime128.sol";
 
 library Lib {
     /// @dev Pack a string into a left-aligned, zero-padded bytes32.
@@ -16,7 +17,7 @@ library Lib {
 
     function createOp(
         bytes memory payload_,
-        string memory contentType_,
+        Mime128 memory contentType_,
         EntityHashing.Attribute[] memory attributes_,
         BlockNumber expiresAt_
     ) internal pure returns (EntityHashing.Op memory) {
@@ -34,7 +35,7 @@ library Lib {
     function updateOp(
         bytes32 entityKey_,
         bytes memory payload_,
-        string memory contentType_,
+        Mime128 memory contentType_,
         EntityHashing.Attribute[] memory attributes_
     ) internal pure returns (EntityHashing.Op memory) {
         return EntityHashing.Op({
@@ -50,11 +51,12 @@ library Lib {
 
     function deleteOp(bytes32 entityKey_) internal pure returns (EntityHashing.Op memory) {
         EntityHashing.Attribute[] memory empty = new EntityHashing.Attribute[](0);
+        Mime128 memory emptyCt;
         return EntityHashing.Op({
             opType: EntityHashing.DELETE,
             entityKey: entityKey_,
             payload: "",
-            contentType: "",
+            contentType: emptyCt,
             attributes: empty,
             expiresAt: BlockNumber.wrap(0),
             newOwner: address(0)
@@ -63,11 +65,12 @@ library Lib {
 
     function transferOp(bytes32 entityKey_, address newOwner_) internal pure returns (EntityHashing.Op memory) {
         EntityHashing.Attribute[] memory empty = new EntityHashing.Attribute[](0);
+        Mime128 memory emptyCt;
         return EntityHashing.Op({
             opType: EntityHashing.TRANSFER,
             entityKey: entityKey_,
             payload: "",
-            contentType: "",
+            contentType: emptyCt,
             attributes: empty,
             expiresAt: BlockNumber.wrap(0),
             newOwner: newOwner_
@@ -76,11 +79,12 @@ library Lib {
 
     function extendOp(bytes32 entityKey_, BlockNumber expiresAt_) internal pure returns (EntityHashing.Op memory) {
         EntityHashing.Attribute[] memory empty = new EntityHashing.Attribute[](0);
+        Mime128 memory emptyCt;
         return EntityHashing.Op({
             opType: EntityHashing.EXTEND,
             entityKey: entityKey_,
             payload: "",
-            contentType: "",
+            contentType: emptyCt,
             attributes: empty,
             expiresAt: expiresAt_,
             newOwner: address(0)

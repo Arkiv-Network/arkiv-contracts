@@ -6,11 +6,18 @@ import {Test} from "forge-std/Test.sol";
 import {Lib} from "../utils/Lib.sol";
 import {EntityHashing} from "../../src/EntityHashing.sol";
 import {EntityRegistry} from "../../src/EntityRegistry.sol";
+import {Mime128, encodeMime128} from "../../src/Mime128.sol";
 
 /// @dev Tests _computeEntityHash in isolation — verifies the two-level EIP-712
 /// hash (coreHash + entityHash) matches manual computation.
 contract ComputeEntityHashTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
+
+    Mime128 textPlain;
+
+    function setUp() public {
+        textPlain = encodeMime128("text/plain");
+    }
 
     function doComputeEntityHash(
         bytes32 key,
@@ -28,7 +35,7 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         bytes32 key,
         address creator,
         BlockNumber createdAt,
-        string calldata contentType,
+        Mime128 calldata contentType,
         bytes calldata payload,
         EntityHashing.Attribute[] calldata attributes
     ) external pure returns (bytes32) {
@@ -45,10 +52,10 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
 
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](1);
         attrs[0] = Lib.uintAttr("count", 42);
-        EntityHashing.Op memory op = Lib.createOp("hello", "text/plain", attrs, currentBlock() + BlockNumber.wrap(1000));
+        EntityHashing.Op memory op = Lib.createOp("hello", textPlain, attrs, currentBlock() + BlockNumber.wrap(1000));
 
         (bytes32 coreHash_,) = this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
-        bytes32 expected = this.doCoreHash(key, alice, current, "text/plain", "hello", attrs);
+        bytes32 expected = this.doCoreHash(key, alice, current, textPlain, "hello", attrs);
 
         assertEq(coreHash_, expected);
     }
@@ -62,7 +69,7 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         BlockNumber current = BlockNumber.wrap(100);
 
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        EntityHashing.Op memory op = Lib.createOp("hello", "text/plain", attrs, currentBlock() + BlockNumber.wrap(1000));
+        EntityHashing.Op memory op = Lib.createOp("hello", textPlain, attrs, currentBlock() + BlockNumber.wrap(1000));
 
         (bytes32 coreHash_, bytes32 entityHash_) =
             this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
@@ -82,7 +89,7 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         BlockNumber current = BlockNumber.wrap(100);
 
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        EntityHashing.Op memory op = Lib.createOp("hello", "text/plain", attrs, currentBlock() + BlockNumber.wrap(1000));
+        EntityHashing.Op memory op = Lib.createOp("hello", textPlain, attrs, currentBlock() + BlockNumber.wrap(1000));
 
         (bytes32 coreA, bytes32 entityA) =
             this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
@@ -103,8 +110,8 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         BlockNumber expiry = currentBlock() + BlockNumber.wrap(1000);
 
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        EntityHashing.Op memory opA = Lib.createOp("hello", "text/plain", attrs, expiry);
-        EntityHashing.Op memory opB = Lib.createOp("world", "text/plain", attrs, expiry);
+        EntityHashing.Op memory opA = Lib.createOp("hello", textPlain, attrs, expiry);
+        EntityHashing.Op memory opB = Lib.createOp("world", textPlain, attrs, expiry);
 
         (bytes32 coreA,) = this.doComputeEntityHash(key, alice, current, alice, current, opA.expiresAt, opA);
         (bytes32 coreB,) = this.doComputeEntityHash(key, alice, current, alice, current, opB.expiresAt, opB);
@@ -117,8 +124,8 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         BlockNumber current = BlockNumber.wrap(100);
 
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        EntityHashing.Op memory opA = Lib.createOp("hello", "text/plain", attrs, BlockNumber.wrap(500));
-        EntityHashing.Op memory opB = Lib.createOp("hello", "text/plain", attrs, BlockNumber.wrap(600));
+        EntityHashing.Op memory opA = Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(500));
+        EntityHashing.Op memory opB = Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(600));
 
         (bytes32 coreA, bytes32 entityA) =
             this.doComputeEntityHash(key, alice, current, alice, current, opA.expiresAt, opA);
@@ -142,8 +149,8 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         EntityHashing.Attribute[] memory attrsB = new EntityHashing.Attribute[](1);
         attrsB[0] = Lib.uintAttr("count", 2);
 
-        EntityHashing.Op memory opA = Lib.createOp("hello", "text/plain", attrsA, expiry);
-        EntityHashing.Op memory opB = Lib.createOp("hello", "text/plain", attrsB, expiry);
+        EntityHashing.Op memory opA = Lib.createOp("hello", textPlain, attrsA, expiry);
+        EntityHashing.Op memory opB = Lib.createOp("hello", textPlain, attrsB, expiry);
 
         (bytes32 coreA,) = this.doComputeEntityHash(key, alice, current, alice, current, opA.expiresAt, opA);
         (bytes32 coreB,) = this.doComputeEntityHash(key, alice, current, alice, current, opB.expiresAt, opB);

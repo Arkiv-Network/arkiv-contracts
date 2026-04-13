@@ -6,6 +6,7 @@ import {Test, Vm} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {EntityHashing} from "../../../src/EntityHashing.sol";
 import {EntityRegistry} from "../../../src/EntityRegistry.sol";
+import {encodeMime128} from "../../../src/Mime128.sol";
 
 contract ExpireTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
@@ -26,7 +27,7 @@ contract ExpireTest is Test, EntityRegistry {
         expiresAt = currentBlock() + BlockNumber.wrap(1000);
 
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        EntityHashing.Op memory createOp = Lib.createOp("hello", "text/plain", attrs, expiresAt);
+        EntityHashing.Op memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
         vm.prank(alice);
         (testKey,) = this.doCreate(createOp);
     }
