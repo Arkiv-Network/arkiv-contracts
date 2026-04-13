@@ -241,6 +241,23 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         }
     }
 
+    /// @dev Require that the entity exists and has expired (expiresAt <= current).
+    /// Guard for the expire operation. Implemented as a function rather than a
+    /// modifier so callers can load the Commitment storage pointer once and
+    /// reuse it for both validation and state updates.
+    function _guardEntityExpiry(bytes32 key, EntityHashing.Commitment storage c, BlockNumber current)
+        internal
+        view
+        virtual
+    {
+        if (c.creator == address(0)) {
+            revert EntityHashing.EntityNotFound(key);
+        }
+        if (c.expiresAt > current) {
+            revert EntityHashing.EntityNotExpired(key, c.expiresAt);
+        }
+    }
+
     /// @dev Mint a new entity key by post-incrementing the owner's nonce.
     /// Uniqueness is guaranteed by the monotonic nonce — no existence check needed.
     function _createEntityKey(address owner) internal virtual returns (bytes32) {
@@ -436,14 +453,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// Storage: deletes the Commitment (zeroes 3 slots via SSTORE to 0, gas refund).
     function _expire(bytes32 key, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         EntityHashing.Commitment storage c = _commitments[key];
-
-        if (c.creator == address(0)) {
-            revert EntityHashing.EntityNotFound(key);
-        }
-
-        if (c.expiresAt > current) {
-            revert EntityHashing.EntityNotExpired(key, c.expiresAt);
-        }
+        _guardEntityExpiry(key, c, current);
 
         bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
         address owner = c.owner;

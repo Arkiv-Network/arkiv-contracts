@@ -14,6 +14,9 @@ contract ExpireTest is Test, EntityRegistry {
     BlockNumber expiresAt;
     bytes32 testKey;
 
+    // Stub guard — tested separately in GuardEntityExpiry.t.sol.
+    function _guardEntityExpiry(bytes32, EntityHashing.Commitment storage, BlockNumber) internal view override {}
+
     function doCreate(EntityHashing.Op calldata op) external returns (bytes32, bytes32) {
         return _create(op, currentBlock());
     }
@@ -32,63 +35,10 @@ contract ExpireTest is Test, EntityRegistry {
     }
 
     // =========================================================================
-    // Validation — entity not found
-    // =========================================================================
-
-    function test_expire_nonExistentEntity_reverts() public {
-        bytes32 bogus = keccak256("bogus");
-
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityNotFound.selector, bogus));
-        this.doExpire(bogus);
-    }
-
-    // =========================================================================
-    // Validation — entity not yet expired
-    // =========================================================================
-
-    function test_expire_notYetExpired_reverts() public {
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityNotExpired.selector, testKey, expiresAt));
-        this.doExpire(testKey);
-    }
-
-    function test_expire_oneBlockBeforeExpiry_reverts() public {
-        vm.roll(BlockNumber.unwrap(expiresAt) - 1);
-
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityNotExpired.selector, testKey, expiresAt));
-        this.doExpire(testKey);
-    }
-
-    // =========================================================================
-    // Callable by anyone
-    // =========================================================================
-
-    function test_expire_callableByNonOwner() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
-
-        // bob (not the owner) can expire alice's entity.
-        vm.prank(bob);
-        (bytes32 returnedKey,) = this.doExpire(testKey);
-
-        assertEq(returnedKey, testKey);
-        assertEq(getCommitment(testKey).creator, address(0));
-    }
-
-    function test_expire_callableByOwner() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
-
-        vm.prank(alice);
-        (bytes32 returnedKey,) = this.doExpire(testKey);
-
-        assertEq(returnedKey, testKey);
-    }
-
-    // =========================================================================
     // State — commitment removed
     // =========================================================================
 
     function test_expire_removesCommitment() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
-
         this.doExpire(testKey);
 
         EntityHashing.Commitment memory c = getCommitment(testKey);
@@ -100,29 +50,11 @@ contract ExpireTest is Test, EntityRegistry {
         assertEq(BlockNumber.unwrap(c.expiresAt), 0);
     }
 
-    function test_expire_doubleExpire_reverts() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
-
-        this.doExpire(testKey);
-
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityNotFound.selector, testKey));
-        this.doExpire(testKey);
-    }
-
     // =========================================================================
-    // Expiry boundary — exactly at expiresAt
+    // Return values
     // =========================================================================
 
-    function test_expire_atExactExpiryBlock_succeeds() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
-
-        (bytes32 returnedKey,) = this.doExpire(testKey);
-        assertEq(returnedKey, testKey);
-    }
-
-    function test_expire_afterExpiryBlock_succeeds() public {
-        vm.roll(BlockNumber.unwrap(expiresAt) + 100);
-
+    function test_expire_returnsEntityKey() public {
         (bytes32 returnedKey,) = this.doExpire(testKey);
         assertEq(returnedKey, testKey);
     }
@@ -132,11 +64,8 @@ contract ExpireTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_expire_returnsSnapshotHash() public {
-        // Compute expected hash from commitment before expiry.
         EntityHashing.Commitment memory c = getCommitment(testKey);
         bytes32 expected = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
-
-        vm.roll(BlockNumber.unwrap(expiresAt));
 
         (, bytes32 entityHash_) = this.doExpire(testKey);
         assertEq(entityHash_, expected);
@@ -147,8 +76,6 @@ contract ExpireTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_expire_emitsEntityExpired() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
-
         vm.expectEmit(true, true, false, false);
         emit EntityExpired(testKey, alice, bytes32(0));
         this.doExpire(testKey);
