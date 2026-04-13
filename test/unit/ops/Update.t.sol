@@ -190,8 +190,8 @@ contract UpdateTest is Test, EntityRegistry {
         EntityHashing.Op memory op = _simpleUpdateOp();
 
         vm.prank(alice);
-        vm.expectEmit(true, true, false, false);
-        emit EntityUpdated(testKey, alice, bytes32(0));
+        vm.expectEmit(true, true, true, false);
+        emit EntityUpdated(testKey, alice, expiresAt, bytes32(0));
         this.doUpdate(op);
     }
 
