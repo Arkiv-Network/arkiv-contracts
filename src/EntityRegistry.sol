@@ -137,7 +137,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
             } else if (opType == EntityHashing.EXPIRE) {
                 (key, entityHash_) = _expire(ops[opSeq].entityKey, current);
             } else {
-                // TODO should not reach here
+                revert EntityHashing.InvalidOpType(opType);
             }
 
             hash = EntityHashing.chainOp(hash, opType, key, entityHash_);

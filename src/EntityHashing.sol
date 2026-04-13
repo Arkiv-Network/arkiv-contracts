@@ -103,6 +103,9 @@ library EntityHashing {
     error AttributesNotSorted();
     error InvalidValueLength(bytes32 name, uint8 valueType, uint256 length);
     error InvalidValueType(bytes32 name, uint8 valueType);
+    /// @dev Reverted when opType is unrecognized (including 0 / uninitialized).
+    error InvalidOpType(uint8 opType);
+
     error ExpiryInPast(BlockNumber expiresAt, BlockNumber currentBlock);
     error TooManyAttributes(uint256 count, uint256 maxCount);
 
