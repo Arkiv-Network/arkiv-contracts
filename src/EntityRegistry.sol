@@ -220,7 +220,9 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     }
 
     /// @dev Require that the entity exists, is not expired, and the caller is the owner.
-    /// Shared guard for update, extend, transfer, and delete.
+    /// Shared guard for update, extend, transfer, and delete. Implemented as a
+    /// function rather than a modifier so callers can load the Commitment storage
+    /// pointer once and reuse it for both validation and state updates.
     function _guardEntityMutation(bytes32 key, EntityHashing.Commitment storage c, BlockNumber current)
         internal
         view
