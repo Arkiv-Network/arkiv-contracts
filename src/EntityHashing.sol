@@ -61,13 +61,14 @@ library EntityHashing {
     uint8 public constant ATTR_ENTITY_KEY = 3;
 
     /// @dev A typed key-value pair attached to an entity. The `name` is a
-    /// bytes32-packed UTF-8 identifier (left-aligned, zero-padded).
+    /// validated Ident32 identifier. The `value` is a fixed 128-byte container
+    /// (bytes32[4]) — encoding is determined by `valueType` and enforced off-chain.
     /// Attributes must be sorted ascending by name for deterministic hash
     /// computation and name-uniqueness enforcement.
     struct Attribute {
         Ident32 name;
         uint8 valueType;
-        bytes value;
+        bytes32[4] value;
     }
 
     /// @dev On-chain entity commitment. Stores only the fields needed to
@@ -104,8 +105,6 @@ library EntityHashing {
     error EmptyBatch();
     /// @dev Reverted when attributes are not in strictly ascending name order.
     error AttributesNotSorted();
-    /// @dev Reverted when an attribute value has the wrong byte length for its type.
-    error InvalidValueLength(Ident32 name, uint8 valueType, uint256 length);
     /// @dev Reverted when an attribute's valueType is unrecognized (including 0 / uninitialized).
     error InvalidValueType(Ident32 name, uint8 valueType);
     /// @dev Reverted when opType is unrecognized (including 0 / uninitialized).
@@ -134,14 +133,14 @@ library EntityHashing {
     // -------------------------------------------------------------------------
 
     uint256 internal constant MAX_ATTRIBUTES = 32;
-    uint256 internal constant MAX_STRING_ATTR_SIZE = 1024;
 
     // -------------------------------------------------------------------------
     // Constants — EIP-712 typehashes
     // -------------------------------------------------------------------------
 
-    /// @dev keccak256("Attribute(bytes32 name,uint8 valueType,bytes value)")
-    bytes32 internal constant ATTRIBUTE_TYPEHASH = keccak256("Attribute(bytes32 name,uint8 valueType,bytes value)");
+    /// @dev keccak256("Attribute(bytes32 name,uint8 valueType,bytes32[4] value)")
+    bytes32 internal constant ATTRIBUTE_TYPEHASH =
+        keccak256("Attribute(bytes32 name,uint8 valueType,bytes32[4] value)");
 
     /// @dev keccak256("CoreHash(bytes32 entityKey,address creator,uint32 createdAt,bytes32[4] contentType,bytes payload,bytes32 attributesHash)")
     bytes32 internal constant CORE_HASH_TYPEHASH = keccak256(
@@ -213,18 +212,13 @@ library EntityHashing {
         validateIdent32(attr.name);
         if (attr.name <= prevName) revert AttributesNotSorted();
 
-        uint8 vt = attr.valueType;
-        uint256 len = attr.value.length;
-        if (vt == ATTR_UINT || vt == ATTR_ENTITY_KEY) {
-            if (len != 32) revert InvalidValueLength(attr.name, vt, len);
-        } else if (vt == ATTR_STRING) {
-            if (len > MAX_STRING_ATTR_SIZE) revert InvalidValueLength(attr.name, vt, len);
-        } else {
-            revert InvalidValueType(attr.name, vt);
+        if (attr.valueType < ATTR_UINT || attr.valueType > ATTR_ENTITY_KEY) {
+            revert InvalidValueType(attr.name, attr.valueType);
         }
 
+        bytes32 valueHash = keccak256(abi.encode(attr.value[0], attr.value[1], attr.value[2], attr.value[3]));
         bytes32 attrHash =
-            keccak256(abi.encode(ATTRIBUTE_TYPEHASH, Ident32.unwrap(attr.name), attr.valueType, keccak256(attr.value)));
+            keccak256(abi.encode(ATTRIBUTE_TYPEHASH, Ident32.unwrap(attr.name), attr.valueType, valueHash));
         return (attr.name, keccak256(abi.encodePacked(chain, attrHash)));
     }
 

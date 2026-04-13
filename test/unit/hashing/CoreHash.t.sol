@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {BlockNumber} from "../../../src/BlockNumber.sol";
+import {Ident32} from "../../../src/Ident32.sol";
 import {Mime128, encodeMime128} from "../../../src/types/Mime128.sol";
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
@@ -156,10 +157,20 @@ contract CoreHashTest is Test, EntityRegistry {
         attrs[1] = Lib.stringAttr("bbb", "val");
 
         bytes32 hashA = keccak256(
-            abi.encode(EntityHashing.ATTRIBUTE_TYPEHASH, attrs[0].name, attrs[0].valueType, keccak256(attrs[0].value))
+            abi.encode(
+                EntityHashing.ATTRIBUTE_TYPEHASH,
+                Ident32.unwrap(attrs[0].name),
+                attrs[0].valueType,
+                keccak256(abi.encode(attrs[0].value[0], attrs[0].value[1], attrs[0].value[2], attrs[0].value[3]))
+            )
         );
         bytes32 hashB = keccak256(
-            abi.encode(EntityHashing.ATTRIBUTE_TYPEHASH, attrs[1].name, attrs[1].valueType, keccak256(attrs[1].value))
+            abi.encode(
+                EntityHashing.ATTRIBUTE_TYPEHASH,
+                Ident32.unwrap(attrs[1].name),
+                attrs[1].valueType,
+                keccak256(abi.encode(attrs[1].value[0], attrs[1].value[1], attrs[1].value[2], attrs[1].value[3]))
+            )
         );
         bytes32 attrChain = keccak256(abi.encodePacked(bytes32(0), hashA));
         attrChain = keccak256(abi.encodePacked(attrChain, hashB));
