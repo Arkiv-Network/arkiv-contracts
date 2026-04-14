@@ -14,10 +14,6 @@ contract ExtendTest is Test, EntityRegistry {
     BlockNumber expiresAt;
     bytes32 testKey;
 
-    // Stub guards — tested separately in GuardEntityMutation.t.sol.
-    function _requireActive(bytes32, EntityHashing.Commitment storage, BlockNumber) internal view override {}
-    function _requireOwner(bytes32, EntityHashing.Commitment storage) internal view override {}
-
     function doCreate(EntityHashing.Op calldata op) external returns (bytes32, bytes32) {
         return _create(op, currentBlock());
     }

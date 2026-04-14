@@ -19,7 +19,7 @@ contract RequireExistsTest is Test, EntityRegistry {
 
     function doRequireExists(bytes32 key) external view {
         EntityHashing.Commitment storage c = _commitments[key];
-        _requireExists(key, c);
+        EntityHashing.requireExists(key, c);
     }
 
     function setUp() public {
@@ -42,12 +42,7 @@ contract RequireExistsTest is Test, EntityRegistry {
     }
 
     function test_deletedEntity_reverts() public {
-        // Delete the entity, then check existence.
-        EntityHashing.Op memory op = Lib.deleteOp(testKey);
-        // Stub guards for delete.
-        vm.prank(alice);
         this.doRequireExists(testKey); // exists before delete
-
         delete _commitments[testKey];
 
         vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityNotFound.selector, testKey));

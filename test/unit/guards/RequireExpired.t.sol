@@ -20,7 +20,7 @@ contract RequireExpiredTest is Test, EntityRegistry {
 
     function doRequireExpired(bytes32 key, BlockNumber current) external view {
         EntityHashing.Commitment storage c = _commitments[key];
-        _requireExpired(key, c, current);
+        EntityHashing.requireExpired(key, c, current);
     }
 
     function setUp() public {

@@ -19,7 +19,7 @@ contract RequireActiveTest is Test, EntityRegistry {
 
     function doRequireActive(bytes32 key, BlockNumber current) external view {
         EntityHashing.Commitment storage c = _commitments[key];
-        _requireActive(key, c, current);
+        EntityHashing.requireActive(key, c, current);
     }
 
     function setUp() public {

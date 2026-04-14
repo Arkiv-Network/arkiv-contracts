@@ -299,6 +299,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _update(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
+
         EntityHashing.requireExists(key, c);
         EntityHashing.requireActive(key, c, current);
         EntityHashing.requireOwner(key, c);
@@ -330,6 +331,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _extend(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
+
         EntityHashing.requireExists(key, c);
         EntityHashing.requireActive(key, c, current);
         EntityHashing.requireOwner(key, c);
@@ -358,10 +360,10 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _transfer(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
+
         EntityHashing.requireExists(key, c);
         EntityHashing.requireActive(key, c, current);
         EntityHashing.requireOwner(key, c);
-
         EntityHashing.requireNonZeroAddress(key, op.newOwner);
         EntityHashing.requireNewOwner(key, op.newOwner, c.owner);
 
@@ -387,6 +389,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _delete(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
+
         EntityHashing.requireExists(key, c);
         EntityHashing.requireActive(key, c, current);
         EntityHashing.requireOwner(key, c);
@@ -414,6 +417,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// Storage: deletes the Commitment (zeroes 3 slots via SSTORE to 0, gas refund).
     function _expire(bytes32 key, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         EntityHashing.Commitment storage c = _commitments[key];
+
         EntityHashing.requireExists(key, c);
         EntityHashing.requireExpired(key, c, current);
 

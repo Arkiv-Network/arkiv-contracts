@@ -14,7 +14,7 @@ contract RequireExpiryIncreasedTest is Test, EntityRegistry {
         external
         pure
     {
-        _requireExpiryIncreased(key, newExpiresAt, currentExpiresAt);
+        EntityHashing.requireExpiryIncreased(key, newExpiresAt, currentExpiresAt);
     }
 
     function test_increased_succeeds() public view {

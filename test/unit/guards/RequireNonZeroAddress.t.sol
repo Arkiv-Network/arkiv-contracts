@@ -9,7 +9,7 @@ contract RequireNonZeroAddressTest is Test, EntityRegistry {
     bytes32 constant KEY = keccak256("test-key");
 
     function doRequireNonZeroAddress(bytes32 key, address addr) external pure {
-        _requireNonZeroAddress(key, addr);
+        EntityHashing.requireNonZeroAddress(key, addr);
     }
 
     function test_nonZeroAddress_succeeds() public view {

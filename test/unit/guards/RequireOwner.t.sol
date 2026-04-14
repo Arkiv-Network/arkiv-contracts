@@ -20,7 +20,7 @@ contract RequireOwnerTest is Test, EntityRegistry {
 
     function doRequireOwner(bytes32 key) external view {
         EntityHashing.Commitment storage c = _commitments[key];
-        _requireOwner(key, c);
+        EntityHashing.requireOwner(key, c);
     }
 
     function setUp() public {

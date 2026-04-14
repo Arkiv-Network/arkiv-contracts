@@ -14,9 +14,6 @@ contract ExpireTest is Test, EntityRegistry {
     BlockNumber expiresAt;
     bytes32 testKey;
 
-    // Stub guards — tested separately in GuardEntityExpiry.t.sol.
-    function _requireExpired(bytes32, EntityHashing.Commitment storage, BlockNumber) internal view override {}
-
     function doCreate(EntityHashing.Op calldata op) external returns (bytes32, bytes32) {
         return _create(op, currentBlock());
     }
@@ -39,6 +36,7 @@ contract ExpireTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_expire_removesCommitment() public {
+        vm.roll(BlockNumber.unwrap(expiresAt));
         this.doExpire(testKey);
 
         EntityHashing.Commitment memory c = getCommitment(testKey);
@@ -55,6 +53,7 @@ contract ExpireTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_expire_returnsEntityKey() public {
+        vm.roll(BlockNumber.unwrap(expiresAt));
         (bytes32 returnedKey,) = this.doExpire(testKey);
         assertEq(returnedKey, testKey);
     }
@@ -67,6 +66,7 @@ contract ExpireTest is Test, EntityRegistry {
         EntityHashing.Commitment memory c = getCommitment(testKey);
         bytes32 expected = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
 
+        vm.roll(BlockNumber.unwrap(expiresAt));
         (, bytes32 entityHash_) = this.doExpire(testKey);
         assertEq(entityHash_, expected);
     }
