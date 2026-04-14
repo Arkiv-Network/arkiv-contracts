@@ -173,4 +173,30 @@ contract TransferTest is Test, EntityRegistry {
         assertEq(BlockNumber.unwrap(emittedExpiry), BlockNumber.unwrap(expiresAt));
         assertEq(emittedHash, entityHash_);
     }
+
+    // =========================================================================
+    // Guards — negative paths
+    // =========================================================================
+
+    function test_transfer_revertsIfNotFound() public {
+        EntityHashing.Op memory op = Lib.transferOp(keccak256("bogus"), bob);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityNotFound.selector, keccak256("bogus")));
+        this.doTransfer(op);
+    }
+
+    function test_transfer_revertsIfExpired() public {
+        vm.roll(BlockNumber.unwrap(expiresAt));
+        EntityHashing.Op memory op = Lib.transferOp(testKey, bob);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityExpired.selector, testKey, expiresAt));
+        this.doTransfer(op);
+    }
+
+    function test_transfer_revertsIfNotOwner() public {
+        EntityHashing.Op memory op = Lib.transferOp(testKey, bob);
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(EntityHashing.NotOwner.selector, testKey, bob, alice));
+        this.doTransfer(op);
+    }
 }

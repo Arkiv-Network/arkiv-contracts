@@ -163,4 +163,30 @@ contract ExtendTest is Test, EntityRegistry {
         assertEq(BlockNumber.unwrap(emittedExpiry), BlockNumber.unwrap(newExpiry));
         assertEq(emittedHash, entityHash_);
     }
+
+    // =========================================================================
+    // Guards — negative paths
+    // =========================================================================
+
+    function test_extend_revertsIfNotFound() public {
+        EntityHashing.Op memory op = Lib.extendOp(keccak256("bogus"), expiresAt + BlockNumber.wrap(500));
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityNotFound.selector, keccak256("bogus")));
+        this.doExtend(op);
+    }
+
+    function test_extend_revertsIfExpired() public {
+        vm.roll(BlockNumber.unwrap(expiresAt));
+        EntityHashing.Op memory op = Lib.extendOp(testKey, expiresAt + BlockNumber.wrap(500));
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityExpired.selector, testKey, expiresAt));
+        this.doExtend(op);
+    }
+
+    function test_extend_revertsIfNotOwner() public {
+        EntityHashing.Op memory op = Lib.extendOp(testKey, expiresAt + BlockNumber.wrap(500));
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(EntityHashing.NotOwner.selector, testKey, bob, alice));
+        this.doExtend(op);
+    }
 }

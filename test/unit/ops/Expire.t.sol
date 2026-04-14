@@ -90,4 +90,20 @@ contract ExpireTest is Test, EntityRegistry {
         assertEq(BlockNumber.unwrap(emittedExpiry), BlockNumber.unwrap(expiresAt));
         assertEq(emittedHash, entityHash_);
     }
+
+    // =========================================================================
+    // Guards — negative paths
+    // =========================================================================
+
+    function test_expire_revertsIfNotFound() public {
+        bytes32 bogus = keccak256("bogus");
+        vm.roll(BlockNumber.unwrap(expiresAt));
+        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityNotFound.selector, bogus));
+        this.doExpire(bogus);
+    }
+
+    function test_expire_revertsIfNotExpired() public {
+        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityNotExpired.selector, testKey, expiresAt));
+        this.doExpire(testKey);
+    }
 }

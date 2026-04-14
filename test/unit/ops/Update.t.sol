@@ -203,4 +203,31 @@ contract UpdateTest is Test, EntityRegistry {
         EntityHashing.Commitment memory final_ = getCommitment(testKey);
         assertNotEq(final_.coreHash, mid.coreHash);
     }
+
+    // =========================================================================
+    // Guards — negative paths
+    // =========================================================================
+
+    function test_update_revertsIfNotFound() public {
+        EntityHashing.Op memory op = _simpleUpdateOp();
+        op.entityKey = keccak256("bogus");
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityNotFound.selector, op.entityKey));
+        this.doUpdate(op);
+    }
+
+    function test_update_revertsIfExpired() public {
+        vm.roll(BlockNumber.unwrap(expiresAt));
+        EntityHashing.Op memory op = _simpleUpdateOp();
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityExpired.selector, testKey, expiresAt));
+        this.doUpdate(op);
+    }
+
+    function test_update_revertsIfNotOwner() public {
+        EntityHashing.Op memory op = _simpleUpdateOp();
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(EntityHashing.NotOwner.selector, testKey, bob, alice));
+        this.doUpdate(op);
+    }
 }

@@ -99,4 +99,30 @@ contract DeleteTest is Test, EntityRegistry {
         assertEq(BlockNumber.unwrap(emittedExpiry), BlockNumber.unwrap(expiresAt));
         assertEq(emittedHash, entityHash_);
     }
+
+    // =========================================================================
+    // Guards — negative paths
+    // =========================================================================
+
+    function test_delete_revertsIfNotFound() public {
+        EntityHashing.Op memory op = Lib.deleteOp(keccak256("bogus"));
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityNotFound.selector, keccak256("bogus")));
+        this.doDelete(op);
+    }
+
+    function test_delete_revertsIfExpired() public {
+        vm.roll(BlockNumber.unwrap(expiresAt));
+        EntityHashing.Op memory op = Lib.deleteOp(testKey);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityExpired.selector, testKey, expiresAt));
+        this.doDelete(op);
+    }
+
+    function test_delete_revertsIfNotOwner() public {
+        EntityHashing.Op memory op = Lib.deleteOp(testKey);
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(EntityHashing.NotOwner.selector, testKey, bob, alice));
+        this.doDelete(op);
+    }
 }
