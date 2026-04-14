@@ -18,3 +18,7 @@ __pycache__/
 .DS_Store
 
 lib/
+
+# Rust
+target/
+gas_profiler/gas-report.json

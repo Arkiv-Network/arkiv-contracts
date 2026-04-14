@@ -1,0 +1,14 @@
+[package]
+name = "gas-profiler"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+revm = { version = "37", features = ["std"] }
+revm-inspectors = "0.38"
+alloy-sol-types = "1.5"
+alloy-primitives = "1.5"
+alloy-sol-macro = "1.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+eyre = "0.6"
