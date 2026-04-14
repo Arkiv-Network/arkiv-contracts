@@ -2,6 +2,39 @@ use crate::profiler::{OpcodeStats, ProfileResult};
 use eyre::Result;
 use std::path::Path;
 
+// ---------------------------------------------------------------------------
+// Pricing model
+// ---------------------------------------------------------------------------
+
+/// Average gas price in gwei. ~20 gwei is a reasonable mainnet average
+/// across 2024-2025 (excludes spikes, represents typical non-congested usage).
+const GAS_PRICE_GWEI: f64 = 20.0;
+
+/// ETH price in USD.
+const ETH_PRICE_USD: f64 = 2200.0;
+
+/// Convert gas to USD: gas × gas_price_gwei × 1e-9 × eth_price_usd.
+fn gas_to_usd(gas: u64) -> f64 {
+    gas as f64 * GAS_PRICE_GWEI * 1e-9 * ETH_PRICE_USD
+}
+
+/// Format a USD amount, using appropriate precision:
+///   >= $1.00    → "$1.23"
+///   >= $0.01    → "$0.0123"
+///   >= $0.0001  → "$0.000123"
+///   < $0.0001   → "$0.00000123"
+fn format_usd(usd: f64) -> String {
+    if usd >= 1.0 {
+        format!("${:.2}", usd)
+    } else if usd >= 0.01 {
+        format!("${:.4}", usd)
+    } else if usd >= 0.0001 {
+        format!("${:.6}", usd)
+    } else {
+        format!("${:.8}", usd)
+    }
+}
+
 /// Opcode categories for grouped analysis.
 const CATEGORIES: &[(&str, &[&str])] = &[
     ("Storage", &["SSTORE", "SLOAD"]),
@@ -52,13 +85,30 @@ const CATEGORIES: &[(&str, &[&str])] = &[
 
 /// Print a full analysis for a scenario result.
 pub fn print_row(r: &ProfileResult) {
-    println!("═══════════════════════════════════════════════════════════════");
+    println!("═══════════════════════════════════════════════════════════════════════");
     println!("{}", r.scenario);
-    println!("═══════════════════════════════════════════════════════════════");
+    println!("═══════════════════════════════════════════════════════════════════════");
     println!();
-    println!("  Transaction gas:  {:>12}", format_gas(r.total_gas));
-    println!("  Execution gas:    {:>12}", format_gas(r.execution_gas));
-    println!("  Overhead:         {:>12}  (intrinsic 21K + calldata gas)", format_gas(r.overhead_gas));
+    println!(
+        "  Pricing: {} gwei gas price, ${:.0} ETH",
+        GAS_PRICE_GWEI, ETH_PRICE_USD
+    );
+    println!();
+    println!(
+        "  Transaction gas:  {:>12}  {}",
+        format_gas(r.total_gas),
+        format_usd(gas_to_usd(r.total_gas))
+    );
+    println!(
+        "  Execution gas:    {:>12}  {}",
+        format_gas(r.execution_gas),
+        format_usd(gas_to_usd(r.execution_gas))
+    );
+    println!(
+        "  Overhead:         {:>12}  {}  (intrinsic 21K + calldata gas)",
+        format_gas(r.overhead_gas),
+        format_usd(gas_to_usd(r.overhead_gas))
+    );
     println!();
     println!("  All percentages below are relative to execution gas.");
     println!();
@@ -91,22 +141,24 @@ pub fn print_row(r: &ProfileResult) {
             0.0
         };
         println!(
-            "  {:<22} {:>12} gas  ({:>5.1}%)  {:>6} ops",
+            "  {:<22} {:>12} gas  ({:>5.1}%)  {:>6} ops  {}",
             category,
             format_gas(cat_gas),
             cat_pct,
-            cat_count
+            cat_count,
+            format_usd(gas_to_usd(cat_gas))
         );
 
         // Show individual opcodes within category, sorted by gas desc.
         entries.sort_by(|a, b| b.1.gas.cmp(&a.1.gas));
         for (op, s) in &entries {
             println!(
-                "    {:<20} {:>12} gas  ({:>5.1}%)  {:>6} calls",
+                "    {:<20} {:>12} gas  ({:>5.1}%)  {:>6} calls  {}",
                 op,
                 format_gas(s.gas),
                 s.pct,
-                s.count
+                s.count,
+                format_usd(gas_to_usd(s.gas))
             );
         }
         println!();
@@ -122,10 +174,11 @@ pub fn print_row(r: &ProfileResult) {
             0.0
         };
         println!(
-            "  {:<22} {:>12} gas  ({:>5.1}%)",
+            "  {:<22} {:>12} gas  ({:>5.1}%)          {}",
             "Uncategorised",
             format_gas(uncategorised),
-            pct
+            pct,
+            format_usd(gas_to_usd(uncategorised))
         );
         println!();
     }
@@ -137,11 +190,12 @@ pub fn print_row(r: &ProfileResult) {
     all.sort_by(|a, b| b.1.gas.cmp(&a.1.gas));
     for (op, s) in all.iter().take(10) {
         println!(
-            "    {:<20} {:>12} gas  ({:>5.1}%)  {:>6} calls",
+            "    {:<20} {:>12} gas  ({:>5.1}%)  {:>6} calls  {}",
             op,
             format_gas(s.gas),
             s.pct,
-            s.count
+            s.count,
+            format_usd(gas_to_usd(s.gas))
         );
     }
     println!();
