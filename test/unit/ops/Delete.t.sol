@@ -85,12 +85,12 @@ contract DeleteTest is Test, EntityRegistry {
     // Event
     // =========================================================================
 
-    function test_delete_emitsEntityDeleted() public {
+    function test_delete_emitsEntityOp() public {
         EntityHashing.Op memory op = Lib.deleteOp(testKey);
 
         vm.prank(alice);
-        vm.expectEmit(true, true, false, false);
-        emit EntityDeleted(testKey, alice, bytes32(0));
+        vm.expectEmit(true, true, true, false);
+        emit EntityOp(testKey, EntityHashing.DELETE, alice, expiresAt, bytes32(0));
         this.doDelete(op);
     }
 }

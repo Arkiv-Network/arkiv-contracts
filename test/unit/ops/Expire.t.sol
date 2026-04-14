@@ -75,9 +75,10 @@ contract ExpireTest is Test, EntityRegistry {
     // Event
     // =========================================================================
 
-    function test_expire_emitsEntityExpired() public {
-        vm.expectEmit(true, true, false, false);
-        emit EntityExpired(testKey, alice, bytes32(0));
+    function test_expire_emitsEntityOp() public {
+        vm.roll(BlockNumber.unwrap(expiresAt));
+        vm.expectEmit(true, true, true, false);
+        emit EntityOp(testKey, EntityHashing.EXPIRE, alice, expiresAt, bytes32(0));
         this.doExpire(testKey);
     }
 }

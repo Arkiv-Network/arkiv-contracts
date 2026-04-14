@@ -104,12 +104,12 @@ contract CreateTest is Test, EntityRegistry {
     // Event
     // =========================================================================
 
-    function test_create_emitsEntityCreated() public {
+    function test_create_emitsEntityOp() public {
         EntityHashing.Op memory op = _defaultOp();
 
         vm.prank(alice);
         vm.expectEmit(true, true, true, true);
-        emit EntityCreated(STUB_KEY, alice, expiresAt, STUB_ENTITY_HASH);
+        emit EntityOp(STUB_KEY, EntityHashing.CREATE, alice, expiresAt, STUB_ENTITY_HASH);
         this.doCreate(op);
     }
 

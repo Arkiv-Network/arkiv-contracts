@@ -148,13 +148,13 @@ contract ExtendTest is Test, EntityRegistry {
     // Event
     // =========================================================================
 
-    function test_extend_emitsEntityExtended() public {
+    function test_extend_emitsEntityOp() public {
         BlockNumber newExpiry = expiresAt + BlockNumber.wrap(500);
         EntityHashing.Op memory op = Lib.extendOp(testKey, newExpiry);
 
         vm.prank(alice);
         vm.expectEmit(true, true, true, false);
-        emit EntityExtended(testKey, alice, newExpiry, bytes32(0));
+        emit EntityOp(testKey, EntityHashing.EXTEND, alice, newExpiry, bytes32(0));
         this.doExtend(op);
     }
 }

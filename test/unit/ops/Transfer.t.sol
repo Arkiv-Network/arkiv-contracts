@@ -159,12 +159,12 @@ contract TransferTest is Test, EntityRegistry {
     // Event
     // =========================================================================
 
-    function test_transfer_emitsEntityTransferred() public {
+    function test_transfer_emitsEntityOp() public {
         EntityHashing.Op memory op = Lib.transferOp(testKey, bob);
 
         vm.prank(alice);
         vm.expectEmit(true, true, true, false);
-        emit EntityTransferred(testKey, alice, bob, bytes32(0));
+        emit EntityOp(testKey, EntityHashing.TRANSFER, bob, expiresAt, bytes32(0));
         this.doTransfer(op);
     }
 }

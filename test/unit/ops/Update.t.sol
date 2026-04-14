@@ -140,12 +140,12 @@ contract UpdateTest is Test, EntityRegistry {
     // Event
     // =========================================================================
 
-    function test_update_emitsEntityUpdated() public {
+    function test_update_emitsEntityOp() public {
         EntityHashing.Op memory op = _simpleUpdateOp();
 
         vm.prank(alice);
         vm.expectEmit(true, true, true, false);
-        emit EntityUpdated(testKey, alice, expiresAt, bytes32(0));
+        emit EntityOp(testKey, EntityHashing.UPDATE, alice, expiresAt, bytes32(0));
         this.doUpdate(op);
     }
 
