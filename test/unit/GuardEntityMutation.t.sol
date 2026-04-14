@@ -21,7 +21,9 @@ contract GuardEntityMutationTest is Test, EntityRegistry {
 
     function doGuard(bytes32 key, BlockNumber current) external view {
         EntityHashing.Commitment storage c = _commitments[key];
-        _guardEntityMutation(key, c, current);
+        _requireExists(key, c);
+        _requireActive(key, c, current);
+        _requireOwner(key, c);
     }
 
     function setUp() public {

@@ -214,41 +214,32 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         entityHash_ = _wrapEntityHash(coreHash_, owner, updatedAt, expiresAt);
     }
 
-    /// @dev Require that the entity exists, is not expired, and the caller is the owner.
-    /// Shared guard for update, extend, transfer, and delete. Implemented as a
-    /// function rather than a modifier so callers can load the Commitment storage
-    /// pointer once and reuse it for both validation and state updates.
-    function _guardEntityMutation(bytes32 key, EntityHashing.Commitment storage c, BlockNumber current)
-        internal
-        view
-        virtual
-    {
-        if (c.creator == address(0)) {
-            revert EntityHashing.EntityNotFound(key);
-        }
-        if (c.expiresAt <= current) {
-            revert EntityHashing.EntityExpired(key, c.expiresAt);
-        }
-        if (msg.sender != c.owner) {
-            revert EntityHashing.NotOwner(key, msg.sender, c.owner);
-        }
+    /// @dev Require that the entity exists (creator != address(0)).
+    function _requireExists(bytes32 key, EntityHashing.Commitment storage c) internal view virtual {
+        if (c.creator == address(0)) revert EntityHashing.EntityNotFound(key);
     }
 
-    /// @dev Require that the entity exists and has expired (expiresAt <= current).
-    /// Guard for the expire operation. Implemented as a function rather than a
-    /// modifier so callers can load the Commitment storage pointer once and
-    /// reuse it for both validation and state updates.
-    function _guardEntityExpiry(bytes32 key, EntityHashing.Commitment storage c, BlockNumber current)
+    /// @dev Require that the entity has not expired (expiresAt > current).
+    function _requireActive(bytes32 key, EntityHashing.Commitment storage c, BlockNumber current)
         internal
         view
         virtual
     {
-        if (c.creator == address(0)) {
-            revert EntityHashing.EntityNotFound(key);
-        }
-        if (c.expiresAt > current) {
-            revert EntityHashing.EntityNotExpired(key, c.expiresAt);
-        }
+        if (c.expiresAt <= current) revert EntityHashing.EntityExpired(key, c.expiresAt);
+    }
+
+    /// @dev Require that the entity has expired (expiresAt <= current).
+    function _requireExpired(bytes32 key, EntityHashing.Commitment storage c, BlockNumber current)
+        internal
+        view
+        virtual
+    {
+        if (c.expiresAt > current) revert EntityHashing.EntityNotExpired(key, c.expiresAt);
+    }
+
+    /// @dev Require that the caller is the entity owner.
+    function _requireOwner(bytes32 key, EntityHashing.Commitment storage c) internal view virtual {
+        if (msg.sender != c.owner) revert EntityHashing.NotOwner(key, msg.sender, c.owner);
     }
 
     /// @dev Mint a new entity key by post-incrementing the owner's nonce.
@@ -336,7 +327,9 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _update(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
-        _guardEntityMutation(key, c, current);
+        _requireExists(key, c);
+        _requireActive(key, c, current);
+        _requireOwner(key, c);
 
         // TODO: contentType validation per RFC 6838 media type syntax.
 
@@ -365,7 +358,9 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _extend(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
-        _guardEntityMutation(key, c, current);
+        _requireExists(key, c);
+        _requireActive(key, c, current);
+        _requireOwner(key, c);
 
         if (op.expiresAt <= c.expiresAt) {
             revert EntityHashing.ExpiryNotExtended(key, op.expiresAt, c.expiresAt);
@@ -393,7 +388,9 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _transfer(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
-        _guardEntityMutation(key, c, current);
+        _requireExists(key, c);
+        _requireActive(key, c, current);
+        _requireOwner(key, c);
 
         if (op.newOwner == address(0)) {
             revert EntityHashing.TransferToZeroAddress(key);
@@ -424,7 +421,9 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _delete(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
-        _guardEntityMutation(key, c, current);
+        _requireExists(key, c);
+        _requireActive(key, c, current);
+        _requireOwner(key, c);
 
         // Snapshot before deletion.
         bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
@@ -449,7 +448,8 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// Storage: deletes the Commitment (zeroes 3 slots via SSTORE to 0, gas refund).
     function _expire(bytes32 key, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         EntityHashing.Commitment storage c = _commitments[key];
-        _guardEntityExpiry(key, c, current);
+        _requireExists(key, c);
+        _requireExpired(key, c, current);
 
         bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
         address owner = c.owner;

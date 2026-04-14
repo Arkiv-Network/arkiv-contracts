@@ -21,7 +21,8 @@ contract GuardEntityExpiryTest is Test, EntityRegistry {
 
     function doGuard(bytes32 key, BlockNumber current) external view {
         EntityHashing.Commitment storage c = _commitments[key];
-        _guardEntityExpiry(key, c, current);
+        _requireExists(key, c);
+        _requireExpired(key, c, current);
     }
 
     function setUp() public {

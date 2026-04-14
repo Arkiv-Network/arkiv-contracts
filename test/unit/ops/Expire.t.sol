@@ -14,8 +14,8 @@ contract ExpireTest is Test, EntityRegistry {
     BlockNumber expiresAt;
     bytes32 testKey;
 
-    // Stub guard — tested separately in GuardEntityExpiry.t.sol.
-    function _guardEntityExpiry(bytes32, EntityHashing.Commitment storage, BlockNumber) internal view override {}
+    // Stub guards — tested separately in GuardEntityExpiry.t.sol.
+    function _requireExpired(bytes32, EntityHashing.Commitment storage, BlockNumber) internal view override {}
 
     function doCreate(EntityHashing.Op calldata op) external returns (bytes32, bytes32) {
         return _create(op, currentBlock());
