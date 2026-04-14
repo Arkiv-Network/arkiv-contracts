@@ -1,714 +1,960 @@
-[
-  {
-    "label": "create_p1804544_a32_b1",
-    "scenario": "CREATE   | payload=1804544B | attrs=32 | batch= 1 | new_block | keccak=100%",
-    "schedule": "Mainnet (default)",
-    "total_gas": 72273900,
-    "execution_gas": 7406191,
-    "overhead_gas": 28922160,
-    "floor_gas": 72273900,
-    "opcode_gas": {
-      "SWAP3": {
-        "count": 502,
-        "gas": 1506,
-        "pct": 0.020334339203512304
-      },
-      "SSTORE": {
-        "count": 10,
-        "gas": 144500,
-        "pct": 1.9510703950249189
-      },
-      "NOT": {
-        "count": 24,
-        "gas": 72,
-        "pct": 0.0009721596431958075
-      },
-      "ISZERO": {
-        "count": 1329,
-        "gas": 3987,
-        "pct": 0.05383334024196783
-      },
-      "CALLER": {
-        "count": 6,
-        "gas": 12,
-        "pct": 0.00016202660719930124
-      },
-      "SLT": {
-        "count": 75,
-        "gas": 225,
-        "pct": 0.003037998884986898
-      },
-      "PUSH8": {
-        "count": 4,
-        "gas": 12,
-        "pct": 0.00016202660719930124
-      },
-      "DUP9": {
-        "count": 68,
-        "gas": 204,
-        "pct": 0.002754452322388121
-      },
-      "CALLDATACOPY": {
-        "count": 1,
-        "gas": 6643906,
-        "pct": 89.70746231092339
-      },
-      "DUP15": {
-        "count": 1,
-        "gas": 3,
-        "pct": 0.00004050665179982531
-      },
-      "LT": {
-        "count": 2286,
-        "gas": 6858,
-        "pct": 0.09259820601440065
-      },
-      "PUSH2": {
-        "count": 8350,
-        "gas": 25050,
-        "pct": 0.33823054252854134
-      },
-      "CALLDATASIZE": {
-        "count": 8,
-        "gas": 16,
-        "pct": 0.00021603547626573497
-      },
-      "SHL": {
-        "count": 1049,
-        "gas": 3147,
-        "pct": 0.04249147773801675
-      },
-      "SWAP5": {
-        "count": 172,
-        "gas": 516,
-        "pct": 0.006967144109569954
-      },
-      "DUP5": {
-        "count": 484,
-        "gas": 1452,
-        "pct": 0.01960521947111545
-      },
-      "DUP3": {
-        "count": 2751,
-        "gas": 8253,
-        "pct": 0.11143379910131943
-      },
-      "ADD": {
-        "count": 2460,
-        "gas": 7380,
-        "pct": 0.09964636342757027
-      },
-      "SHR": {
-        "count": 1154,
-        "gas": 3462,
-        "pct": 0.04674467617699841
-      },
-      "PUSH20": {
-        "count": 15,
-        "gas": 45,
-        "pct": 0.0006075997769973796
-      },
-      "SWAP9": {
-        "count": 18,
-        "gas": 54,
-        "pct": 0.0007291197323968556
-      },
-      "LOG4": {
-        "count": 1,
-        "gas": 2131,
-        "pct": 0.02877322499514258
-      },
-      "NUMBER": {
-        "count": 1,
-        "gas": 2,
-        "pct": 0.00002700443453321687
-      },
-      "JUMPI": {
-        "count": 3858,
-        "gas": 38580,
-        "pct": 0.5209155421457534
-      },
-      "OR": {
-        "count": 28,
-        "gas": 84,
-        "pct": 0.0011341862503951086
-      },
-      "EXP": {
-        "count": 13,
-        "gas": 430,
-        "pct": 0.005805953424641627
-      },
-      "PUSH32": {
-        "count": 134,
-        "gas": 402,
-        "pct": 0.005427891341176591
-      },
-      "SWAP8": {
-        "count": 5,
-        "gas": 15,
-        "pct": 0.00020253325899912656
-      },
-      "DUP14": {
-        "count": 1,
-        "gas": 3,
-        "pct": 0.00004050665179982531
-      },
-      "SLOAD": {
-        "count": 13,
-        "gas": 13300,
-        "pct": 0.17957948964589218
-      },
-      "DUP7": {
-        "count": 231,
-        "gas": 693,
-        "pct": 0.009357036565759647
-      },
-      "DUP8": {
-        "count": 113,
-        "gas": 339,
-        "pct": 0.00457725165338026
-      },
-      "DUP6": {
-        "count": 1263,
-        "gas": 3789,
-        "pct": 0.051159901223179365
-      },
-      "PUSH1": {
-        "count": 8658,
-        "gas": 25974,
-        "pct": 0.3507065912828875
-      },
-      "PUSH16": {
-        "count": 112,
-        "gas": 336,
-        "pct": 0.004536745001580435
-      },
-      "PUSH4": {
-        "count": 64,
-        "gas": 192,
-        "pct": 0.00259242571518882
-      },
-      "SWAP4": {
-        "count": 271,
-        "gas": 813,
-        "pct": 0.010977302637752658
-      },
-      "ADDRESS": {
-        "count": 2,
-        "gas": 4,
-        "pct": 0.00005400886906643374
-      },
-      "SWAP1": {
-        "count": 3197,
-        "gas": 9591,
-        "pct": 0.12949976580404152
-      },
-      "PUSH12": {
-        "count": 16,
-        "gas": 48,
-        "pct": 0.000648106428797205
-      },
-      "AND": {
-        "count": 1559,
-        "gas": 4677,
-        "pct": 0.06314987015592766
-      },
-      "SWAP7": {
-        "count": 19,
-        "gas": 57,
-        "pct": 0.0007696263841966809
-      },
-      "STOP": {
-        "count": 1,
-        "gas": 0,
-        "pct": 0.0
-      },
-      "SGT": {
-        "count": 2,
-        "gas": 6,
-        "pct": 0.00008101330359965062
-      },
-      "MUL": {
-        "count": 203,
-        "gas": 1015,
-        "pct": 0.01370475052560756
-      },
-      "BYTE": {
-        "count": 1041,
-        "gas": 3123,
-        "pct": 0.042167424523618144
-      },
-      "CHAINID": {
-        "count": 2,
-        "gas": 4,
-        "pct": 0.00005400886906643374
-      },
-      "DIV": {
-        "count": 22,
-        "gas": 110,
-        "pct": 0.001485243899326928
-      },
-      "SWAP2": {
-        "count": 2754,
-        "gas": 8262,
-        "pct": 0.11155531905671891
-      },
-      "EQ": {
-        "count": 990,
-        "gas": 2970,
-        "pct": 0.04010158528182706
-      },
-      "CALLVALUE": {
-        "count": 1,
-        "gas": 2,
-        "pct": 0.00002700443453321687
-      },
-      "PUSH0": {
-        "count": 3194,
-        "gas": 6388,
-        "pct": 0.0862521638990947
-      },
-      "POP": {
-        "count": 7592,
-        "gas": 15184,
-        "pct": 0.20501766697618248
-      },
-      "DUP4": {
-        "count": 801,
-        "gas": 2403,
-        "pct": 0.03244582809166007
-      },
-      "DUP1": {
-        "count": 2335,
-        "gas": 7005,
-        "pct": 0.0945830319525921
-      },
-      "SUB": {
-        "count": 667,
-        "gas": 2001,
-        "pct": 0.027017936750483477
-      },
-      "JUMPDEST": {
-        "count": 7289,
-        "gas": 7289,
-        "pct": 0.0984176616563089
-      },
-      "MLOAD": {
-        "count": 315,
-        "gas": 945,
-        "pct": 0.012759595316944972
-      },
-      "DUP12": {
-        "count": 7,
-        "gas": 21,
-        "pct": 0.00028354656259877716
-      },
-      "KECCAK256": {
-        "count": 110,
-        "gas": 343812,
-        "pct": 4.64222432286718
-      },
-      "JUMP": {
-        "count": 4473,
-        "gas": 35784,
-        "pct": 0.4831633426683163
-      },
-      "DUP2": {
-        "count": 4106,
-        "gas": 12318,
-        "pct": 0.1663203122900827
-      },
-      "SWAP6": {
-        "count": 136,
-        "gas": 408,
-        "pct": 0.005508904644776242
-      },
-      "DUP10": {
-        "count": 10,
-        "gas": 30,
-        "pct": 0.0004050665179982531
-      },
-      "GT": {
-        "count": 125,
-        "gas": 375,
-        "pct": 0.0050633314749781635
-      },
-      "CALLDATALOAD": {
-        "count": 339,
-        "gas": 1017,
-        "pct": 0.013731754960140778
-      },
-      "DUP11": {
-        "count": 2,
-        "gas": 6,
-        "pct": 0.00008101330359965062
-      },
-      "DUP13": {
-        "count": 1,
-        "gas": 3,
-        "pct": 0.00004050665179982531
-      },
-      "MSTORE": {
-        "count": 573,
-        "gas": 3590,
-        "pct": 0.04847295998712428
-      }
+{
+  "chain": {
+    "chain_id": 1,
+    "block_gas_limit": 30000000,
+    "basefee": 20,
+    "intrinsic_tx_gas": 21000,
+    "calldata_token_cost": 4,
+    "calldata_nonzero_multiplier": 4,
+    "eip7623_floor_per_token": 10,
+    "eip7623_floor_base": 21000,
+    "memory_quadratic_divisor": 512,
+    "keccak256_per_word": 6,
+    "tx_limits": {
+      "tx_gas_limit": 30000000,
+      "max_tx_bytes": 131072,
+      "rlp_envelope_bytes": 111
     }
   },
-  {
-    "label": "create_p1804544_a32_b1",
-    "scenario": "CREATE   | payload=1804544B | attrs=32 | batch= 1 | new_block | keccak=100%",
-    "schedule": "Optimised (custom chain) [tx_token_non_zero_byte_multiplier=1, tx_token_cost=1, tx_floor_cost_per_token=0, tx_floor_cost_base_gas=0, tx_base_stipend=1000, memory_quadratic_reduction=18446744073709551615, keccak256_per_word=1]",
-    "total_gas": 2628471,
-    "execution_gas": 816299,
-    "overhead_gas": 1812172,
-    "floor_gas": 0,
-    "opcode_gas": {
-      "OR": {
-        "count": 28,
-        "gas": 84,
-        "pct": 0.010290347041953989
-      },
-      "DUP15": {
-        "count": 1,
-        "gas": 3,
-        "pct": 0.0003675123943554996
-      },
-      "SWAP1": {
-        "count": 3197,
-        "gas": 9591,
-        "pct": 1.1749371247545324
-      },
-      "SWAP8": {
-        "count": 5,
-        "gas": 15,
-        "pct": 0.0018375619717774985
-      },
-      "NUMBER": {
-        "count": 1,
-        "gas": 2,
-        "pct": 0.0002450082629036664
-      },
-      "PUSH0": {
-        "count": 3194,
-        "gas": 6388,
-        "pct": 0.7825563917143106
-      },
-      "POP": {
-        "count": 7592,
-        "gas": 15184,
-        "pct": 1.8601027319646353
-      },
-      "DUP1": {
-        "count": 2335,
-        "gas": 7005,
-        "pct": 0.8581414408200917
-      },
-      "PUSH20": {
-        "count": 15,
-        "gas": 45,
-        "pct": 0.0055126859153324945
-      },
-      "EQ": {
-        "count": 990,
-        "gas": 2970,
-        "pct": 0.36383727041194464
-      },
-      "PUSH12": {
-        "count": 16,
-        "gas": 48,
-        "pct": 0.005880198309687994
-      },
-      "SWAP9": {
-        "count": 18,
-        "gas": 54,
-        "pct": 0.006615223098398994
-      },
-      "SWAP6": {
-        "count": 136,
-        "gas": 408,
-        "pct": 0.04998168563234795
-      },
-      "LT": {
-        "count": 2286,
-        "gas": 6858,
-        "pct": 0.8401333334966722
-      },
-      "JUMPI": {
-        "count": 3858,
-        "gas": 38580,
-        "pct": 4.726209391411725
-      },
-      "SHR": {
-        "count": 1154,
-        "gas": 3462,
-        "pct": 0.42410930308624656
-      },
-      "DUP6": {
-        "count": 1263,
-        "gas": 3789,
-        "pct": 0.46416815407099604
-      },
-      "CALLVALUE": {
-        "count": 1,
-        "gas": 2,
-        "pct": 0.0002450082629036664
-      },
-      "SLOAD": {
-        "count": 13,
-        "gas": 13300,
-        "pct": 1.629304948309382
-      },
-      "PUSH4": {
-        "count": 64,
-        "gas": 192,
-        "pct": 0.023520793238751975
-      },
-      "ADDRESS": {
-        "count": 2,
-        "gas": 4,
-        "pct": 0.0004900165258073328
-      },
-      "EXP": {
-        "count": 13,
-        "gas": 430,
-        "pct": 0.052676776524288274
-      },
-      "DUP12": {
-        "count": 7,
-        "gas": 21,
-        "pct": 0.0025725867604884972
-      },
-      "PUSH32": {
-        "count": 134,
-        "gas": 402,
-        "pct": 0.04924666084363696
-      },
-      "BYTE": {
-        "count": 1041,
-        "gas": 3123,
-        "pct": 0.3825804025240751
-      },
-      "PUSH16": {
-        "count": 112,
-        "gas": 336,
-        "pct": 0.041161388167815956
-      },
-      "PUSH2": {
-        "count": 8350,
-        "gas": 25050,
-        "pct": 3.0687284928684218
-      },
-      "DUP2": {
-        "count": 4106,
-        "gas": 12318,
-        "pct": 1.5090058912236815
-      },
-      "PUSH1": {
-        "count": 8658,
-        "gas": 25974,
-        "pct": 3.181922310329916
-      },
-      "SWAP4": {
-        "count": 271,
-        "gas": 813,
-        "pct": 0.0995958588703404
-      },
-      "SGT": {
-        "count": 2,
-        "gas": 6,
-        "pct": 0.0007350247887109992
-      },
-      "CALLDATALOAD": {
-        "count": 339,
-        "gas": 1017,
-        "pct": 0.12458670168651437
-      },
-      "ADD": {
-        "count": 2460,
-        "gas": 7380,
-        "pct": 0.9040804901145292
-      },
-      "STOP": {
-        "count": 1,
-        "gas": 0,
-        "pct": 0.0
-      },
-      "MSTORE": {
-        "count": 573,
-        "gas": 3009,
-        "pct": 0.3686149315385661
-      },
-      "AND": {
-        "count": 1559,
-        "gas": 4677,
-        "pct": 0.5729518228002239
-      },
-      "LOG4": {
-        "count": 1,
-        "gas": 2131,
-        "pct": 0.26105630412385655
-      },
-      "JUMP": {
-        "count": 4473,
-        "gas": 35784,
-        "pct": 4.383687839872399
-      },
-      "DUP13": {
-        "count": 1,
-        "gas": 3,
-        "pct": 0.0003675123943554996
-      },
-      "DUP4": {
-        "count": 801,
-        "gas": 2403,
-        "pct": 0.2943774278787552
-      },
-      "CHAINID": {
-        "count": 2,
-        "gas": 4,
-        "pct": 0.0004900165258073328
-      },
-      "DUP14": {
-        "count": 1,
-        "gas": 3,
-        "pct": 0.0003675123943554996
-      },
-      "CALLER": {
-        "count": 6,
-        "gas": 12,
-        "pct": 0.0014700495774219984
-      },
-      "DUP8": {
-        "count": 113,
-        "gas": 339,
-        "pct": 0.041528900562171456
-      },
-      "DUP3": {
-        "count": 2751,
-        "gas": 8253,
-        "pct": 1.0110265968719796
-      },
-      "CALLDATASIZE": {
-        "count": 8,
-        "gas": 16,
-        "pct": 0.0019600661032293312
-      },
-      "SWAP2": {
-        "count": 2754,
-        "gas": 8262,
-        "pct": 1.012129134055046
-      },
-      "SWAP3": {
-        "count": 502,
-        "gas": 1506,
-        "pct": 0.1844912219664608
-      },
-      "DUP9": {
-        "count": 68,
-        "gas": 204,
-        "pct": 0.024990842816173975
-      },
-      "SSTORE": {
-        "count": 10,
-        "gas": 144500,
-        "pct": 17.7018469947899
-      },
-      "SHL": {
-        "count": 1049,
-        "gas": 3147,
-        "pct": 0.3855205016789191
-      },
-      "DIV": {
-        "count": 22,
-        "gas": 110,
-        "pct": 0.013475454459701653
-      },
-      "MLOAD": {
-        "count": 315,
-        "gas": 945,
-        "pct": 0.11576640422198238
-      },
-      "ISZERO": {
-        "count": 1329,
-        "gas": 3987,
-        "pct": 0.488423972098459
-      },
-      "SWAP5": {
-        "count": 172,
-        "gas": 516,
-        "pct": 0.06321213182914594
-      },
-      "SWAP7": {
-        "count": 19,
-        "gas": 57,
-        "pct": 0.006982735492754494
-      },
-      "DUP5": {
-        "count": 484,
-        "gas": 1452,
-        "pct": 0.17787599886806182
-      },
-      "DUP10": {
-        "count": 10,
-        "gas": 30,
-        "pct": 0.003675123943554997
-      },
-      "MUL": {
-        "count": 203,
-        "gas": 1015,
-        "pct": 0.1243416934236107
-      },
-      "DUP11": {
-        "count": 2,
-        "gas": 6,
-        "pct": 0.0007350247887109992
-      },
-      "PUSH8": {
-        "count": 4,
-        "gas": 12,
-        "pct": 0.0014700495774219984
-      },
-      "SUB": {
-        "count": 667,
-        "gas": 2001,
-        "pct": 0.24513076703511827
-      },
-      "SLT": {
-        "count": 75,
-        "gas": 225,
-        "pct": 0.02756342957666247
-      },
-      "DUP7": {
-        "count": 231,
-        "gas": 693,
-        "pct": 0.08489536309612042
-      },
-      "NOT": {
-        "count": 24,
-        "gas": 72,
-        "pct": 0.008820297464531992
-      },
-      "KECCAK256": {
-        "count": 110,
-        "gas": 60052,
-        "pct": 7.356618101945488
-      },
-      "CALLDATACOPY": {
-        "count": 1,
-        "gas": 338355,
-        "pct": 41.449885397385025
-      },
-      "GT": {
-        "count": 125,
-        "gas": 375,
-        "pct": 0.045939049294437456
-      },
-      "JUMPDEST": {
-        "count": 7289,
-        "gas": 7289,
-        "pct": 0.8929326141524123
+  "derivation": {
+    "tx_gas_limit": 30000000,
+    "intrinsic_gas": 21000,
+    "estimated_execution_gas": 1000000,
+    "standard_gas_per_byte": 16,
+    "standard_calldata_budget_gas": 28979000,
+    "standard_max_bytes": 1811187,
+    "floor_gas_per_byte": 40,
+    "floor_calldata_budget_gas": 29979000,
+    "floor_max_bytes": 749475,
+    "max_tx_bytes": 131072,
+    "rlp_envelope_bytes": 111,
+    "max_calldata_bytes_limit": 130961,
+    "ceilings": [
+      {
+        "name": "Standard gas pricing",
+        "max_calldata_bytes": 1811187,
+        "binding": false
+      },
+      {
+        "name": "EIP-7623 floor",
+        "max_calldata_bytes": 749475,
+        "binding": false
+      },
+      {
+        "name": "Tx size limit (131072 - 111 RLP overhead)",
+        "max_calldata_bytes": 130961,
+        "binding": true
       }
+    ],
+    "abi_overhead_bytes": 1060,
+    "max_payload_bytes": 129888
+  },
+  "gas": {
+    "total": 5230540,
+    "intrinsic": 21000,
+    "calldata": 4937163,
+    "execution": 272377,
+    "floor_pricing": true,
+    "effective_gas_per_nonzero_byte": 37.97759265242073,
+    "block_utilisation_pct": 17.435133333333333
+  },
+  "calldata_breakdown": [
+    {
+      "name": "Selector",
+      "bytes": 4,
+      "zero_bytes": 0,
+      "nonzero_bytes": 4,
+      "tokens": 16,
+      "standard_gas": 64,
+      "floor_gas": 160,
+      "effective_gas": 152,
+      "pct_of_calldata_gas": 0.0030786911430714364,
+      "fields": []
+    },
+    {
+      "name": "ABI framing",
+      "bytes": 224,
+      "zero_bytes": 202,
+      "nonzero_bytes": 22,
+      "tokens": 290,
+      "standard_gas": 1160,
+      "floor_gas": 2900,
+      "effective_gas": 2748,
+      "pct_of_calldata_gas": 0.05565949513921255,
+      "fields": []
+    },
+    {
+      "name": "Operation fields",
+      "bytes": 256,
+      "zero_bytes": 214,
+      "nonzero_bytes": 42,
+      "tokens": 382,
+      "standard_gas": 1528,
+      "floor_gas": 3820,
+      "effective_gas": 3620,
+      "pct_of_calldata_gas": 0.07332146011788551,
+      "fields": [
+        {
+          "name": "operationType = 1 (CREATE)",
+          "bytes": 32,
+          "zero_bytes": 32,
+          "nonzero_bytes": 0,
+          "tokens": 32,
+          "standard_gas": 128,
+          "floor_gas": 320,
+          "effective_gas": 303,
+          "pct_of_calldata_gas": 0.00613712773914898,
+          "fields": []
+        },
+        {
+          "name": "entityKey = 0x00..00",
+          "bytes": 32,
+          "zero_bytes": 32,
+          "nonzero_bytes": 0,
+          "tokens": 32,
+          "standard_gas": 128,
+          "floor_gas": 320,
+          "effective_gas": 303,
+          "pct_of_calldata_gas": 0.00613712773914898,
+          "fields": []
+        },
+        {
+          "name": "contentType = application/json",
+          "bytes": 128,
+          "zero_bytes": 121,
+          "nonzero_bytes": 7,
+          "tokens": 149,
+          "standard_gas": 596,
+          "floor_gas": 1490,
+          "effective_gas": 1412,
+          "pct_of_calldata_gas": 0.028599420355374126,
+          "fields": []
+        },
+        {
+          "name": "expiresAt = 4294967295",
+          "bytes": 32,
+          "zero_bytes": 29,
+          "nonzero_bytes": 3,
+          "tokens": 41,
+          "standard_gas": 164,
+          "floor_gas": 410,
+          "effective_gas": 389,
+          "pct_of_calldata_gas": 0.007879018780623609,
+          "fields": []
+        },
+        {
+          "name": "newOwner = 0x00..00",
+          "bytes": 32,
+          "zero_bytes": 0,
+          "nonzero_bytes": 32,
+          "tokens": 128,
+          "standard_gas": 512,
+          "floor_gas": 1280,
+          "effective_gas": 1213,
+          "pct_of_calldata_gas": 0.024568765503589815,
+          "fields": []
+        }
+      ]
+    },
+    {
+      "name": "Payload",
+      "bytes": 129888,
+      "zero_bytes": 31,
+      "nonzero_bytes": 129857,
+      "tokens": 519459,
+      "standard_gas": 2077836,
+      "floor_gas": 5194590,
+      "effective_gas": 4922995,
+      "pct_of_calldata_gas": 99.71303357819056,
+      "fields": [
+        {
+          "name": "Nonzero bytes (x4 tokens each)",
+          "bytes": 129857,
+          "zero_bytes": 0,
+          "nonzero_bytes": 129857,
+          "tokens": 519428,
+          "standard_gas": 2077712,
+          "floor_gas": 5194280,
+          "effective_gas": 4922701,
+          "pct_of_calldata_gas": 99.70707874137435,
+          "fields": []
+        },
+        {
+          "name": "Zero bytes (x1 token each)",
+          "bytes": 31,
+          "zero_bytes": 31,
+          "nonzero_bytes": 0,
+          "tokens": 31,
+          "standard_gas": 124,
+          "floor_gas": 310,
+          "effective_gas": 294,
+          "pct_of_calldata_gas": 0.005954836816203962,
+          "fields": []
+        }
+      ]
+    },
+    {
+      "name": "Attributes (3 x 192 bytes)",
+      "bytes": 576,
+      "zero_bytes": 499,
+      "nonzero_bytes": 77,
+      "tokens": 807,
+      "standard_gas": 3228,
+      "floor_gas": 8070,
+      "effective_gas": 7648,
+      "pct_of_calldata_gas": 0.15490677540927858,
+      "fields": [
+        {
+          "name": "[0] category (string) = research-publication",
+          "bytes": 192,
+          "zero_bytes": 163,
+          "nonzero_bytes": 29,
+          "tokens": 279,
+          "standard_gas": 1116,
+          "floor_gas": 2790,
+          "effective_gas": 2644,
+          "pct_of_calldata_gas": 0.05355302225184787,
+          "fields": [
+            {
+              "name": "[0] 0x72657365617263682d7075626c69636174696f6e000000000000000000000000",
+              "bytes": 32,
+              "zero_bytes": 0,
+              "nonzero_bytes": 0,
+              "tokens": 0,
+              "standard_gas": 0,
+              "floor_gas": 0,
+              "effective_gas": 0,
+              "pct_of_calldata_gas": 0.0,
+              "fields": []
+            },
+            {
+              "name": "[1] 0x0000000000000000000000000000000000000000000000000000000000000000",
+              "bytes": 32,
+              "zero_bytes": 0,
+              "nonzero_bytes": 0,
+              "tokens": 0,
+              "standard_gas": 0,
+              "floor_gas": 0,
+              "effective_gas": 0,
+              "pct_of_calldata_gas": 0.0,
+              "fields": []
+            },
+            {
+              "name": "[2] 0x0000000000000000000000000000000000000000000000000000000000000000",
+              "bytes": 32,
+              "zero_bytes": 0,
+              "nonzero_bytes": 0,
+              "tokens": 0,
+              "standard_gas": 0,
+              "floor_gas": 0,
+              "effective_gas": 0,
+              "pct_of_calldata_gas": 0.0,
+              "fields": []
+            },
+            {
+              "name": "[3] 0x0000000000000000000000000000000000000000000000000000000000000000",
+              "bytes": 32,
+              "zero_bytes": 0,
+              "nonzero_bytes": 0,
+              "tokens": 0,
+              "standard_gas": 0,
+              "floor_gas": 0,
+              "effective_gas": 0,
+              "pct_of_calldata_gas": 0.0,
+              "fields": []
+            }
+          ]
+        },
+        {
+          "name": "[1] parent (entity_key) = 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "bytes": 192,
+          "zero_bytes": 153,
+          "nonzero_bytes": 39,
+          "tokens": 309,
+          "standard_gas": 1236,
+          "floor_gas": 3090,
+          "effective_gas": 2928,
+          "pct_of_calldata_gas": 0.05930531359811292,
+          "fields": [
+            {
+              "name": "[0] 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "bytes": 32,
+              "zero_bytes": 0,
+              "nonzero_bytes": 0,
+              "tokens": 0,
+              "standard_gas": 0,
+              "floor_gas": 0,
+              "effective_gas": 0,
+              "pct_of_calldata_gas": 0.0,
+              "fields": []
+            },
+            {
+              "name": "[1] 0x0000000000000000000000000000000000000000000000000000000000000000",
+              "bytes": 32,
+              "zero_bytes": 0,
+              "nonzero_bytes": 0,
+              "tokens": 0,
+              "standard_gas": 0,
+              "floor_gas": 0,
+              "effective_gas": 0,
+              "pct_of_calldata_gas": 0.0,
+              "fields": []
+            },
+            {
+              "name": "[2] 0x0000000000000000000000000000000000000000000000000000000000000000",
+              "bytes": 32,
+              "zero_bytes": 0,
+              "nonzero_bytes": 0,
+              "tokens": 0,
+              "standard_gas": 0,
+              "floor_gas": 0,
+              "effective_gas": 0,
+              "pct_of_calldata_gas": 0.0,
+              "fields": []
+            },
+            {
+              "name": "[3] 0x0000000000000000000000000000000000000000000000000000000000000000",
+              "bytes": 32,
+              "zero_bytes": 0,
+              "nonzero_bytes": 0,
+              "tokens": 0,
+              "standard_gas": 0,
+              "floor_gas": 0,
+              "effective_gas": 0,
+              "pct_of_calldata_gas": 0.0,
+              "fields": []
+            }
+          ]
+        },
+        {
+          "name": "[2] version (uint) = 1",
+          "bytes": 192,
+          "zero_bytes": 183,
+          "nonzero_bytes": 9,
+          "tokens": 219,
+          "standard_gas": 876,
+          "floor_gas": 2190,
+          "effective_gas": 2075,
+          "pct_of_calldata_gas": 0.04202818501232388,
+          "fields": [
+            {
+              "name": "[0] 0x0000000000000000000000000000000000000000000000000000000000000001",
+              "bytes": 32,
+              "zero_bytes": 0,
+              "nonzero_bytes": 0,
+              "tokens": 0,
+              "standard_gas": 0,
+              "floor_gas": 0,
+              "effective_gas": 0,
+              "pct_of_calldata_gas": 0.0,
+              "fields": []
+            },
+            {
+              "name": "[1] 0x0000000000000000000000000000000000000000000000000000000000000000",
+              "bytes": 32,
+              "zero_bytes": 0,
+              "nonzero_bytes": 0,
+              "tokens": 0,
+              "standard_gas": 0,
+              "floor_gas": 0,
+              "effective_gas": 0,
+              "pct_of_calldata_gas": 0.0,
+              "fields": []
+            },
+            {
+              "name": "[2] 0x0000000000000000000000000000000000000000000000000000000000000000",
+              "bytes": 32,
+              "zero_bytes": 0,
+              "nonzero_bytes": 0,
+              "tokens": 0,
+              "standard_gas": 0,
+              "floor_gas": 0,
+              "effective_gas": 0,
+              "pct_of_calldata_gas": 0.0,
+              "fields": []
+            },
+            {
+              "name": "[3] 0x0000000000000000000000000000000000000000000000000000000000000000",
+              "bytes": 32,
+              "zero_bytes": 0,
+              "nonzero_bytes": 0,
+              "tokens": 0,
+              "standard_gas": 0,
+              "floor_gas": 0,
+              "effective_gas": 0,
+              "pct_of_calldata_gas": 0.0,
+              "fields": []
+            }
+          ]
+        }
+      ]
     }
-  }
-]
+  ],
+  "throughput": {
+    "tx_gas": 5230540,
+    "payload_bytes_per_tx": 129888,
+    "txs_per_block": 5,
+    "payload_bytes_per_block": 649440,
+    "rates": [
+      {
+        "block_time_secs": 1,
+        "txs_per_second": 5.0,
+        "payload_bytes_per_second": 649440
+      },
+      {
+        "block_time_secs": 2,
+        "txs_per_second": 2.5,
+        "payload_bytes_per_second": 324720
+      },
+      {
+        "block_time_secs": 12,
+        "txs_per_second": 0.4166666666666667,
+        "payload_bytes_per_second": 54120
+      }
+    ]
+  },
+  "categories": [
+    {
+      "name": "Storage",
+      "gas": 157200,
+      "pct_of_execution": 57.714124173480144,
+      "pct_of_tx": 3.00542582601414,
+      "opcodes": [
+        {
+          "opcode": "SSTORE",
+          "gas": 144200,
+          "count": 7,
+          "pct_of_execution": 52.941327645138905,
+          "pct_of_tx": 2.756885522336126
+        },
+        {
+          "opcode": "SLOAD",
+          "gas": 13000,
+          "count": 10,
+          "pct_of_execution": 4.7727965283412335,
+          "pct_of_tx": 0.2485403036780141
+        }
+      ]
+    },
+    {
+      "name": "Hashing",
+      "gas": 25464,
+      "pct_of_execution": 9.348806984437012,
+      "pct_of_tx": 0.48683309945053477,
+      "opcodes": [
+        {
+          "opcode": "KECCAK256",
+          "gas": 25464,
+          "count": 23,
+          "pct_of_execution": 9.348806984437012,
+          "pct_of_tx": 0.48683309945053477
+        }
+      ]
+    },
+    {
+      "name": "Memory",
+      "gas": 669,
+      "pct_of_execution": 0.2456154521123296,
+      "pct_of_tx": 0.012790266396968574,
+      "opcodes": [
+        {
+          "opcode": "MSTORE",
+          "gas": 513,
+          "count": 111,
+          "pct_of_execution": 0.18834189377223481,
+          "pct_of_tx": 0.009807782752832403
+        },
+        {
+          "opcode": "MLOAD",
+          "gas": 156,
+          "count": 52,
+          "pct_of_execution": 0.0572735583400948,
+          "pct_of_tx": 0.0029824836441361695
+        }
+      ]
+    },
+    {
+      "name": "Calldata",
+      "gas": 57535,
+      "pct_of_execution": 21.123296019854834,
+      "pct_of_tx": 1.0999820286241957,
+      "opcodes": [
+        {
+          "opcode": "CALLDATACOPY",
+          "gas": 57360,
+          "count": 1,
+          "pct_of_execution": 21.05904683581947,
+          "pct_of_tx": 1.0966362937669916
+        },
+        {
+          "opcode": "CALLDATALOAD",
+          "gas": 159,
+          "count": 53,
+          "pct_of_execution": 0.05837497292355816,
+          "pct_of_tx": 0.003039839098831096
+        },
+        {
+          "opcode": "CALLDATASIZE",
+          "gas": 16,
+          "count": 8,
+          "pct_of_execution": 0.005874211111804594,
+          "pct_of_tx": 0.00030589575837294044
+        }
+      ]
+    },
+    {
+      "name": "Logging",
+      "gas": 2387,
+      "pct_of_execution": 0.8763588702423479,
+      "pct_of_tx": 0.04563582345226306,
+      "opcodes": [
+        {
+          "opcode": "LOG4",
+          "gas": 2387,
+          "count": 1,
+          "pct_of_execution": 0.8763588702423479,
+          "pct_of_tx": 0.04563582345226306
+        }
+      ]
+    },
+    {
+      "name": "Control flow",
+      "gas": 9719,
+      "pct_of_execution": 3.5682161122268035,
+      "pct_of_tx": 0.18581255472666303,
+      "opcodes": [
+        {
+          "opcode": "JUMPI",
+          "gas": 5680,
+          "count": 568,
+          "pct_of_execution": 2.085344944690631,
+          "pct_of_tx": 0.10859299422239387
+        },
+        {
+          "opcode": "JUMP",
+          "gas": 3216,
+          "count": 402,
+          "pct_of_execution": 1.1807164334727234,
+          "pct_of_tx": 0.06148504743296103
+        },
+        {
+          "opcode": "JUMPDEST",
+          "gas": 823,
+          "count": 823,
+          "pct_of_execution": 0.30215473406344884,
+          "pct_of_tx": 0.015734513071308125
+        }
+      ]
+    },
+    {
+      "name": "Arithmetic",
+      "gas": 1899,
+      "pct_of_execution": 0.6971954313323079,
+      "pct_of_tx": 0.036306002821888374,
+      "opcodes": [
+        {
+          "opcode": "ADD",
+          "gas": 1224,
+          "count": 408,
+          "pct_of_execution": 0.44937715005305146,
+          "pct_of_tx": 0.023401025515529944
+        },
+        {
+          "opcode": "SUB",
+          "gas": 420,
+          "count": 140,
+          "pct_of_execution": 0.1541980416848706,
+          "pct_of_tx": 0.008029763657289687
+        },
+        {
+          "opcode": "MUL",
+          "gas": 150,
+          "count": 30,
+          "pct_of_execution": 0.05507072917316807,
+          "pct_of_tx": 0.002867772734746317
+        },
+        {
+          "opcode": "DIV",
+          "gas": 95,
+          "count": 19,
+          "pct_of_execution": 0.03487812847633978,
+          "pct_of_tx": 0.001816256065339334
+        },
+        {
+          "opcode": "EXP",
+          "gas": 10,
+          "count": 1,
+          "pct_of_execution": 0.0036713819448778717,
+          "pct_of_tx": 0.0001911848489830878
+        }
+      ]
+    },
+    {
+      "name": "Comparison / Bitwise",
+      "gas": 3078,
+      "pct_of_execution": 1.1300513626334088,
+      "pct_of_tx": 0.05884669651699442,
+      "opcodes": [
+        {
+          "opcode": "ISZERO",
+          "gas": 792,
+          "count": 264,
+          "pct_of_execution": 0.2907734500343274,
+          "pct_of_tx": 0.015141840039460553
+        },
+        {
+          "opcode": "LT",
+          "gas": 723,
+          "count": 241,
+          "pct_of_execution": 0.2654409146146701,
+          "pct_of_tx": 0.013822664581477248
+        },
+        {
+          "opcode": "AND",
+          "gas": 573,
+          "count": 191,
+          "pct_of_execution": 0.21037018544150204,
+          "pct_of_tx": 0.01095489184673093
+        },
+        {
+          "opcode": "BYTE",
+          "gas": 339,
+          "count": 113,
+          "pct_of_execution": 0.12445984793135983,
+          "pct_of_tx": 0.006481166380526676
+        },
+        {
+          "opcode": "EQ",
+          "gas": 120,
+          "count": 40,
+          "pct_of_execution": 0.04405658333853446,
+          "pct_of_tx": 0.0022942181877970533
+        },
+        {
+          "opcode": "SHR",
+          "gas": 114,
+          "count": 38,
+          "pct_of_execution": 0.041853754171607735,
+          "pct_of_tx": 0.0021795072784072007
+        },
+        {
+          "opcode": "GT",
+          "gas": 111,
+          "count": 37,
+          "pct_of_execution": 0.04075233958814437,
+          "pct_of_tx": 0.0021221518237122747
+        },
+        {
+          "opcode": "SHL",
+          "gas": 93,
+          "count": 31,
+          "pct_of_execution": 0.0341438520873642,
+          "pct_of_tx": 0.0017780190955427164
+        },
+        {
+          "opcode": "OR",
+          "gas": 84,
+          "count": 28,
+          "pct_of_execution": 0.03083960833697412,
+          "pct_of_tx": 0.0016059527314579375
+        },
+        {
+          "opcode": "SLT",
+          "gas": 60,
+          "count": 20,
+          "pct_of_execution": 0.02202829166926723,
+          "pct_of_tx": 0.0011471090938985266
+        },
+        {
+          "opcode": "NOT",
+          "gas": 60,
+          "count": 20,
+          "pct_of_execution": 0.02202829166926723,
+          "pct_of_tx": 0.0011471090938985266
+        },
+        {
+          "opcode": "SGT",
+          "gas": 9,
+          "count": 3,
+          "pct_of_execution": 0.0033042437503900844,
+          "pct_of_tx": 0.00017206636408477902
+        }
+      ]
+    },
+    {
+      "name": "Stack",
+      "gas": 14400,
+      "pct_of_execution": 5.286790000624135,
+      "pct_of_tx": 0.27530618253564637,
+      "opcodes": [
+        {
+          "opcode": "PUSH2",
+          "gas": 2952,
+          "count": 984,
+          "pct_of_execution": 1.0837919501279476,
+          "pct_of_tx": 0.05643776741980751
+        },
+        {
+          "opcode": "PUSH1",
+          "gas": 2562,
+          "count": 854,
+          "pct_of_execution": 0.9406080542777107,
+          "pct_of_tx": 0.0489815583094671
+        },
+        {
+          "opcode": "DUP2",
+          "gas": 1740,
+          "count": 580,
+          "pct_of_execution": 0.6388204584087496,
+          "pct_of_tx": 0.033266163723057275
+        },
+        {
+          "opcode": "SWAP1",
+          "gas": 1140,
+          "count": 380,
+          "pct_of_execution": 0.4185375417160774,
+          "pct_of_tx": 0.021795072784072007
+        },
+        {
+          "opcode": "POP",
+          "gas": 1116,
+          "count": 558,
+          "pct_of_execution": 0.4097262250483705,
+          "pct_of_tx": 0.021336229146512595
+        },
+        {
+          "opcode": "DUP3",
+          "gas": 924,
+          "count": 308,
+          "pct_of_execution": 0.3392356917067153,
+          "pct_of_tx": 0.01766548004603731
+        },
+        {
+          "opcode": "SWAP2",
+          "gas": 588,
+          "count": 196,
+          "pct_of_execution": 0.21587725835881885,
+          "pct_of_tx": 0.011241669120205562
+        },
+        {
+          "opcode": "DUP5",
+          "gas": 522,
+          "count": 174,
+          "pct_of_execution": 0.19164613752262488,
+          "pct_of_tx": 0.009979849116917183
+        },
+        {
+          "opcode": "PUSH0",
+          "gas": 492,
+          "count": 246,
+          "pct_of_execution": 0.18063199168799127,
+          "pct_of_tx": 0.00940629456996792
+        },
+        {
+          "opcode": "DUP1",
+          "gas": 459,
+          "count": 153,
+          "pct_of_execution": 0.1685164312698943,
+          "pct_of_tx": 0.008775384568323729
+        },
+        {
+          "opcode": "SWAP3",
+          "gas": 327,
+          "count": 109,
+          "pct_of_execution": 0.1200541895975064,
+          "pct_of_tx": 0.006251744561746971
+        },
+        {
+          "opcode": "DUP4",
+          "gas": 297,
+          "count": 99,
+          "pct_of_execution": 0.10904004376287278,
+          "pct_of_tx": 0.005678190014797708
+        },
+        {
+          "opcode": "SWAP4",
+          "gas": 162,
+          "count": 54,
+          "pct_of_execution": 0.05947638750702152,
+          "pct_of_tx": 0.003097194553526022
+        },
+        {
+          "opcode": "DUP7",
+          "gas": 153,
+          "count": 51,
+          "pct_of_execution": 0.05617214375663143,
+          "pct_of_tx": 0.002925128189441243
+        },
+        {
+          "opcode": "DUP6",
+          "gas": 147,
+          "count": 49,
+          "pct_of_execution": 0.05396931458970471,
+          "pct_of_tx": 0.0028104172800513904
+        },
+        {
+          "opcode": "DUP8",
+          "gas": 138,
+          "count": 46,
+          "pct_of_execution": 0.05066507083931463,
+          "pct_of_tx": 0.0026383509159666114
+        },
+        {
+          "opcode": "PUSH4",
+          "gas": 120,
+          "count": 40,
+          "pct_of_execution": 0.04405658333853446,
+          "pct_of_tx": 0.0022942181877970533
+        },
+        {
+          "opcode": "PUSH16",
+          "gas": 102,
+          "count": 34,
+          "pct_of_execution": 0.03744809583775429,
+          "pct_of_tx": 0.0019500854596274954
+        },
+        {
+          "opcode": "SWAP6",
+          "gas": 81,
+          "count": 27,
+          "pct_of_execution": 0.02973819375351076,
+          "pct_of_tx": 0.001548597276763011
+        },
+        {
+          "opcode": "DUP10",
+          "gas": 69,
+          "count": 23,
+          "pct_of_execution": 0.025332535419657316,
+          "pct_of_tx": 0.0013191754579833057
+        },
+        {
+          "opcode": "DUP9",
+          "gas": 63,
+          "count": 21,
+          "pct_of_execution": 0.023129706252730593,
+          "pct_of_tx": 0.0012044645485934531
+        },
+        {
+          "opcode": "SWAP7",
+          "gas": 51,
+          "count": 17,
+          "pct_of_execution": 0.018724047918877145,
+          "pct_of_tx": 0.0009750427298137477
+        },
+        {
+          "opcode": "SWAP9",
+          "gas": 51,
+          "count": 17,
+          "pct_of_execution": 0.018724047918877145,
+          "pct_of_tx": 0.0009750427298137477
+        },
+        {
+          "opcode": "SWAP5",
+          "gas": 42,
+          "count": 14,
+          "pct_of_execution": 0.01541980416848706,
+          "pct_of_tx": 0.0008029763657289688
+        },
+        {
+          "opcode": "PUSH32",
+          "gas": 24,
+          "count": 8,
+          "pct_of_execution": 0.008811316667706891,
+          "pct_of_tx": 0.00045884363755941066
+        },
+        {
+          "opcode": "DUP12",
+          "gas": 18,
+          "count": 6,
+          "pct_of_execution": 0.006608487500780169,
+          "pct_of_tx": 0.00034413272816955805
+        },
+        {
+          "opcode": "SWAP8",
+          "gas": 18,
+          "count": 6,
+          "pct_of_execution": 0.006608487500780169,
+          "pct_of_tx": 0.00034413272816955805
+        },
+        {
+          "opcode": "PUSH8",
+          "gas": 12,
+          "count": 4,
+          "pct_of_execution": 0.0044056583338534456,
+          "pct_of_tx": 0.00022942181877970533
+        },
+        {
+          "opcode": "DUP13",
+          "gas": 12,
+          "count": 4,
+          "pct_of_execution": 0.0044056583338534456,
+          "pct_of_tx": 0.00022942181877970533
+        },
+        {
+          "opcode": "DUP11",
+          "gas": 9,
+          "count": 3,
+          "pct_of_execution": 0.0033042437503900844,
+          "pct_of_tx": 0.00017206636408477902
+        },
+        {
+          "opcode": "PUSH12",
+          "gas": 6,
+          "count": 2,
+          "pct_of_execution": 0.0022028291669267228,
+          "pct_of_tx": 0.00011471090938985266
+        },
+        {
+          "opcode": "DUP14",
+          "gas": 3,
+          "count": 1,
+          "pct_of_execution": 0.0011014145834633614,
+          "pct_of_tx": 0.00005735545469492633
+        }
+      ]
+    },
+    {
+      "name": "Environment",
+      "gas": 20,
+      "pct_of_execution": 0.0073427638897557435,
+      "pct_of_tx": 0.0003823696979661756,
+      "opcodes": [
+        {
+          "opcode": "CALLER",
+          "gas": 8,
+          "count": 4,
+          "pct_of_execution": 0.002937105555902297,
+          "pct_of_tx": 0.00015294787918647022
+        },
+        {
+          "opcode": "ADDRESS",
+          "gas": 4,
+          "count": 2,
+          "pct_of_execution": 0.0014685527779511485,
+          "pct_of_tx": 0.00007647393959323511
+        },
+        {
+          "opcode": "CHAINID",
+          "gas": 4,
+          "count": 2,
+          "pct_of_execution": 0.0014685527779511485,
+          "pct_of_tx": 0.00007647393959323511
+        },
+        {
+          "opcode": "CALLVALUE",
+          "gas": 2,
+          "count": 1,
+          "pct_of_execution": 0.0007342763889755743,
+          "pct_of_tx": 0.000038236969796617555
+        },
+        {
+          "opcode": "NUMBER",
+          "gas": 2,
+          "count": 1,
+          "pct_of_execution": 0.0007342763889755743,
+          "pct_of_tx": 0.000038236969796617555
+        }
+      ]
+    }
+  ]
+}

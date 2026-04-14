@@ -27,12 +27,12 @@
             python3
             vscode-solidity-server
             just
-
             # Rust toolchain (gas-profiler)
             cargo
             rustc
             clippy
             rustfmt
+            rust-analyzer
             gcc
             pkg-config
             openssl

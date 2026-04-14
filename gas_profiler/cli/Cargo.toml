@@ -1,0 +1,16 @@
+[package]
+name = "gas-profiler-cli"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "gas-profiler"
+path = "src/main.rs"
+
+[dependencies]
+gas-profiler-lib = { path = "../lib" }
+alloy-primitives = "1.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+comfy-table = "7"
+eyre = "0.6"
