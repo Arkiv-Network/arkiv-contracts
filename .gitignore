@@ -22,3 +22,4 @@ lib/
 # Rust
 target/
 gas_profiler/gas-report.json
+gas_profiler/execute_abi.json
