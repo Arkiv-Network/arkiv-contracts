@@ -250,23 +250,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         virtual
         returns (bytes32 key, bytes32 entityHash_)
     {
-        // TODO: contentType validation per RFC 6838 media type syntax.
-        //
-        // Format: type "/" subtype (no parameters)
-        //   - Exactly one "/" separator
-        //   - Each part: 1–127 chars
-        //   - First char: alphanumeric (a-z, A-Z, 0-9)
-        //   - Remaining chars: alphanumeric + ! # $ & - ^ _ . +
-        //   - Total length ≤ 255 bytes
-        //
-        // Implementation: 256-bit bitmap for valid charset, single pass over
-        // bytes(contentType). ~30 gas/byte — negligible for typical values
-        // like "application/json".
-        // expiresAt must be strictly after the current block. Equality is
-        // rejected because the entity would already be expirable in this block.
-        if (op.expiresAt <= current) {
-            revert EntityHashing.ExpiryInPast(op.expiresAt, current);
-        }
+        EntityHashing.requireFutureExpiry(op.expiresAt, current);
 
         key = _createEntityKey(msg.sender);
 
@@ -335,7 +319,6 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         EntityHashing.requireExists(key, c);
         EntityHashing.requireActive(key, c, current);
         EntityHashing.requireOwner(key, c);
-
         EntityHashing.requireExpiryIncreased(key, op.expiresAt, c.expiresAt);
 
         c.expiresAt = op.expiresAt;

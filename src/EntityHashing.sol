@@ -192,6 +192,11 @@ library EntityHashing {
         if (newExpiresAt <= currentExpiresAt) revert ExpiryNotExtended(key, newExpiresAt, currentExpiresAt);
     }
 
+    /// @dev Require that the expiry is strictly in the future.
+    function requireFutureExpiry(BlockNumber expiresAt, BlockNumber current) internal pure {
+        if (expiresAt <= current) revert ExpiryInPast(expiresAt, current);
+    }
+
     // -------------------------------------------------------------------------
     // Hash functions
     // -------------------------------------------------------------------------
