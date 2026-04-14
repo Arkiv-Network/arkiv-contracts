@@ -242,6 +242,17 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         if (msg.sender != c.owner) revert EntityHashing.NotOwner(key, msg.sender, c.owner);
     }
 
+    /// @dev Require that the new expiry is strictly greater than the current one.
+    function _requireExpiryIncreased(bytes32 key, BlockNumber newExpiresAt, BlockNumber currentExpiresAt)
+        internal
+        pure
+        virtual
+    {
+        if (newExpiresAt <= currentExpiresAt) {
+            revert EntityHashing.ExpiryNotExtended(key, newExpiresAt, currentExpiresAt);
+        }
+    }
+
     /// @dev Mint a new entity key by post-incrementing the owner's nonce.
     /// Uniqueness is guaranteed by the monotonic nonce — no existence check needed.
     function _createEntityKey(address owner) internal virtual returns (bytes32) {
@@ -362,9 +373,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         _requireActive(key, c, current);
         _requireOwner(key, c);
 
-        if (op.expiresAt <= c.expiresAt) {
-            revert EntityHashing.ExpiryNotExtended(key, op.expiresAt, c.expiresAt);
-        }
+        _requireExpiryIncreased(key, op.expiresAt, c.expiresAt);
 
         c.expiresAt = op.expiresAt;
         c.updatedAt = current;
