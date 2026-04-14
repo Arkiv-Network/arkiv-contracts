@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {BlockNumber, currentBlock} from "../../../src/BlockNumber.sol";
-import {Test} from "forge-std/Test.sol";
+import {Test, Vm} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {EntityHashing} from "../../../src/EntityHashing.sol";
 import {EntityRegistry} from "../../../src/EntityRegistry.sol";
@@ -163,8 +163,17 @@ contract TransferTest is Test, EntityRegistry {
         EntityHashing.Op memory op = Lib.transferOp(testKey, bob);
 
         vm.prank(alice);
-        vm.expectEmit(true, true, true, false);
-        emit EntityOp(testKey, EntityHashing.TRANSFER, bob, expiresAt, bytes32(0));
-        this.doTransfer(op);
+        vm.recordLogs();
+        (, bytes32 entityHash_) = this.doTransfer(op);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].topics[0], EntityOp.selector);
+        assertEq(logs[0].topics[1], testKey);
+        assertEq(logs[0].topics[2], bytes32(uint256(EntityHashing.TRANSFER)));
+        assertEq(logs[0].topics[3], bytes32(uint256(uint160(bob))));
+        (BlockNumber emittedExpiry, bytes32 emittedHash) = abi.decode(logs[0].data, (BlockNumber, bytes32));
+        assertEq(BlockNumber.unwrap(emittedExpiry), BlockNumber.unwrap(expiresAt));
+        assertEq(emittedHash, entityHash_);
     }
 }

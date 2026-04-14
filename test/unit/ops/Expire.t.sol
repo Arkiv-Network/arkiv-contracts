@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {BlockNumber, currentBlock} from "../../../src/BlockNumber.sol";
-import {Test} from "forge-std/Test.sol";
+import {Test, Vm} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {EntityHashing} from "../../../src/EntityHashing.sol";
 import {EntityRegistry} from "../../../src/EntityRegistry.sol";
@@ -77,8 +77,17 @@ contract ExpireTest is Test, EntityRegistry {
 
     function test_expire_emitsEntityOp() public {
         vm.roll(BlockNumber.unwrap(expiresAt));
-        vm.expectEmit(true, true, true, false);
-        emit EntityOp(testKey, EntityHashing.EXPIRE, alice, expiresAt, bytes32(0));
-        this.doExpire(testKey);
+        vm.recordLogs();
+        (, bytes32 entityHash_) = this.doExpire(testKey);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].topics[0], EntityOp.selector);
+        assertEq(logs[0].topics[1], testKey);
+        assertEq(logs[0].topics[2], bytes32(uint256(EntityHashing.EXPIRE)));
+        assertEq(logs[0].topics[3], bytes32(uint256(uint160(alice))));
+        (BlockNumber emittedExpiry, bytes32 emittedHash) = abi.decode(logs[0].data, (BlockNumber, bytes32));
+        assertEq(BlockNumber.unwrap(emittedExpiry), BlockNumber.unwrap(expiresAt));
+        assertEq(emittedHash, entityHash_);
     }
 }
