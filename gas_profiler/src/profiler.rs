@@ -25,7 +25,12 @@ const CALLER: Address = Address::new([0x02; 20]);
 pub struct ProfileResult {
     pub label: String,
     pub scenario: String,
+    /// Total transaction gas (intrinsic + calldata + execution).
     pub total_gas: u64,
+    /// Execution gas only (sum of all opcode costs tracked by inspector).
+    pub execution_gas: u64,
+    /// Non-execution overhead (intrinsic tx cost + calldata gas).
+    pub overhead_gas: u64,
     pub opcode_gas: HashMap<String, OpcodeStats>,
     pub keccak_pct_config: u8,
 }
@@ -71,13 +76,16 @@ fn fund_account(db: &mut InMemoryDB, addr: Address) {
 }
 
 fn deploy(db: &mut InMemoryDB, artifact: &Artifact) -> Result<Address> {
-    let mut evm = Context::mainnet().with_db(db).build_mainnet();
+    let mut evm = Context::mainnet()
+        .modify_cfg_chained(|cfg| cfg.tx_gas_limit_cap = Some(u64::MAX))
+        .with_db(db)
+        .build_mainnet();
 
     let tx = TxEnv {
         caller: DEPLOYER,
         kind: TxKind::Create,
         data: artifact.bytecode.clone(),
-        gas_limit: 30_000_000,
+        gas_limit: u64::MAX,
         value: U256::ZERO,
         gas_price: 0,
         ..Default::default()
@@ -114,6 +122,7 @@ fn execute_with_inspector(
 ) -> Result<ProfileResult> {
     let inspector = OpcodeGasInspector::new();
     let mut evm = Context::mainnet()
+        .modify_cfg_chained(|cfg| cfg.tx_gas_limit_cap = Some(u64::MAX))
         .with_db(db)
         .build_mainnet_with_inspector(inspector);
 
@@ -121,7 +130,7 @@ fn execute_with_inspector(
         caller: CALLER,
         kind: TxKind::Call(contract),
         data: scenario.calldata.clone(),
-        gas_limit: 30_000_000,
+        gas_limit: u64::MAX,
         value: U256::ZERO,
         gas_price: 0,
         ..Default::default()
@@ -149,15 +158,18 @@ fn execute_with_inspector(
 
     // Extract per-opcode gas from the inspector.
     let inspector = evm.into_inspector();
+    let execution_gas: u64 = inspector.opcode_gas().values().sum();
+    let overhead_gas = total_gas.saturating_sub(execution_gas);
+
     let mut opcode_gas = HashMap::new();
     for (opcode, (count, gas)) in inspector.opcode_iter() {
-        let pct = if total_gas > 0 {
-            (gas as f64 / total_gas as f64) * 100.0
+        let pct = if execution_gas > 0 {
+            (gas as f64 / execution_gas as f64) * 100.0
         } else {
             0.0
         };
         opcode_gas.insert(
-            format!("{:?}", opcode),
+            format!("{}", opcode),
             OpcodeStats { count, gas, pct },
         );
     }
@@ -166,6 +178,8 @@ fn execute_with_inspector(
         label: scenario.label.clone(),
         scenario: scenario.to_string(),
         total_gas,
+        execution_gas,
+        overhead_gas,
         opcode_gas,
         keccak_pct_config: scenario.keccak_pct,
     })

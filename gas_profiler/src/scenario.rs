@@ -75,41 +75,34 @@ fn op_name(t: u8) -> &'static str {
 // Scenario construction
 // ---------------------------------------------------------------------------
 
-/// Build the full matrix of scenarios to profile.
+/// Build the scenario list to profile.
 pub fn build_all() -> Vec<Scenario> {
-    let payload_sizes = [0, 32, 256, 1024, 4096, 16384];
-    let attr_counts = [0, 1, 8, 16, 32];
-    let batch_sizes = [1, 10, 50];
+    // Max-stuffed transaction: 32 attributes (each with full bytes32[4]
+    // values), payload fills remaining calldata budget.
+    //
+    // Calldata cost: 16 gas per non-zero byte, 4 per zero.
+    // Block gas limit: 30M. Intrinsic tx cost: 21,000.
+    // Budget for calldata gas ≈ 30M - 21K - execution overhead.
+    //
+    // Compute fixed overhead: encode with empty payload, measure size.
+    let empty = encode_execute(&[make_create_op(0, 32)]);
+    let overhead = empty.len();
 
-    let mut scenarios = Vec::new();
+    // Estimate max calldata: assume ~1M gas execution overhead,
+    // all non-zero bytes (16 gas each).
+    // (30_000_000 - 21_000 - 1_000_000) / 16 = ~1,811,187 bytes total calldata
+    let max_calldata = (30_000_000u64 - 21_000 - 1_000_000) / 16;
+    let max_payload = (max_calldata as usize).saturating_sub(overhead);
 
-    // CREATE × payload × attrs × batch (keccak=100%, new_block=true)
-    for &ps in &payload_sizes {
-        for &ac in &attr_counts {
-            for &bs in &batch_sizes {
-                scenarios.push(build_create_scenario(ps, ac, bs, true, 100));
-            }
-        }
-    }
+    // Round payload down to 32-byte boundary for clean ABI encoding.
+    let max_payload = (max_payload / 32) * 32;
 
-    // UPDATE × payload × attrs (batch=1)
-    for &ps in &payload_sizes {
-        for &ac in &attr_counts {
-            scenarios.push(build_update_scenario(ps, ac, 1, true, 100));
-        }
-    }
+    eprintln!("ABI overhead (0-byte payload): {} bytes", overhead);
+    eprintln!("Max calldata budget:           {} bytes", max_calldata);
+    eprintln!("Max payload:                   {} bytes", max_payload);
+    eprintln!();
 
-    // Fixed-cost ops (batch=1)
-    for &op in &[EXTEND, TRANSFER, DELETE, EXPIRE] {
-        scenarios.push(build_fixed_op_scenario(op, 1, true, 100));
-    }
-
-    // Keccak sensitivity: worst-case CREATE at different keccak costs
-    for &kp in &[100, 75, 50, 25, 0] {
-        scenarios.push(build_create_scenario(16384, 32, 1, true, kp));
-    }
-
-    scenarios
+    vec![build_create_scenario(max_payload, 32, 1, true, 100)]
 }
 
 fn build_create_scenario(
@@ -232,15 +225,21 @@ fn make_fixed_op(op_type: u8, entity_key: FixedBytes<32>) -> Op {
     }
 }
 
-/// Encode a valid Mime128: "application/json" padded into bytes32[4].
+/// Encode a valid Mime128: "application/json" left-aligned in bytes32[4].
+/// Matches Solidity's encodeMime128: each byte stored at word[j] position,
+/// zero-padded to the right.
 fn make_mime128() -> Mime128 {
-    let mut slots = [FixedBytes::ZERO; 4];
+    let mut data = [FixedBytes::ZERO; 4];
     let mime = b"application/json";
-    let mut buf = [0u8; 32];
-    buf[0] = mime.len() as u8;
-    buf[1..1 + mime.len()].copy_from_slice(mime);
-    slots[0] = FixedBytes::from(buf);
-    Mime128 { data: slots }
+    let mut buf = [0u8; 128];
+    buf[..mime.len()].copy_from_slice(mime);
+    for i in 0..4 {
+        let start = i * 32;
+        let mut word = [0u8; 32];
+        word.copy_from_slice(&buf[start..start + 32]);
+        data[i] = FixedBytes::from(word);
+    }
+    Mime128 { data }
 }
 
 /// Build `count` valid attributes with deterministic sorted Ident32 names.
