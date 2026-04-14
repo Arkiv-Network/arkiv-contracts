@@ -54,20 +54,13 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Events
     // -------------------------------------------------------------------------
 
-    event EntityCreated(
-        bytes32 indexed entityKey, address indexed owner, BlockNumber indexed expiresAt, bytes32 entityHash
+    event EntityOp(
+        bytes32 indexed entityKey,
+        uint8 indexed opType,
+        address indexed owner,
+        BlockNumber expiresAt,
+        bytes32 entityHash
     );
-    event EntityUpdated(
-        bytes32 indexed entityKey, address indexed owner, BlockNumber indexed expiresAt, bytes32 entityHash
-    );
-    event EntityExtended(
-        bytes32 indexed entityKey, address indexed owner, BlockNumber indexed newExpiresAt, bytes32 entityHash
-    );
-    event EntityTransferred(
-        bytes32 indexed entityKey, address indexed previousOwner, address indexed newOwner, bytes32 entityHash
-    );
-    event EntityDeleted(bytes32 indexed entityKey, address indexed owner, bytes32 entityHash);
-    event EntityExpired(bytes32 indexed entityKey, address indexed owner, bytes32 entityHash);
 
     // -------------------------------------------------------------------------
     // State — linked list pointers
@@ -326,7 +319,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
             coreHash: coreHash_
         });
 
-        emit EntityCreated(key, msg.sender, op.expiresAt, entityHash_);
+        emit EntityOp(key, EntityHashing.CREATE, msg.sender, op.expiresAt, entityHash_);
     }
 
     /// @dev Update an existing entity's payload, contentType, and attributes.
@@ -355,7 +348,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         c.coreHash = coreHash_;
         c.updatedAt = current;
 
-        emit EntityUpdated(key, c.owner, c.expiresAt, entityHash_);
+        emit EntityOp(key, EntityHashing.UPDATE, c.owner, c.expiresAt, entityHash_);
         return (key, entityHash_);
     }
 
@@ -383,7 +376,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
         bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, current, op.expiresAt);
 
-        emit EntityExtended(key, c.owner, op.expiresAt, entityHash_);
+        emit EntityOp(key, EntityHashing.EXTEND, c.owner, op.expiresAt, entityHash_);
         return (key, entityHash_);
     }
 
@@ -409,13 +402,12 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
             revert EntityHashing.TransferToSelf(key);
         }
 
-        address previousOwner = c.owner;
         c.owner = op.newOwner;
         c.updatedAt = current;
 
         bytes32 entityHash_ = _wrapEntityHash(c.coreHash, op.newOwner, current, c.expiresAt);
 
-        emit EntityTransferred(key, previousOwner, op.newOwner, entityHash_);
+        emit EntityOp(key, EntityHashing.TRANSFER, op.newOwner, c.expiresAt, entityHash_);
         return (key, entityHash_);
     }
 
@@ -434,13 +426,14 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         EntityHashing.Commitment storage c = _commitments[key];
         _guardEntityMutation(key, c, current);
 
-        // Snapshot the entity hash before deletion.
+        // Snapshot before deletion.
         bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
         address owner = c.owner;
+        BlockNumber expiresAt = c.expiresAt;
 
         delete _commitments[key];
 
-        emit EntityDeleted(key, owner, entityHash_);
+        emit EntityOp(key, EntityHashing.DELETE, owner, expiresAt, entityHash_);
         return (key, entityHash_);
     }
 
@@ -460,10 +453,11 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
         bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
         address owner = c.owner;
+        BlockNumber expiresAt = c.expiresAt;
 
         delete _commitments[key];
 
-        emit EntityExpired(key, owner, entityHash_);
+        emit EntityOp(key, EntityHashing.EXPIRE, owner, expiresAt, entityHash_);
         return (key, entityHash_);
     }
 }
