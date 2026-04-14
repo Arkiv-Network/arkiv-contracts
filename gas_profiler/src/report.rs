@@ -1,5 +1,6 @@
 use crate::profiler::{OpcodeStats, ProfileResult};
 use eyre::Result;
+use std::collections::HashMap;
 use std::path::Path;
 
 // ---------------------------------------------------------------------------
@@ -87,6 +88,7 @@ const CATEGORIES: &[(&str, &[&str])] = &[
 pub fn print_row(r: &ProfileResult) {
     println!("═══════════════════════════════════════════════════════════════════════");
     println!("{}", r.scenario);
+    println!("Schedule: {}", r.schedule);
     println!("═══════════════════════════════════════════════════════════════════════");
     println!();
     println!(
@@ -105,10 +107,19 @@ pub fn print_row(r: &ProfileResult) {
         format_usd(gas_to_usd(r.execution_gas))
     );
     println!(
-        "  Overhead:         {:>12}  {}  (intrinsic 21K + calldata gas)",
+        "  Overhead:         {:>12}  {}  (intrinsic + calldata gas)",
         format_gas(r.overhead_gas),
         format_usd(gas_to_usd(r.overhead_gas))
     );
+    if r.floor_gas > 0 {
+        let floored = r.floor_gas > (r.overhead_gas + r.execution_gas);
+        println!(
+            "  EIP-7623 floor:   {:>12}  {}{}",
+            format_gas(r.floor_gas),
+            format_usd(gas_to_usd(r.floor_gas)),
+            if floored { "  ** FLOOR ACTIVE — dominates total **" } else { "" }
+        );
+    }
     println!();
     println!("  All percentages below are relative to execution gas.");
     println!();
@@ -211,6 +222,96 @@ fn format_gas(gas: u64) -> String {
         result.push(c);
     }
     result.chars().rev().collect()
+}
+
+/// Print a side-by-side comparison of two schedule results.
+pub fn print_comparison(baseline: &ProfileResult, optimised: &ProfileResult) {
+    println!("═══════════════════════════════════════════════════════════════════════");
+    println!("COMPARISON: {} vs {}", baseline.schedule, optimised.schedule);
+    println!("{}", baseline.scenario);
+    println!("═══════════════════════════════════════════════════════════════════════");
+    println!();
+
+    // Header
+    println!(
+        "  {:<22} {:>14} {:>14} {:>10} {:>10}",
+        "", "Mainnet", "Optimised", "Savings", "Reduction"
+    );
+    println!("  {}", "─".repeat(72));
+
+    // Top-level gas
+    print_cmp_row("Transaction gas", baseline.total_gas, optimised.total_gas);
+    print_cmp_row("Execution gas", baseline.execution_gas, optimised.execution_gas);
+    print_cmp_row("Overhead", baseline.overhead_gas, optimised.overhead_gas);
+
+    println!();
+    println!(
+        "  {:<22} {:>14} {:>14} {:>10} {:>10}",
+        "", "Mainnet", "Optimised", "Savings", "Reduction"
+    );
+    println!("  {}", "─".repeat(72));
+
+    // Per-category comparison
+    for &(category, opcodes) in CATEGORIES {
+        let base_gas = cat_gas(&baseline.opcode_gas, opcodes);
+        let opt_gas = cat_gas(&optimised.opcode_gas, opcodes);
+        if base_gas == 0 && opt_gas == 0 {
+            continue;
+        }
+        print_cmp_row(category, base_gas, opt_gas);
+    }
+
+    println!();
+
+    // Dollar comparison
+    println!(
+        "  {:<22} {:>14} {:>14} {:>10}",
+        "", "Mainnet", "Optimised", "Savings"
+    );
+    println!("  {}", "─".repeat(62));
+    print_cmp_usd("Transaction cost", baseline.total_gas, optimised.total_gas);
+    print_cmp_usd("Execution cost", baseline.execution_gas, optimised.execution_gas);
+    print_cmp_usd("Overhead cost", baseline.overhead_gas, optimised.overhead_gas);
+
+    println!();
+}
+
+fn cat_gas(opcode_gas: &HashMap<String, OpcodeStats>, opcodes: &[&str]) -> u64 {
+    opcodes
+        .iter()
+        .filter_map(|&op| opcode_gas.get(op))
+        .map(|s| s.gas)
+        .sum()
+}
+
+fn print_cmp_row(label: &str, base: u64, opt: u64) {
+    let savings = base.saturating_sub(opt);
+    let reduction = if base > 0 {
+        (savings as f64 / base as f64) * 100.0
+    } else {
+        0.0
+    };
+    println!(
+        "  {:<22} {:>14} {:>14} {:>10} {:>9.1}%",
+        label,
+        format_gas(base),
+        format_gas(opt),
+        format_gas(savings),
+        reduction,
+    );
+}
+
+fn print_cmp_usd(label: &str, base_gas: u64, opt_gas: u64) {
+    let base_usd = gas_to_usd(base_gas);
+    let opt_usd = gas_to_usd(opt_gas);
+    let savings = base_usd - opt_usd;
+    println!(
+        "  {:<22} {:>14} {:>14} {:>10}",
+        label,
+        format_usd(base_usd),
+        format_usd(opt_usd),
+        format_usd(savings),
+    );
 }
 
 /// Write all results to a JSON file.
