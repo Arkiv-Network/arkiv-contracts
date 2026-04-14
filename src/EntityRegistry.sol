@@ -242,6 +242,18 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         if (msg.sender != c.owner) revert EntityHashing.NotOwner(key, msg.sender, c.owner);
     }
 
+    /// @dev Require that the address is not zero.
+    function _requireNonZeroAddress(bytes32 key, address addr) internal pure virtual {
+        if (addr == address(0)) revert EntityHashing.TransferToZeroAddress(key);
+    }
+
+    /// @dev Require that the new owner is different from the current owner.
+    function _requireNewOwner(bytes32 key, address newOwner, address currentOwner) internal pure virtual {
+        if (newOwner == currentOwner) {
+            revert EntityHashing.TransferToSelf(key);
+        }
+    }
+
     /// @dev Require that the new expiry is strictly greater than the current one.
     function _requireExpiryIncreased(bytes32 key, BlockNumber newExpiresAt, BlockNumber currentExpiresAt)
         internal
@@ -401,12 +413,8 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         _requireActive(key, c, current);
         _requireOwner(key, c);
 
-        if (op.newOwner == address(0)) {
-            revert EntityHashing.TransferToZeroAddress(key);
-        }
-        if (op.newOwner == c.owner) {
-            revert EntityHashing.TransferToSelf(key);
-        }
+        _requireNonZeroAddress(key, op.newOwner);
+        _requireNewOwner(key, op.newOwner, c.owner);
 
         c.owner = op.newOwner;
         c.updatedAt = current;
