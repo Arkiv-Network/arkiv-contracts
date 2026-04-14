@@ -154,6 +154,45 @@ library EntityHashing {
         keccak256("EntityHash(bytes32 coreHash,address owner,uint32 updatedAt,uint32 expiresAt)");
 
     // -------------------------------------------------------------------------
+    // Guards
+    // -------------------------------------------------------------------------
+
+    /// @dev Require that the entity exists (creator != address(0)).
+    function requireExists(bytes32 key, Commitment storage c) internal view {
+        if (c.creator == address(0)) revert EntityNotFound(key);
+    }
+
+    /// @dev Require that the entity has not expired (expiresAt > current).
+    function requireActive(bytes32 key, Commitment storage c, BlockNumber current) internal view {
+        if (c.expiresAt <= current) revert EntityExpired(key, c.expiresAt);
+    }
+
+    /// @dev Require that the entity has expired (expiresAt <= current).
+    function requireExpired(bytes32 key, Commitment storage c, BlockNumber current) internal view {
+        if (c.expiresAt > current) revert EntityNotExpired(key, c.expiresAt);
+    }
+
+    /// @dev Require that the caller is the entity owner.
+    function requireOwner(bytes32 key, Commitment storage c) internal view {
+        if (msg.sender != c.owner) revert NotOwner(key, msg.sender, c.owner);
+    }
+
+    /// @dev Require that the address is not zero.
+    function requireNonZeroAddress(bytes32 key, address addr) internal pure {
+        if (addr == address(0)) revert TransferToZeroAddress(key);
+    }
+
+    /// @dev Require that the new owner is different from the current owner.
+    function requireNewOwner(bytes32 key, address newOwner, address currentOwner) internal pure {
+        if (newOwner == currentOwner) revert TransferToSelf(key);
+    }
+
+    /// @dev Require that the new expiry is strictly greater than the current one.
+    function requireExpiryIncreased(bytes32 key, BlockNumber newExpiresAt, BlockNumber currentExpiresAt) internal pure {
+        if (newExpiresAt <= currentExpiresAt) revert ExpiryNotExtended(key, newExpiresAt, currentExpiresAt);
+    }
+
+    // -------------------------------------------------------------------------
     // Hash functions
     // -------------------------------------------------------------------------
 

@@ -214,57 +214,6 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         entityHash_ = _wrapEntityHash(coreHash_, owner, updatedAt, expiresAt);
     }
 
-    /// @dev Require that the entity exists (creator != address(0)).
-    function _requireExists(bytes32 key, EntityHashing.Commitment storage c) internal view virtual {
-        if (c.creator == address(0)) revert EntityHashing.EntityNotFound(key);
-    }
-
-    /// @dev Require that the entity has not expired (expiresAt > current).
-    function _requireActive(bytes32 key, EntityHashing.Commitment storage c, BlockNumber current)
-        internal
-        view
-        virtual
-    {
-        if (c.expiresAt <= current) revert EntityHashing.EntityExpired(key, c.expiresAt);
-    }
-
-    /// @dev Require that the entity has expired (expiresAt <= current).
-    function _requireExpired(bytes32 key, EntityHashing.Commitment storage c, BlockNumber current)
-        internal
-        view
-        virtual
-    {
-        if (c.expiresAt > current) revert EntityHashing.EntityNotExpired(key, c.expiresAt);
-    }
-
-    /// @dev Require that the caller is the entity owner.
-    function _requireOwner(bytes32 key, EntityHashing.Commitment storage c) internal view virtual {
-        if (msg.sender != c.owner) revert EntityHashing.NotOwner(key, msg.sender, c.owner);
-    }
-
-    /// @dev Require that the address is not zero.
-    function _requireNonZeroAddress(bytes32 key, address addr) internal pure virtual {
-        if (addr == address(0)) revert EntityHashing.TransferToZeroAddress(key);
-    }
-
-    /// @dev Require that the new owner is different from the current owner.
-    function _requireNewOwner(bytes32 key, address newOwner, address currentOwner) internal pure virtual {
-        if (newOwner == currentOwner) {
-            revert EntityHashing.TransferToSelf(key);
-        }
-    }
-
-    /// @dev Require that the new expiry is strictly greater than the current one.
-    function _requireExpiryIncreased(bytes32 key, BlockNumber newExpiresAt, BlockNumber currentExpiresAt)
-        internal
-        pure
-        virtual
-    {
-        if (newExpiresAt <= currentExpiresAt) {
-            revert EntityHashing.ExpiryNotExtended(key, newExpiresAt, currentExpiresAt);
-        }
-    }
-
     /// @dev Mint a new entity key by post-incrementing the owner's nonce.
     /// Uniqueness is guaranteed by the monotonic nonce — no existence check needed.
     function _createEntityKey(address owner) internal virtual returns (bytes32) {
@@ -350,9 +299,9 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _update(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
-        _requireExists(key, c);
-        _requireActive(key, c, current);
-        _requireOwner(key, c);
+        EntityHashing.requireExists(key, c);
+        EntityHashing.requireActive(key, c, current);
+        EntityHashing.requireOwner(key, c);
 
         // TODO: contentType validation per RFC 6838 media type syntax.
 
@@ -381,11 +330,11 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _extend(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
-        _requireExists(key, c);
-        _requireActive(key, c, current);
-        _requireOwner(key, c);
+        EntityHashing.requireExists(key, c);
+        EntityHashing.requireActive(key, c, current);
+        EntityHashing.requireOwner(key, c);
 
-        _requireExpiryIncreased(key, op.expiresAt, c.expiresAt);
+        EntityHashing.requireExpiryIncreased(key, op.expiresAt, c.expiresAt);
 
         c.expiresAt = op.expiresAt;
         c.updatedAt = current;
@@ -409,12 +358,12 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _transfer(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
-        _requireExists(key, c);
-        _requireActive(key, c, current);
-        _requireOwner(key, c);
+        EntityHashing.requireExists(key, c);
+        EntityHashing.requireActive(key, c, current);
+        EntityHashing.requireOwner(key, c);
 
-        _requireNonZeroAddress(key, op.newOwner);
-        _requireNewOwner(key, op.newOwner, c.owner);
+        EntityHashing.requireNonZeroAddress(key, op.newOwner);
+        EntityHashing.requireNewOwner(key, op.newOwner, c.owner);
 
         c.owner = op.newOwner;
         c.updatedAt = current;
@@ -438,9 +387,9 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _delete(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
-        _requireExists(key, c);
-        _requireActive(key, c, current);
-        _requireOwner(key, c);
+        EntityHashing.requireExists(key, c);
+        EntityHashing.requireActive(key, c, current);
+        EntityHashing.requireOwner(key, c);
 
         // Snapshot before deletion.
         bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
@@ -465,8 +414,8 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// Storage: deletes the Commitment (zeroes 3 slots via SSTORE to 0, gas refund).
     function _expire(bytes32 key, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         EntityHashing.Commitment storage c = _commitments[key];
-        _requireExists(key, c);
-        _requireExpired(key, c, current);
+        EntityHashing.requireExists(key, c);
+        EntityHashing.requireExpired(key, c, current);
 
         bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
         address owner = c.owner;
