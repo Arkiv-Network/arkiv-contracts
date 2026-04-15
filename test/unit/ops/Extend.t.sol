@@ -64,7 +64,7 @@ contract ExtendTest is Test, EntityRegistry {
         vm.prank(alice);
         this.doExtend(op);
 
-        EntityHashing.Commitment memory c = getCommitment(testKey);
+        EntityHashing.Commitment memory c = commitment(testKey);
         assertEq(BlockNumber.unwrap(c.expiresAt), BlockNumber.unwrap(newExpiry));
     }
 
@@ -77,12 +77,12 @@ contract ExtendTest is Test, EntityRegistry {
         vm.prank(alice);
         this.doExtend(op);
 
-        EntityHashing.Commitment memory c = getCommitment(testKey);
+        EntityHashing.Commitment memory c = commitment(testKey);
         assertEq(BlockNumber.unwrap(c.updatedAt), uint32(block.number));
     }
 
     function test_extend_preservesCoreHashAndOwner() public {
-        EntityHashing.Commitment memory before_ = getCommitment(testKey);
+        EntityHashing.Commitment memory before_ = commitment(testKey);
 
         BlockNumber newExpiry = expiresAt + BlockNumber.wrap(500);
         EntityHashing.Op memory op = Lib.extendOp(testKey, newExpiry);
@@ -90,7 +90,7 @@ contract ExtendTest is Test, EntityRegistry {
         vm.prank(alice);
         this.doExtend(op);
 
-        EntityHashing.Commitment memory after_ = getCommitment(testKey);
+        EntityHashing.Commitment memory after_ = commitment(testKey);
         assertEq(after_.coreHash, before_.coreHash);
         assertEq(after_.creator, before_.creator);
         assertEq(after_.owner, before_.owner);
@@ -122,7 +122,7 @@ contract ExtendTest is Test, EntityRegistry {
         vm.prank(alice);
         (, bytes32 entityHash_) = this.doExtend(op);
 
-        EntityHashing.Commitment memory c = getCommitment(testKey);
+        EntityHashing.Commitment memory c = commitment(testKey);
         bytes32 expected = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, newExpiry);
         assertEq(entityHash_, expected);
     }

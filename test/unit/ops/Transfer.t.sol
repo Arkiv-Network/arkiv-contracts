@@ -63,7 +63,7 @@ contract TransferTest is Test, EntityRegistry {
         vm.prank(alice);
         this.doTransfer(op);
 
-        EntityHashing.Commitment memory c = getCommitment(testKey);
+        EntityHashing.Commitment memory c = commitment(testKey);
         assertEq(c.owner, bob);
     }
 
@@ -74,18 +74,18 @@ contract TransferTest is Test, EntityRegistry {
         vm.prank(alice);
         this.doTransfer(op);
 
-        EntityHashing.Commitment memory c = getCommitment(testKey);
+        EntityHashing.Commitment memory c = commitment(testKey);
         assertEq(BlockNumber.unwrap(c.updatedAt), uint32(block.number));
     }
 
     function test_transfer_preservesCoreHashCreatorExpiry() public {
-        EntityHashing.Commitment memory before_ = getCommitment(testKey);
+        EntityHashing.Commitment memory before_ = commitment(testKey);
 
         EntityHashing.Op memory op = Lib.transferOp(testKey, bob);
         vm.prank(alice);
         this.doTransfer(op);
 
-        EntityHashing.Commitment memory after_ = getCommitment(testKey);
+        EntityHashing.Commitment memory after_ = commitment(testKey);
         assertEq(after_.coreHash, before_.coreHash);
         assertEq(after_.creator, before_.creator);
         assertEq(BlockNumber.unwrap(after_.createdAt), BlockNumber.unwrap(before_.createdAt));
@@ -107,7 +107,7 @@ contract TransferTest is Test, EntityRegistry {
         vm.prank(bob);
         this.doTransfer(op2);
 
-        EntityHashing.Commitment memory c = getCommitment(testKey);
+        EntityHashing.Commitment memory c = commitment(testKey);
         assertEq(c.owner, charlie);
     }
 
@@ -134,14 +134,14 @@ contract TransferTest is Test, EntityRegistry {
         vm.prank(alice);
         (, bytes32 entityHash_) = this.doTransfer(op);
 
-        EntityHashing.Commitment memory c = getCommitment(testKey);
+        EntityHashing.Commitment memory c = commitment(testKey);
         bytes32 expected = _wrapEntityHash(c.coreHash, bob, c.updatedAt, c.expiresAt);
         assertEq(entityHash_, expected);
     }
 
     function test_transfer_differentOwner_differentEntityHash() public {
         // Get hash with alice as owner.
-        EntityHashing.Commitment memory beforeTransfer = getCommitment(testKey);
+        EntityHashing.Commitment memory beforeTransfer = commitment(testKey);
         bytes32 hashAlice =
             _wrapEntityHash(beforeTransfer.coreHash, alice, beforeTransfer.updatedAt, beforeTransfer.expiresAt);
 

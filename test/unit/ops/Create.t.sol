@@ -93,7 +93,7 @@ contract CreateTest is Test, EntityRegistry {
         vm.prank(alice);
         this.doCreate(op);
 
-        EntityHashing.Commitment memory c = getCommitment(STUB_KEY);
+        EntityHashing.Commitment memory c = commitment(STUB_KEY);
         assertEq(c.creator, alice);
         assertEq(c.owner, alice);
         assertEq(BlockNumber.unwrap(c.createdAt), uint32(block.number));

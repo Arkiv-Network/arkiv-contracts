@@ -21,7 +21,8 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // State variables
     // -------------------------------------------------------------------------
 
-    mapping(address owner => uint32) public nonces;
+    /// @dev Per-owner monotonic counter used to derive unique entity keys.
+    mapping(address owner => uint32) internal _nonces;
 
     /// @dev Entity commitment map: entityKey → Commitment.
     /// Stores only the fields needed to recompute entityHash from chain
@@ -154,8 +155,12 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         return _txOpCount[EntityHashing.txKey(blockNumber, txSeq)];
     }
 
-    function getCommitment(bytes32 key) public view returns (EntityHashing.Commitment memory) {
+    function commitment(bytes32 key) public view returns (EntityHashing.Commitment memory) {
         return _commitments[key];
+    }
+
+    function nonces(address owner) public view returns (uint32) {
+        return _nonces[owner];
     }
 
     // -------------------------------------------------------------------------
@@ -192,7 +197,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// @dev Mint a new entity key by post-incrementing the owner's nonce.
     /// Uniqueness is guaranteed by the monotonic nonce — no existence check needed.
     function _createEntityKey(address owner) internal virtual returns (bytes32) {
-        uint32 nonce = nonces[owner]++;
+        uint32 nonce = _nonces[owner]++;
         return EntityHashing.entityKey(block.chainid, address(this), owner, nonce);
     }
 

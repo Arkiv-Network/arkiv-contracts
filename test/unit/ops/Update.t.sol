@@ -65,13 +65,13 @@ contract UpdateTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_update_updatesCoreHash() public {
-        EntityHashing.Commitment memory before_ = getCommitment(testKey);
+        EntityHashing.Commitment memory before_ = commitment(testKey);
 
         EntityHashing.Op memory op = _simpleUpdateOp();
         vm.prank(alice);
         this.doUpdate(op);
 
-        EntityHashing.Commitment memory after_ = getCommitment(testKey);
+        EntityHashing.Commitment memory after_ = commitment(testKey);
         assertNotEq(after_.coreHash, before_.coreHash);
     }
 
@@ -82,18 +82,18 @@ contract UpdateTest is Test, EntityRegistry {
         vm.prank(alice);
         this.doUpdate(op);
 
-        EntityHashing.Commitment memory after_ = getCommitment(testKey);
+        EntityHashing.Commitment memory after_ = commitment(testKey);
         assertEq(BlockNumber.unwrap(after_.updatedAt), uint32(block.number));
     }
 
     function test_update_preservesImmutableFields() public {
-        EntityHashing.Commitment memory before_ = getCommitment(testKey);
+        EntityHashing.Commitment memory before_ = commitment(testKey);
 
         EntityHashing.Op memory op = _simpleUpdateOp();
         vm.prank(alice);
         this.doUpdate(op);
 
-        EntityHashing.Commitment memory after_ = getCommitment(testKey);
+        EntityHashing.Commitment memory after_ = commitment(testKey);
         assertEq(after_.creator, before_.creator);
         assertEq(after_.owner, before_.owner);
         assertEq(BlockNumber.unwrap(after_.createdAt), BlockNumber.unwrap(before_.createdAt));
@@ -124,7 +124,7 @@ contract UpdateTest is Test, EntityRegistry {
         vm.prank(alice);
         this.doUpdate(op);
 
-        EntityHashing.Commitment memory c = getCommitment(testKey);
+        EntityHashing.Commitment memory c = commitment(testKey);
         bytes32 expected = this.hashCore(testKey, c.creator, c.createdAt, textPlain, "new payload", attrs);
         assertEq(c.coreHash, expected);
     }
@@ -135,7 +135,7 @@ contract UpdateTest is Test, EntityRegistry {
         vm.prank(alice);
         (, bytes32 entityHash_) = this.doUpdate(op);
 
-        EntityHashing.Commitment memory c = getCommitment(testKey);
+        EntityHashing.Commitment memory c = commitment(testKey);
         bytes32 expected = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
         assertEq(entityHash_, expected);
     }
@@ -167,7 +167,7 @@ contract UpdateTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_update_sameContentProducesSameCoreHash() public {
-        EntityHashing.Commitment memory before_ = getCommitment(testKey);
+        EntityHashing.Commitment memory before_ = commitment(testKey);
 
         // Update with the exact same content as the original create.
         EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
@@ -176,7 +176,7 @@ contract UpdateTest is Test, EntityRegistry {
         vm.prank(alice);
         this.doUpdate(op);
 
-        EntityHashing.Commitment memory after_ = getCommitment(testKey);
+        EntityHashing.Commitment memory after_ = commitment(testKey);
         assertEq(after_.coreHash, before_.coreHash);
     }
 
@@ -198,7 +198,7 @@ contract UpdateTest is Test, EntityRegistry {
         vm.prank(alice);
         this.doUpdate(op1);
 
-        EntityHashing.Commitment memory mid = getCommitment(testKey);
+        EntityHashing.Commitment memory mid = commitment(testKey);
 
         // Second update with different content.
         EntityHashing.Attribute[] memory attrs2 = new EntityHashing.Attribute[](1);
@@ -207,7 +207,7 @@ contract UpdateTest is Test, EntityRegistry {
         vm.prank(alice);
         this.doUpdate(op2);
 
-        EntityHashing.Commitment memory final_ = getCommitment(testKey);
+        EntityHashing.Commitment memory final_ = commitment(testKey);
         assertNotEq(final_.coreHash, mid.coreHash);
     }
 

@@ -18,15 +18,15 @@ contract CreateEntityKeyTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_incrementsNonce() public {
-        assertEq(nonces[alice], 0);
+        assertEq(_nonces[alice], 0);
 
         vm.prank(alice);
         this.doCreateEntityKey(alice);
-        assertEq(nonces[alice], 1);
+        assertEq(_nonces[alice], 1);
 
         vm.prank(alice);
         this.doCreateEntityKey(alice);
-        assertEq(nonces[alice], 2);
+        assertEq(_nonces[alice], 2);
     }
 
     function test_independentNoncesPerOwner() public {
@@ -36,8 +36,8 @@ contract CreateEntityKeyTest is Test, EntityRegistry {
         vm.prank(bob);
         this.doCreateEntityKey(bob);
 
-        assertEq(nonces[alice], 1);
-        assertEq(nonces[bob], 1);
+        assertEq(_nonces[alice], 1);
+        assertEq(_nonces[bob], 1);
     }
 
     // =========================================================================

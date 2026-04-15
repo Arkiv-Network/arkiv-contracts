@@ -40,7 +40,7 @@ contract ExpireTest is Test, EntityRegistry {
         vm.roll(BlockNumber.unwrap(expiresAt));
         this.doExpire(Lib.expireOp(testKey));
 
-        EntityHashing.Commitment memory c = getCommitment(testKey);
+        EntityHashing.Commitment memory c = commitment(testKey);
         assertEq(c.creator, address(0));
         assertEq(c.owner, address(0));
         assertEq(c.coreHash, bytes32(0));
@@ -64,7 +64,7 @@ contract ExpireTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_expire_returnsSnapshotHash() public {
-        EntityHashing.Commitment memory c = getCommitment(testKey);
+        EntityHashing.Commitment memory c = commitment(testKey);
         bytes32 expected = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
 
         vm.roll(BlockNumber.unwrap(expiresAt));

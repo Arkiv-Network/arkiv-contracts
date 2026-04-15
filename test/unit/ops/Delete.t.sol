@@ -42,7 +42,7 @@ contract DeleteTest is Test, EntityRegistry {
         vm.prank(alice);
         this.doDelete(op);
 
-        EntityHashing.Commitment memory c = getCommitment(testKey);
+        EntityHashing.Commitment memory c = commitment(testKey);
         assertEq(c.creator, address(0));
         assertEq(c.owner, address(0));
         assertEq(c.coreHash, bytes32(0));
@@ -69,7 +69,7 @@ contract DeleteTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_delete_returnsSnapshotHash() public {
-        EntityHashing.Commitment memory c = getCommitment(testKey);
+        EntityHashing.Commitment memory c = commitment(testKey);
         bytes32 expected = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
 
         EntityHashing.Op memory op = Lib.deleteOp(testKey);
