@@ -74,6 +74,20 @@ library Lib {
         });
     }
 
+    function expireOp(bytes32 entityKey_) internal pure returns (EntityHashing.Op memory) {
+        EntityHashing.Attribute[] memory empty = new EntityHashing.Attribute[](0);
+        Mime128 memory emptyCt;
+        return EntityHashing.Op({
+            opType: EntityHashing.EXPIRE,
+            entityKey: entityKey_,
+            payload: "",
+            contentType: emptyCt,
+            attributes: empty,
+            expiresAt: BlockNumber.wrap(0),
+            newOwner: address(0)
+        });
+    }
+
     function extendOp(bytes32 entityKey_, BlockNumber expiresAt_) internal pure returns (EntityHashing.Op memory) {
         EntityHashing.Attribute[] memory empty = new EntityHashing.Attribute[](0);
         Mime128 memory emptyCt;

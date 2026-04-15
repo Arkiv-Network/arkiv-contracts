@@ -43,7 +43,7 @@ contract ExecuteTest is Test, EntityRegistry {
         return _nextStub();
     }
 
-    function _expire(bytes32, BlockNumber) internal override returns (bytes32, bytes32) {
+    function _expire(EntityHashing.Op calldata, BlockNumber) internal override returns (bytes32, bytes32) {
         return _nextStub();
     }
 

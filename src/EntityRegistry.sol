@@ -129,7 +129,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
             } else if (opType == EntityHashing.DELETE) {
                 (key, entityHash_) = _delete(ops[opSeq], current);
             } else if (opType == EntityHashing.EXPIRE) {
-                (key, entityHash_) = _expire(ops[opSeq].entityKey, current);
+                (key, entityHash_) = _expire(ops[opSeq], current);
             } else {
                 revert EntityHashing.InvalidOpType(opType);
             }
@@ -400,7 +400,8 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     ///   2. Entity must have expired (expiresAt <= current)
     ///
     /// Storage: deletes the Commitment (zeroes 3 slots via SSTORE to 0, gas refund).
-    function _expire(bytes32 key, BlockNumber current) internal virtual returns (bytes32, bytes32) {
+    function _expire(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
+        bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
 
         EntityHashing.requireExists(key, c);

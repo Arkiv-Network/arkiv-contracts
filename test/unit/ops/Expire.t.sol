@@ -19,8 +19,8 @@ contract ExpireTest is Test, EntityRegistry {
         return _create(op, currentBlock());
     }
 
-    function doExpire(bytes32 key) external returns (bytes32, bytes32) {
-        return _expire(key, currentBlock());
+    function doExpire(EntityHashing.Op calldata op) external returns (bytes32, bytes32) {
+        return _expire(op, currentBlock());
     }
 
     function setUp() public {
@@ -38,7 +38,7 @@ contract ExpireTest is Test, EntityRegistry {
 
     function test_expire_removesCommitment() public {
         vm.roll(BlockNumber.unwrap(expiresAt));
-        this.doExpire(testKey);
+        this.doExpire(Lib.expireOp(testKey));
 
         EntityHashing.Commitment memory c = getCommitment(testKey);
         assertEq(c.creator, address(0));
@@ -55,7 +55,7 @@ contract ExpireTest is Test, EntityRegistry {
 
     function test_expire_returnsEntityKey() public {
         vm.roll(BlockNumber.unwrap(expiresAt));
-        (bytes32 returnedKey,) = this.doExpire(testKey);
+        (bytes32 returnedKey,) = this.doExpire(Lib.expireOp(testKey));
         assertEq(returnedKey, testKey);
     }
 
@@ -68,7 +68,7 @@ contract ExpireTest is Test, EntityRegistry {
         bytes32 expected = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
 
         vm.roll(BlockNumber.unwrap(expiresAt));
-        (, bytes32 entityHash_) = this.doExpire(testKey);
+        (, bytes32 entityHash_) = this.doExpire(Lib.expireOp(testKey));
         assertEq(entityHash_, expected);
     }
 
@@ -79,7 +79,7 @@ contract ExpireTest is Test, EntityRegistry {
     function test_expire_emitsEntityOp() public {
         vm.roll(BlockNumber.unwrap(expiresAt));
         vm.recordLogs();
-        (, bytes32 entityHash_) = this.doExpire(testKey);
+        (, bytes32 entityHash_) = this.doExpire(Lib.expireOp(testKey));
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertEq(logs.length, 1);
@@ -100,11 +100,11 @@ contract ExpireTest is Test, EntityRegistry {
         bytes32 bogus = keccak256("bogus");
         vm.roll(BlockNumber.unwrap(expiresAt));
         vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityNotFound.selector, bogus));
-        this.doExpire(bogus);
+        this.doExpire(Lib.expireOp(bogus));
     }
 
     function test_expire_revertsIfNotExpired() public {
         vm.expectRevert(abi.encodeWithSelector(EntityHashing.EntityNotExpired.selector, testKey, expiresAt));
-        this.doExpire(testKey);
+        this.doExpire(Lib.expireOp(testKey));
     }
 }
