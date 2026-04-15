@@ -128,8 +128,4 @@ library Lib {
         v[0] = value;
         return Entity.Attribute({name: packName(name), valueType: Entity.ATTR_ENTITY_KEY, value: v});
     }
-
-    function payload(uint256 size) internal pure returns (bytes memory) {
-        return new bytes(size);
-    }
 }
