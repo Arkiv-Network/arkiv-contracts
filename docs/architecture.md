@@ -13,25 +13,17 @@ A rolling changeset hash accumulates every mutation, giving any node a way
 to verify its local database against the canonical on-chain state at any
 granularity: per-operation, per-transaction, or per-block.
 
-```
-                          +--------------------------+
-                          |     EntityRegistry       |
-                          |                          |
-    execute(ops[])  ----->|  dispatch + hash chain   |
-                          |  commitments (3 slots)   |
-                          |  changeset snapshots     |
-                          |  block linked list       |
-                          +-----------+--------------+
-                                      |
-                          EntityOperation events + calldata
-                                      |
-                          +-----------v--------------+
-                          |     Off-chain DB Node    |
-                          |                          |
-                          |  index events            |
-                          |  reconstruct entities    |
-                          |  verify changeset hash   |
-                          +--------------------------+
+```mermaid
+flowchart LR
+    Client["Client / SDK"]
+    Registry["EntityRegistry"]
+    Events["EntityOperation events<br/>+ calldata"]
+    DB["Off-chain DB Node"]
+
+    Client -- "execute(ops[])" --> Registry
+    Registry -- "emit events" --> Events
+    Events -- "index + verify" --> DB
+    DB -. "changeSetHash()<br/>comparison" .-> Registry
 ```
 
 ---
@@ -117,47 +109,65 @@ All operations are submitted through a single `execute(operations[])` entry
 point that accepts batches.
 
 ```
-                    +---------+
-                    |  CREATE |
-                    +----+----+
-                         |
-                         v
-          +-----> [ ACTIVE ] <-----+
-          |         |  |  |        |
-       EXTEND    UPDATE  TRANSFER  |
-          |         |     |        |
-          +---------+-----+--------+
-                    |
-          +---------+---------+
-          |                   |
-          v                   v
-    [ DELETED ]         [ EXPIRED ]
-    (by owner)        (by anyone after
-                       expiry block)
+                          CREATE
+                            │
+                            │  caller becomes creator + owner
+                            │  entity key minted from nonce
+                            v
+               ┌─────────────────────────┐
+               │         ACTIVE          │
+               │                         │
+               │  UPDATE ───── replaces  │
+               │    payload, contentType,│
+               │    attributes           │
+               │                         │
+               │  EXTEND ───── increases │
+               │    expiresAt            │
+               │                         │
+               │  TRANSFER ─── changes   │
+               │    owner (previous      │
+               │    owner locked out)    │
+               │                         │
+               └──────┬─────────┬────────┘
+                      │         │
+            DELETE    │         │   EXPIRE
+          (by owner)  │         │ (by anyone, after
+                      v         v  expiry block)
+               ┌──────────┐ ┌──────────┐
+               │ DELETED  │ │ EXPIRED  │
+               │          │ │          │
+               │commitment│ │commitment│
+               │  zeroed  │ │  zeroed  │
+               └──────────┘ └──────────┘
 ```
 
 ### Operations
 
 **CREATE** — Mint a new entity. The caller becomes both creator and owner.
 Requires a future expiry block, valid content type, and valid attributes.
+The entity key is derived deterministically from the caller's address and
+a monotonic nonce.
 
 **UPDATE** — Replace the entity's content (payload, content type,
 attributes). Only the owner can update. Does not change ownership or expiry.
-The content hash is fully recomputed.
+The content hash (`coreHash`) is fully recomputed from the new content.
 
 **EXTEND** — Push the expiry further into the future. Only the owner can
-extend. The new expiry must be strictly greater than the current one. Does
-not touch content.
+extend. The new expiry must be strictly greater than the current one.
+Content and ownership are untouched — only `expiresAt` and `updatedAt`
+change.
 
 **TRANSFER** — Change the entity's owner. Only the current owner can
-transfer. The previous owner loses all access immediately.
+transfer. The previous owner loses all access immediately — they cannot
+update, extend, delete, or transfer the entity after this point.
 
 **DELETE** — Remove the entity before it expires. Only the owner can delete.
-The commitment is zeroed from storage.
+The entity hash is snapshotted for the changeset chain, then the
+commitment is zeroed from storage.
 
 **EXPIRE** — Remove an entity that has passed its expiry block. Callable by
 anyone — no ownership check. This is a housekeeping operation that reclaims
-storage.
+storage. Like DELETE, the entity hash is snapshotted before removal.
 
 ### Access Control
 
@@ -179,39 +189,32 @@ storage.
 All mutations flow through `execute()`, which accepts an array of operations
 and processes them atomically.
 
-```
-execute(operations[])
-  |
-  |  1. Validate batch is non-empty
-  |
-  |  2. Read previous changeset hash
-  |
-  |  3. Block bookkeeping
-  |     - New block? Advance the block linked list
-  |     - Same block? Continue the transaction sequence
-  |
-  |  4. For each operation:
-  |     +------------------------------------------+
-  |     |  _dispatch(op)                           |
-  |     |    route by operationType                |
-  |     |    validate guards (exists, active,      |
-  |     |      owner, expiry)                      |
-  |     |    compute hashes                        |
-  |     |    update commitment storage             |
-  |     |    emit EntityOperation event                   |
-  |     |    return (entityKey, entityHash)         |
-  |     +------------------------------------------+
-  |     |
-  |     |  Chain the hash:
-  |     |    hash = keccak256(hash || opType || key || entityHash)
-  |     |
-  |     |  Store snapshot:
-  |     |    _hashAt[block, txSeq, opSeq] = hash
-  |     |
-  |
-  |  5. Record operation count for this transaction
-  |
-  done
+```mermaid
+flowchart TD
+    Start(["execute(operations[])"])
+    Validate{"Batch empty?"}
+    Revert["Revert EmptyBatch"]
+    ReadHash["Read previous changeset hash"]
+    BlockCheck{"New block?"}
+    AdvanceList["Advance block linked list<br/>Set prev/next pointers<br/>Update head"]
+    ContinueTx["Read current tx sequence<br/>from existing block"]
+    IncTx["Increment block tx count"]
+    Loop{"More operations?"}
+    Dispatch["Dispatch operation<br/>Validate guards<br/>Compute hashes<br/>Update commitment<br/>Emit EntityOperation"]
+    Chain["Chain hash:<br/>hash = keccak256(hash || opType || key || entityHash)"]
+    Snapshot["Store snapshot:<br/>_hashAt[block, tx, op] = hash"]
+    RecordTx["Record operation count<br/>for this transaction"]
+    Done(["Return"])
+
+    Start --> Validate
+    Validate -- Yes --> Revert
+    Validate -- No --> ReadHash
+    ReadHash --> BlockCheck
+    BlockCheck -- Yes --> AdvanceList --> IncTx
+    BlockCheck -- No --> ContinueTx --> IncTx
+    IncTx --> Loop
+    Loop -- Yes --> Dispatch --> Chain --> Snapshot --> Loop
+    Loop -- No --> RecordTx --> Done
 ```
 
 A single `execute()` call may contain multiple operations. They are
@@ -222,37 +225,60 @@ in order. If any operation reverts, the entire transaction is rolled back.
 
 ## Two-Level Entity Hashing
 
-Entity hashes use EIP-712 structured data with a two-level design that
-separates immutable content from mutable lifecycle fields.
+Every entity has a cryptographic hash that commits to its full state.
+This hash is computed in two levels using EIP-712 structured data, so
+that the inner level (content identity) can be cached and reused when
+only the outer level (lifecycle fields) changes.
 
 ```
-+-------------------------------------------------------+
-|                     entityHash                        |
-|  EIP-712 domain-wrapped hash of:                     |
-|                                                       |
-|  +------------------+   +---------------------------+ |
-|  |    coreHash      |   |    mutable fields         | |
-|  |                  |   |                           | |
-|  |  entityKey       |   |  owner                    | |
-|  |  creator         |   |  updatedAt                | |
-|  |  createdAt       |   |  expiresAt                | |
-|  |  contentType     |   |                           | |
-|  |  payload         |   |                           | |
-|  |  attributesHash  |   |                           | |
-|  +------------------+   +---------------------------+ |
-|       (immutable)              (changes on           |
-|                            extend/transfer)           |
-+-------------------------------------------------------+
+entityHash (EIP-712 domain-wrapped)
+│
+├── coreHash (immutable, stored on-chain)
+│   │
+│   ├── entityKey ─────── unique entity identifier
+│   ├── creator ──────── who created it (immutable)
+│   ├── createdAt ────── block of creation (immutable)
+│   ├── contentType ──── MIME type of payload
+│   ├── payload ──────── content bytes (calldata only)
+│   └── attributesHash ─ rolling hash of all typed attributes
+│
+├── owner ────────────── current owner (changes on TRANSFER)
+├── updatedAt ────────── block of last mutation
+└── expiresAt ────────── expiry block (changes on EXTEND)
 ```
 
-**Why two levels?** Operations that only change owner or expiry (EXTEND,
-TRANSFER) can recompute the entityHash from the stored `coreHash` without
-needing the full payload or attributes. This means those operations never
-need to query an off-chain database — everything required is already in
-contract storage.
+The **coreHash** captures everything about *what* the entity is — its
+content identity. It is computed once at CREATE and only recomputed when
+content changes (UPDATE). Because payload and attributes live in calldata
+(not storage), computing `coreHash` requires the full entity data. The
+result is stored in the on-chain commitment so it doesn't need to be
+recomputed for operations that don't touch content.
+
+The **entityHash** wraps the `coreHash` with mutable lifecycle fields
+and applies the EIP-712 domain separator (chainId + registry address)
+to produce the final hash that enters the changeset chain.
+
+### Why two levels?
+
+The split determines what data each operation needs:
+
+| Operation | Needs payload/attributes? | Recomputes coreHash? | Recomputes entityHash? |
+|-----------|--------------------------|---------------------|----------------------|
+| CREATE    | Yes (from calldata)      | Yes                 | Yes                  |
+| UPDATE    | Yes (from calldata)      | Yes                 | Yes                  |
+| EXTEND    | No                       | No                  | Yes (new expiresAt)  |
+| TRANSFER  | No                       | No                  | Yes (new owner)      |
+| DELETE    | No                       | No                  | Snapshot only        |
+| EXPIRE    | No                       | No                  | Snapshot only        |
+
+EXTEND and TRANSFER only change lifecycle fields. Because `coreHash` is
+already stored in the on-chain commitment, these operations recompute
+`entityHash` from storage alone — no calldata content needed, no off-chain
+database query. This is the key efficiency the two-level design enables.
 
 UPDATE is the only operation that recomputes `coreHash`, because it
-replaces the content entirely.
+replaces the content entirely. DELETE and EXPIRE snapshot the existing
+`entityHash` for the changeset chain before removing the commitment.
 
 ---
 
@@ -277,28 +303,28 @@ transactions and blocks. It never branches or rewinds.
 Every intermediate hash is stored and queryable at three granularities:
 
 ```
-+------------------------------------------------------------------+
-|  Block 100                                                       |
-|  +------------------------------------------------------------+  |
-|  | Tx 0 (3 ops)                                               |  |
-|  |   op 0: hash_a   <-- changeSetHashAtOp(100, 0, 0)         |  |
-|  |   op 1: hash_b   <-- changeSetHashAtOp(100, 0, 1)         |  |
-|  |   op 2: hash_c   <-- changeSetHashAtTx(100, 0)            |  |
-|  +------------------------------------------------------------+  |
-|  | Tx 1 (2 ops)                                               |  |
-|  |   op 0: hash_d   <-- changeSetHashAtOp(100, 1, 0)         |  |
-|  |   op 1: hash_e   <-- changeSetHashAtTx(100, 1)            |  |
-|  +------------------------------------------------------------+  |
-|                                                                  |
-|  changeSetHashAtBlock(100) = hash_e                              |
-+------------------------------------------------------------------+
+changeSetHash() ─── points to head block's last op hash
+│
+└── Block 100                    changeSetHashAtBlock(100) = hash_e
+    │
+    ├── Tx 0  (3 ops)            changeSetHashAtTx(100, 0) = hash_c
+    │   ├── op 0 → hash_a       changeSetHashAtOp(100, 0, 0)
+    │   ├── op 1 → hash_b       changeSetHashAtOp(100, 0, 1)
+    │   └── op 2 → hash_c       changeSetHashAtOp(100, 0, 2)
+    │
+    └── Tx 1  (2 ops)            changeSetHashAtTx(100, 1) = hash_e
+        ├── op 0 → hash_d       changeSetHashAtOp(100, 1, 0)
+        └── op 1 → hash_e       changeSetHashAtOp(100, 1, 1)
 ```
 
-- **Per-operation**: the hash after each individual operation
-- **Per-transaction**: the hash after the last operation in a transaction
-  (derived from the per-op snapshot + operation count)
-- **Per-block**: the hash after the last operation in the last transaction
-  of a block (derived from the per-tx hash + transaction count)
+Three levels of granularity:
+
+- **Per-operation** — the hash after each individual operation, stored
+  directly in the `_hashAt` mapping
+- **Per-transaction** — the hash after the last operation in a transaction,
+  derived from the per-op snapshot using the operation count
+- **Per-block** — the hash after the last transaction in a block, derived
+  from the per-tx hash using the transaction count
 
 Transaction-level and block-level hashes are not stored separately — they
 are derived from per-operation snapshots using counts. This avoids
@@ -309,14 +335,26 @@ redundant storage while keeping all three levels queryable.
 Only blocks that contain mutations are tracked. A doubly-linked list
 connects them for traversal:
 
-```
-  genesis -----> block 100 -----> block 247 -----> block 300
-  (deploy)       (3 ops)          (1 op)           (5 ops)
-            <-----          <-----           <-----
+```mermaid
+flowchart LR
+    G["Genesis<br/>block 0<br/>(deploy)"]
+    B1["Block 100<br/>2 txs, 5 ops"]
+    B2["Block 247<br/>1 tx, 1 op"]
+    B3["Block 300<br/>3 txs, 8 ops"]
+
+    G -- "nextBlock" --> B1
+    B1 -- "prevBlock" --> G
+    B1 -- "nextBlock" --> B2
+    B2 -- "prevBlock" --> B1
+    B2 -- "nextBlock" --> B3
+    B3 -- "prevBlock" --> B2
 ```
 
-Blocks without entity operations are not stored. This enables efficient
-traversal without scanning every block number.
+Blocks 1–99, 101–246, 248–299 have no entity operations and are not stored.
+The linked list enables O(1) forward and backward traversal across only
+the blocks that matter. Each node stores `prevBlock`, `nextBlock`, and
+`txCount` — enough to navigate the chain and derive hash lookups at any
+depth.
 
 ---
 
@@ -339,16 +377,26 @@ event EntityOperation(
 )
 ```
 
-A database node processes these events in order:
+```mermaid
+flowchart LR
+    subgraph On-chain
+        TX["Transaction calldata<br/>(payload, contentType, attributes)"]
+        EV["EntityOperation event<br/>(key, opType, owner, expiry, hash)"]
+    end
 
-1. **Decode the event** — extract operation type, entity key, owner,
-   expiry, entity hash
-2. **Read calldata** — for CREATE and UPDATE, extract the full payload,
-   content type, and attributes from the transaction's calldata
-3. **Apply the operation** — insert, update, or remove the entity in the
-   local database
-4. **Verify the hash** — recompute the changeset hash locally and compare
-   against the contract's stored snapshot
+    subgraph DB["Off-chain DB Node"]
+        Decode["Decode event"]
+        Read["Read calldata<br/>(CREATE/UPDATE only)"]
+        Apply["Apply operation<br/>to local DB"]
+        Verify["Verify changeset hash<br/>against contract"]
+    end
+
+    EV --> Decode --> Read
+    TX --> Read
+    Read --> Apply --> Verify
+    Verify -. "match?" .-> OK(["Continue"])
+    Verify -. "mismatch?" .-> Search(["Binary search<br/>block linked list"])
+```
 
 ### Verification at Any Granularity
 
