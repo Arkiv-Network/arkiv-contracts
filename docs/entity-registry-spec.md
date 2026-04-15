@@ -279,7 +279,7 @@ The batch API allows multiple entity operations in a single transaction, amortiz
 enum OpType { CREATE, UPDATE, EXTEND, DELETE }
 
 struct BatchOp {
-    OpType      opType;
+    OpType      operationType;
     bytes32     entityKey;      // used for UPDATE, EXTEND, DELETE (ignored for CREATE)
     bytes       payload;        // used for CREATE, UPDATE
     string      contentType;    // used for CREATE, UPDATE

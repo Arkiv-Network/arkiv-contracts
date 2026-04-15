@@ -53,10 +53,10 @@ contract DispatchTest is Test, EntityRegistry {
         return _dispatch(op, currentBlock());
     }
 
-    function _op(uint8 opType) internal pure returns (Entity.Operation memory) {
+    function _op(uint8 operationType) internal pure returns (Entity.Operation memory) {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         return Entity.Operation({
-            opType: opType,
+            operationType: operationType,
             entityKey: bytes32(0),
             payload: "",
             contentType: encodeMime128("text/plain"),

@@ -19,7 +19,7 @@ library Lib {
         BlockNumber expiresAt_
     ) internal pure returns (Entity.Operation memory) {
         return Entity.Operation({
-            opType: Entity.CREATE,
+            operationType: Entity.CREATE,
             entityKey: bytes32(0),
             payload: payload_,
             contentType: contentType_,
@@ -36,7 +36,7 @@ library Lib {
         Entity.Attribute[] memory attributes_
     ) internal pure returns (Entity.Operation memory) {
         return Entity.Operation({
-            opType: Entity.UPDATE,
+            operationType: Entity.UPDATE,
             entityKey: entityKey_,
             payload: payload_,
             contentType: contentType_,
@@ -50,7 +50,7 @@ library Lib {
         Entity.Attribute[] memory empty = new Entity.Attribute[](0);
         Mime128 memory emptyCt;
         return Entity.Operation({
-            opType: Entity.DELETE,
+            operationType: Entity.DELETE,
             entityKey: entityKey_,
             payload: "",
             contentType: emptyCt,
@@ -64,7 +64,7 @@ library Lib {
         Entity.Attribute[] memory empty = new Entity.Attribute[](0);
         Mime128 memory emptyCt;
         return Entity.Operation({
-            opType: Entity.TRANSFER,
+            operationType: Entity.TRANSFER,
             entityKey: entityKey_,
             payload: "",
             contentType: emptyCt,
@@ -78,7 +78,7 @@ library Lib {
         Entity.Attribute[] memory empty = new Entity.Attribute[](0);
         Mime128 memory emptyCt;
         return Entity.Operation({
-            opType: Entity.EXPIRE,
+            operationType: Entity.EXPIRE,
             entityKey: entityKey_,
             payload: "",
             contentType: emptyCt,
@@ -92,7 +92,7 @@ library Lib {
         Entity.Attribute[] memory empty = new Entity.Attribute[](0);
         Mime128 memory emptyCt;
         return Entity.Operation({
-            opType: Entity.EXTEND,
+            operationType: Entity.EXTEND,
             entityKey: entityKey_,
             payload: "",
             contentType: emptyCt,

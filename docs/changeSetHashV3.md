@@ -189,7 +189,7 @@ function execute(Operation[] calldata ops) external {
     // 3. Advance tx sequence, update BlockNode.txCount
     // 4. For each op:
     //      - dispatch to _create/_update/_extend/_transfer/_delete/_expire
-    //      - accumulate hash: keccak256(hash || opType || key || entityHash)
+    //      - accumulate hash: keccak256(hash || operationType || key || entityHash)
     //      - store per-op snapshot: _hashAt[compositeKey] = hash
     // 5. Record _txOpCount, update _currentOpSeq
 }
@@ -238,7 +238,7 @@ V3 is +1 SSTORE over V2 on block transitions (the linked list pointer), while pr
 
 The SSTORE overhead of V3 is negligible compared to the calldata cost of entity payloads. An entity with a 120KB payload costs approximately 1.9M gas in calldata alone (120,000 bytes * 16 gas/byte). The entire V3 bookkeeping for that operation — one per-op snapshot SSTORE (~5k gas warm), plus amortized tx/block overhead — is under 10k gas, less than 0.5% of the calldata cost.
 
-Even in a batch of small entities, calldata dominates. The `Operation` struct itself (opType, entityKey, contentType, attributes, payload) contributes far more gas in calldata encoding than the storage writes that track it. On Arkiv's rollup where gas pricing is controlled, this ratio is even more favourable — the storage costs for per-op snapshots and the block linked list are effectively free relative to the data the operations carry.
+Even in a batch of small entities, calldata dominates. The `Operation` struct itself (operationType, entityKey, contentType, attributes, payload) contributes far more gas in calldata encoding than the storage writes that track it. On Arkiv's rollup where gas pricing is controlled, this ratio is even more favourable — the storage costs for per-op snapshots and the block linked list are effectively free relative to the data the operations carry.
 
 This is why V3 doesn't optimise for fewer SSTOREs at the cost of complexity (as V2 did with lazy finalization). The straightforward approach — store everything, derive what you can — is the correct design when storage is a rounding error on the payload.
 
@@ -249,7 +249,7 @@ The changeset hash transitively commits to every field of every entity through t
 ```
 changeSetHash
 |-- previous changeSetHash          <-- full history of all prior mutations
-|-- opType                          <-- mutation type (CREATE, UPDATE, EXTEND, TRANSFER, DELETE, EXPIRE)
+|-- operationType                          <-- mutation type (CREATE, UPDATE, EXTEND, TRANSFER, DELETE, EXPIRE)
 |-- entityKey                       <-- identity of the entity being mutated
 +-- entityHash                      <-- EIP-712 hash of the entity's full state
      |-- coreHash                   <-- EIP-712 hash of immutable entity content
@@ -315,7 +315,7 @@ An alternative approach stores nothing on-chain beyond the running hash and emit
 ```solidity
 event ChangeSetAccumulated(
     bytes32 indexed entityKey,
-    OpType opType,
+    OpType operationType,
     bytes32 entityHash,
     bytes32 changeSetHash
 );

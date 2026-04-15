@@ -25,7 +25,7 @@ contract ViewsTest is Test {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         Entity.Operation[] memory ops = new Entity.Operation[](1);
         ops[0] = Entity.Operation({
-            opType: Entity.CREATE,
+            operationType: Entity.CREATE,
             entityKey: bytes32(0),
             payload: "hello",
             contentType: encodeMime128("text/plain"),

@@ -58,7 +58,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
     event EntityOp(
         bytes32 indexed entityKey,
-        uint8 indexed opType,
+        uint8 indexed operationType,
         address indexed owner,
         BlockNumber expiresAt,
         bytes32 entityHash
@@ -110,7 +110,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         // Dispatch each op and extend the changeset hash chain.
         for (uint32 opSeq = 0; opSeq < ops.length; opSeq++) {
             (bytes32 key, bytes32 entityHash_) = _dispatch(ops[opSeq], current);
-            hash = Entity.chainOperationHash(hash, ops[opSeq].opType, key, entityHash_);
+            hash = Entity.chainOperationHash(hash, ops[opSeq].operationType, key, entityHash_);
             _hashAt[Entity.operationKey(current, txSeq, opSeq)] = hash;
         }
 
@@ -205,21 +205,21 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Internal functions — dispatch
     // -------------------------------------------------------------------------
 
-    /// @dev Route an op to the correct handler by opType.
+    /// @dev Route an op to the correct handler by operationType.
     /// Reverts with InvalidOpType for unrecognised values.
     function _dispatch(Entity.Operation calldata op, BlockNumber current)
         internal
         virtual
         returns (bytes32 key, bytes32 entityHash_)
     {
-        uint8 opType = op.opType;
-        if (opType == Entity.CREATE) return _create(op, current);
-        if (opType == Entity.UPDATE) return _update(op, current);
-        if (opType == Entity.EXTEND) return _extend(op, current);
-        if (opType == Entity.TRANSFER) return _transfer(op, current);
-        if (opType == Entity.DELETE) return _delete(op, current);
-        if (opType == Entity.EXPIRE) return _expire(op, current);
-        revert Entity.InvalidOpType(opType);
+        uint8 operationType = op.operationType;
+        if (operationType == Entity.CREATE) return _create(op, current);
+        if (operationType == Entity.UPDATE) return _update(op, current);
+        if (operationType == Entity.EXTEND) return _extend(op, current);
+        if (operationType == Entity.TRANSFER) return _transfer(op, current);
+        if (operationType == Entity.DELETE) return _delete(op, current);
+        if (operationType == Entity.EXPIRE) return _expire(op, current);
+        revert Entity.InvalidOpType(operationType);
     }
 
     // -------------------------------------------------------------------------

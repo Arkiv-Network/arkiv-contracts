@@ -23,7 +23,7 @@ library Entity {
     // Type declarations
     // -------------------------------------------------------------------------
 
-    /// @dev Sentinel value for uninitialized or invalid opType / valueType.
+    /// @dev Sentinel value for uninitialized or invalid operationType / valueType.
     /// Solidity zero-initializes uint8 fields, so any Operation or Attribute with
     /// an unset discriminator will carry this value and be rejected.
     uint8 public constant UNINITIALIZED = 0;
@@ -36,7 +36,7 @@ library Entity {
     uint8 public constant EXPIRE = 6;
 
     /// @dev Batch element: describes a single entity operation within an
-    /// `execute()` call. Fields are interpreted according to `opType`:
+    /// `execute()` call. Fields are interpreted according to `operationType`:
     ///   - CREATE:   payload, contentType, attributes, expiresAt
     ///   - UPDATE:   entityKey, payload, contentType, attributes
     ///   - EXTEND:   entityKey, expiresAt
@@ -44,7 +44,7 @@ library Entity {
     ///   - DELETE:   entityKey
     ///   - EXPIRE:   entityKey
     struct Operation {
-        uint8 opType;
+        uint8 operationType;
         bytes32 entityKey;
         bytes payload;
         Mime128 contentType;
@@ -107,8 +107,8 @@ library Entity {
     error AttributesNotSorted();
     /// @dev Reverted when an attribute's valueType is unrecognized (including 0 / uninitialized).
     error InvalidValueType(Ident32 name, uint8 valueType);
-    /// @dev Reverted when opType is unrecognized (including 0 / uninitialized).
-    error InvalidOpType(uint8 opType);
+    /// @dev Reverted when operationType is unrecognized (including 0 / uninitialized).
+    error InvalidOpType(uint8 operationType);
     /// @dev Reverted when expiresAt is not strictly after the current block.
     error ExpiryInPast(BlockNumber expiresAt, BlockNumber currentBlock);
     /// @dev Reverted when the attribute count exceeds MAX_ATTRIBUTES.
@@ -283,8 +283,8 @@ library Entity {
     /// the previous hash. The changeset is an append-only hash chain where
     /// each link encodes the operation type, entity key, and resulting
     /// entity hash.
-    function chainOperationHash(bytes32 prev, uint8 opType, bytes32 key, bytes32 entityHash_) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(prev, opType, key, entityHash_));
+    function chainOperationHash(bytes32 prev, uint8 operationType, bytes32 key, bytes32 entityHash_) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(prev, operationType, key, entityHash_));
     }
 
     // -------------------------------------------------------------------------

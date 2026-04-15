@@ -40,7 +40,7 @@ contract ChainOpTest is Test {
     }
 
     function test_chainOperationHash_differentOpType_differs() public pure {
-        // GIVEN two calls differing only in opType
+        // GIVEN two calls differing only in operationType
         bytes32 prev = keccak256("prev");
         bytes32 key = keccak256("key");
         bytes32 entityHash = keccak256("entity");
@@ -142,7 +142,7 @@ contract ChainOpTest is Test {
     // -------------------------------------------------------------------------
 
     function test_chainOperationHash_fuzz(bytes32 prev, uint8 rawOpType, bytes32 key, bytes32 entityHash_) public pure {
-        // GIVEN arbitrary inputs, bound opType to valid range
+        // GIVEN arbitrary inputs, bound operationType to valid range
         rawOpType = uint8(bound(rawOpType, 0, 5));
         // WHEN computing via the assembly implementation
         bytes32 actual = Entity.chainOperationHash(prev, rawOpType, key, entityHash_);
