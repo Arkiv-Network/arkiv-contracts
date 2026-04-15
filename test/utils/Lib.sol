@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {BlockNumber} from "../../src/BlockNumber.sol";
-import {EntityHashing} from "../../src/EntityHashing.sol";
+import {Entity} from "../../src/Entity.sol";
 import {Ident32, encodeIdent32} from "../../src/types/Ident32.sol";
 import {Mime128} from "../../src/types/Mime128.sol";
 
@@ -15,11 +15,11 @@ library Lib {
     function createOp(
         bytes memory payload_,
         Mime128 memory contentType_,
-        EntityHashing.Attribute[] memory attributes_,
+        Entity.Attribute[] memory attributes_,
         BlockNumber expiresAt_
-    ) internal pure returns (EntityHashing.Op memory) {
-        return EntityHashing.Op({
-            opType: EntityHashing.CREATE,
+    ) internal pure returns (Entity.Op memory) {
+        return Entity.Op({
+            opType: Entity.CREATE,
             entityKey: bytes32(0),
             payload: payload_,
             contentType: contentType_,
@@ -33,10 +33,10 @@ library Lib {
         bytes32 entityKey_,
         bytes memory payload_,
         Mime128 memory contentType_,
-        EntityHashing.Attribute[] memory attributes_
-    ) internal pure returns (EntityHashing.Op memory) {
-        return EntityHashing.Op({
-            opType: EntityHashing.UPDATE,
+        Entity.Attribute[] memory attributes_
+    ) internal pure returns (Entity.Op memory) {
+        return Entity.Op({
+            opType: Entity.UPDATE,
             entityKey: entityKey_,
             payload: payload_,
             contentType: contentType_,
@@ -46,11 +46,11 @@ library Lib {
         });
     }
 
-    function deleteOp(bytes32 entityKey_) internal pure returns (EntityHashing.Op memory) {
-        EntityHashing.Attribute[] memory empty = new EntityHashing.Attribute[](0);
+    function deleteOp(bytes32 entityKey_) internal pure returns (Entity.Op memory) {
+        Entity.Attribute[] memory empty = new Entity.Attribute[](0);
         Mime128 memory emptyCt;
-        return EntityHashing.Op({
-            opType: EntityHashing.DELETE,
+        return Entity.Op({
+            opType: Entity.DELETE,
             entityKey: entityKey_,
             payload: "",
             contentType: emptyCt,
@@ -60,11 +60,11 @@ library Lib {
         });
     }
 
-    function transferOp(bytes32 entityKey_, address newOwner_) internal pure returns (EntityHashing.Op memory) {
-        EntityHashing.Attribute[] memory empty = new EntityHashing.Attribute[](0);
+    function transferOp(bytes32 entityKey_, address newOwner_) internal pure returns (Entity.Op memory) {
+        Entity.Attribute[] memory empty = new Entity.Attribute[](0);
         Mime128 memory emptyCt;
-        return EntityHashing.Op({
-            opType: EntityHashing.TRANSFER,
+        return Entity.Op({
+            opType: Entity.TRANSFER,
             entityKey: entityKey_,
             payload: "",
             contentType: emptyCt,
@@ -74,11 +74,11 @@ library Lib {
         });
     }
 
-    function expireOp(bytes32 entityKey_) internal pure returns (EntityHashing.Op memory) {
-        EntityHashing.Attribute[] memory empty = new EntityHashing.Attribute[](0);
+    function expireOp(bytes32 entityKey_) internal pure returns (Entity.Op memory) {
+        Entity.Attribute[] memory empty = new Entity.Attribute[](0);
         Mime128 memory emptyCt;
-        return EntityHashing.Op({
-            opType: EntityHashing.EXPIRE,
+        return Entity.Op({
+            opType: Entity.EXPIRE,
             entityKey: entityKey_,
             payload: "",
             contentType: emptyCt,
@@ -88,11 +88,11 @@ library Lib {
         });
     }
 
-    function extendOp(bytes32 entityKey_, BlockNumber expiresAt_) internal pure returns (EntityHashing.Op memory) {
-        EntityHashing.Attribute[] memory empty = new EntityHashing.Attribute[](0);
+    function extendOp(bytes32 entityKey_, BlockNumber expiresAt_) internal pure returns (Entity.Op memory) {
+        Entity.Attribute[] memory empty = new Entity.Attribute[](0);
         Mime128 memory emptyCt;
-        return EntityHashing.Op({
-            opType: EntityHashing.EXTEND,
+        return Entity.Op({
+            opType: Entity.EXTEND,
             entityKey: entityKey_,
             payload: "",
             contentType: emptyCt,
@@ -102,16 +102,16 @@ library Lib {
         });
     }
 
-    function uintAttr(string memory name, uint256 value) internal pure returns (EntityHashing.Attribute memory) {
+    function uintAttr(string memory name, uint256 value) internal pure returns (Entity.Attribute memory) {
         bytes32[4] memory v;
         v[0] = bytes32(value);
-        return EntityHashing.Attribute({name: packName(name), valueType: EntityHashing.ATTR_UINT, value: v});
+        return Entity.Attribute({name: packName(name), valueType: Entity.ATTR_UINT, value: v});
     }
 
     function stringAttr(string memory name, string memory value)
         internal
         pure
-        returns (EntityHashing.Attribute memory)
+        returns (Entity.Attribute memory)
     {
         bytes memory b = bytes(value);
         bytes32[4] memory v;
@@ -120,13 +120,13 @@ library Lib {
             uint256 offset = i % 32;
             v[slot] |= bytes32(bytes1(b[i])) >> (offset * 8);
         }
-        return EntityHashing.Attribute({name: packName(name), valueType: EntityHashing.ATTR_STRING, value: v});
+        return Entity.Attribute({name: packName(name), valueType: Entity.ATTR_STRING, value: v});
     }
 
-    function entityKeyAttr(string memory name, bytes32 value) internal pure returns (EntityHashing.Attribute memory) {
+    function entityKeyAttr(string memory name, bytes32 value) internal pure returns (Entity.Attribute memory) {
         bytes32[4] memory v;
         v[0] = value;
-        return EntityHashing.Attribute({name: packName(name), valueType: EntityHashing.ATTR_ENTITY_KEY, value: v});
+        return Entity.Attribute({name: packName(name), valueType: Entity.ATTR_ENTITY_KEY, value: v});
     }
 
     function payload(uint256 size) internal pure returns (bytes memory) {

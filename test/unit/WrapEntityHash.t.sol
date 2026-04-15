@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {BlockNumber} from "../../src/BlockNumber.sol";
 import {Test} from "forge-std/Test.sol";
-import {EntityHashing} from "../../src/EntityHashing.sol";
+import {Entity} from "../../src/Entity.sol";
 import {EntityRegistry} from "../../src/EntityRegistry.sol";
 
 /// @dev Tests _wrapEntityHash in isolation — verifies domain-wrapped
@@ -28,7 +28,7 @@ contract WrapEntityHashTest is Test, EntityRegistry {
         BlockNumber updatedAt = BlockNumber.wrap(100);
         BlockNumber expiresAt = BlockNumber.wrap(500);
 
-        bytes32 structHash = EntityHashing.entityStructHash(coreHash_, alice, updatedAt, expiresAt);
+        bytes32 structHash = Entity.entityStructHash(coreHash_, alice, updatedAt, expiresAt);
         bytes32 expected = _hashTypedDataV4(structHash);
 
         assertEq(this.doWrap(coreHash_, alice, updatedAt, expiresAt), expected);
@@ -101,7 +101,7 @@ contract WrapEntityHashTest is Test, EntityRegistry {
         BlockNumber updatedAt = BlockNumber.wrap(rawUpdatedAt);
         BlockNumber expiresAt = BlockNumber.wrap(rawExpiresAt);
 
-        bytes32 expected = _hashTypedDataV4(EntityHashing.entityStructHash(coreHash_, owner, updatedAt, expiresAt));
+        bytes32 expected = _hashTypedDataV4(Entity.entityStructHash(coreHash_, owner, updatedAt, expiresAt));
         assertEq(this.doWrap(coreHash_, owner, updatedAt, expiresAt), expected);
     }
 }

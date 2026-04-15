@@ -9,7 +9,7 @@
 
 ## Problem
 
-Attribute names (`attr.name` in the `Attribute` struct) are `bytes32` values that currently receive no charset validation. The `attributeHash` function in `EntityHashing.sol` enforces sorted order and uniqueness, but accepts any 32-byte value — including uppercase, control characters, or arbitrary binary data.
+Attribute names (`attr.name` in the `Attribute` struct) are `bytes32` values that currently receive no charset validation. The `attributeHash` function in `Entity.sol` enforces sorted order and uniqueness, but accepts any 32-byte value — including uppercase, control characters, or arbitrary binary data.
 
 This creates three problems:
 
@@ -85,7 +85,7 @@ No state machine needed — attribute names have no internal structure. A single
 
 ### Integration point
 
-Validation is called in `EntityHashing.attributeHash()`, the existing single-pass function that already validates sort order, uniqueness, value types, and value lengths. Adding `validateIdent32(attr.name)` at the top of this function means every attribute name in every entity operation is validated — CREATE, UPDATE, and any future operation that includes attributes.
+Validation is called in `Entity.attributeHash()`, the existing single-pass function that already validates sort order, uniqueness, value types, and value lengths. Adding `validateIdent32(attr.name)` at the top of this function means every attribute name in every entity operation is validated — CREATE, UPDATE, and any future operation that includes attributes.
 
 ```solidity
 function attributeHash(bytes32 prevName, bytes32 chain, Attribute calldata attr)
@@ -130,7 +130,7 @@ Attribute hashing already costs ~500 gas per attribute (abi.encode + keccak256).
 | File | Change |
 |---|---|
 | `src/Ident32.sol` | New — free functions: `validateIdent32`, `encodeIdent32`, `decodeIdent32`, bitmap constant, errors |
-| `src/EntityHashing.sol` | Add `validateIdent32(attr.name)` call in `attributeHash` |
+| `src/Entity.sol` | Add `validateIdent32(attr.name)` call in `attributeHash` |
 | `test/utils/Lib.sol` | Replace `packName` body with `encodeIdent32` delegation |
 | `test/unit/Ident32.t.sol` | New — validation tests (charset, leading byte, empty, embedded nulls, boundary bytes, all uppercase rejected) |
 | `test/unit/hashing/AttributeHash.t.sol` | Fuzz tests need `vm.assume` for valid charset; new tests for uppercase/invalid name rejection |

@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {BlockNumber, currentBlock} from "../../src/BlockNumber.sol";
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../utils/Lib.sol";
-import {EntityHashing} from "../../src/EntityHashing.sol";
+import {Entity} from "../../src/Entity.sol";
 import {EntityRegistry} from "../../src/EntityRegistry.sol";
 import {encodeMime128} from "../../src/types/Mime128.sol";
 
@@ -22,10 +22,10 @@ contract ViewsTest is Test {
         registry = new EntityRegistry();
         deployBlock = currentBlock();
 
-        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](1);
-        ops[0] = EntityHashing.Op({
-            opType: EntityHashing.CREATE,
+        Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
+        Entity.Op[] memory ops = new Entity.Op[](1);
+        ops[0] = Entity.Op({
+            opType: Entity.CREATE,
             entityKey: bytes32(0),
             payload: "hello",
             contentType: encodeMime128("text/plain"),
@@ -70,7 +70,7 @@ contract ViewsTest is Test {
     }
 
     function test_getBlockNode() public view {
-        EntityHashing.BlockNode memory node = registry.getBlockNode(deployBlock);
+        Entity.BlockNode memory node = registry.getBlockNode(deployBlock);
         assertEq(node.txCount, 1);
     }
 
@@ -79,7 +79,7 @@ contract ViewsTest is Test {
     }
 
     function test_commitment() public view {
-        EntityHashing.Commitment memory c = registry.commitment(testKey);
+        Entity.Commitment memory c = registry.commitment(testKey);
         assertEq(c.owner, alice);
         assertEq(c.creator, alice);
     }

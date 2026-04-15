@@ -3,25 +3,25 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
-import {EntityHashing} from "../../../src/EntityHashing.sol";
+import {Entity} from "../../../src/Entity.sol";
 import {EntityRegistry} from "../../../src/EntityRegistry.sol";
 import {Ident32, IDENT_CHARSET, IDENT_LEADING} from "../../../src/types/Ident32.sol";
 
 contract AttributeHashTest is Test, EntityRegistry {
-    function doAttributeHash(Ident32 prevName, bytes32 chain, EntityHashing.Attribute calldata attr)
+    function doAttributeHash(Ident32 prevName, bytes32 chain, Entity.Attribute calldata attr)
         external
         pure
         returns (Ident32, bytes32)
     {
-        return EntityHashing.attributeHash(prevName, chain, attr);
+        return Entity.attributeHash(prevName, chain, attr);
     }
 
-    function _hashOne(EntityHashing.Attribute memory attr) internal view returns (bytes32) {
+    function _hashOne(Entity.Attribute memory attr) internal view returns (bytes32) {
         (, bytes32 chain) = this.doAttributeHash(Ident32.wrap(bytes32(0)), bytes32(0), attr);
         return chain;
     }
 
-    function _hashMany(EntityHashing.Attribute[] memory attrs) internal view returns (bytes32) {
+    function _hashMany(Entity.Attribute[] memory attrs) internal view returns (bytes32) {
         bytes32 chain;
         Ident32 prevName;
         for (uint256 i = 0; i < attrs.length; i++) {
@@ -76,13 +76,13 @@ contract AttributeHashTest is Test, EntityRegistry {
     // ---- Manual EIP-712 encoding match ----
 
     function test_attributeHash_uint_matchesManualEIP712Encoding() public view {
-        EntityHashing.Attribute memory attr = Lib.uintAttr("count", 42);
+        Entity.Attribute memory attr = Lib.uintAttr("count", 42);
         bytes32 expected = keccak256(
             abi.encodePacked(
                 bytes32(0),
                 keccak256(
                     abi.encode(
-                        EntityHashing.ATTRIBUTE_TYPEHASH,
+                        Entity.ATTRIBUTE_TYPEHASH,
                         Ident32.unwrap(attr.name),
                         attr.valueType,
                         _valueHash(attr.value)
@@ -94,13 +94,13 @@ contract AttributeHashTest is Test, EntityRegistry {
     }
 
     function test_attributeHash_string_matchesManualEIP712Encoding() public view {
-        EntityHashing.Attribute memory attr = Lib.stringAttr("label", "hello world");
+        Entity.Attribute memory attr = Lib.stringAttr("label", "hello world");
         bytes32 expected = keccak256(
             abi.encodePacked(
                 bytes32(0),
                 keccak256(
                     abi.encode(
-                        EntityHashing.ATTRIBUTE_TYPEHASH,
+                        Entity.ATTRIBUTE_TYPEHASH,
                         Ident32.unwrap(attr.name),
                         attr.valueType,
                         _valueHash(attr.value)
@@ -113,13 +113,13 @@ contract AttributeHashTest is Test, EntityRegistry {
 
     function test_attributeHash_entityKey_matchesManualEIP712Encoding() public view {
         bytes32 ref = keccak256("some-entity");
-        EntityHashing.Attribute memory attr = Lib.entityKeyAttr("parent", ref);
+        Entity.Attribute memory attr = Lib.entityKeyAttr("parent", ref);
         bytes32 expected = keccak256(
             abi.encodePacked(
                 bytes32(0),
                 keccak256(
                     abi.encode(
-                        EntityHashing.ATTRIBUTE_TYPEHASH,
+                        Entity.ATTRIBUTE_TYPEHASH,
                         Ident32.unwrap(attr.name),
                         attr.valueType,
                         _valueHash(attr.value)
@@ -133,24 +133,24 @@ contract AttributeHashTest is Test, EntityRegistry {
     // ---- Rolling hash ----
 
     function test_attributesHash_empty_returnsZero() public view {
-        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
+        Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         assertEq(_hashMany(attrs), bytes32(0));
     }
 
     function test_attributesHash_two_matchesManualChain() public view {
-        EntityHashing.Attribute memory a = Lib.uintAttr("count", 42);
-        EntityHashing.Attribute memory b = Lib.stringAttr("label", "hello");
+        Entity.Attribute memory a = Lib.uintAttr("count", 42);
+        Entity.Attribute memory b = Lib.stringAttr("label", "hello");
 
         bytes32 hashA = keccak256(
-            abi.encode(EntityHashing.ATTRIBUTE_TYPEHASH, Ident32.unwrap(a.name), a.valueType, _valueHash(a.value))
+            abi.encode(Entity.ATTRIBUTE_TYPEHASH, Ident32.unwrap(a.name), a.valueType, _valueHash(a.value))
         );
         bytes32 hashB = keccak256(
-            abi.encode(EntityHashing.ATTRIBUTE_TYPEHASH, Ident32.unwrap(b.name), b.valueType, _valueHash(b.value))
+            abi.encode(Entity.ATTRIBUTE_TYPEHASH, Ident32.unwrap(b.name), b.valueType, _valueHash(b.value))
         );
         bytes32 chain = keccak256(abi.encodePacked(bytes32(0), hashA));
         chain = keccak256(abi.encodePacked(chain, hashB));
 
-        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](2);
+        Entity.Attribute[] memory attrs = new Entity.Attribute[](2);
         attrs[0] = a;
         attrs[1] = b;
         assertEq(_hashMany(attrs), chain);
@@ -159,12 +159,12 @@ contract AttributeHashTest is Test, EntityRegistry {
     // ---- Sorting / uniqueness ----
 
     function test_attributeHash_revertsOnUnsortedNames() public {
-        vm.expectRevert(EntityHashing.AttributesNotSorted.selector);
+        vm.expectRevert(Entity.AttributesNotSorted.selector);
         this.doAttributeHash(Lib.packName("label"), bytes32(0), Lib.uintAttr("count", 42));
     }
 
     function test_attributeHash_revertsOnDuplicateNames() public {
-        vm.expectRevert(EntityHashing.AttributesNotSorted.selector);
+        vm.expectRevert(Entity.AttributesNotSorted.selector);
         this.doAttributeHash(Lib.packName("count"), bytes32(0), Lib.uintAttr("count", 2));
     }
 
@@ -173,29 +173,29 @@ contract AttributeHashTest is Test, EntityRegistry {
     function test_attributeHash_revertsOnUninitializedValueType() public {
         bytes32[4] memory v;
         v[0] = bytes32(uint256(1));
-        EntityHashing.Attribute memory attr =
-            EntityHashing.Attribute({name: Lib.packName("bad"), valueType: EntityHashing.UNINITIALIZED, value: v});
+        Entity.Attribute memory attr =
+            Entity.Attribute({name: Lib.packName("bad"), valueType: Entity.UNINITIALIZED, value: v});
         vm.expectRevert(
-            abi.encodeWithSelector(EntityHashing.InvalidValueType.selector, attr.name, EntityHashing.UNINITIALIZED)
+            abi.encodeWithSelector(Entity.InvalidValueType.selector, attr.name, Entity.UNINITIALIZED)
         );
         _hashOne(attr);
     }
 
     function test_attributeHash_revertsOnValueTypeAboveRange() public {
-        uint8 aboveRange = EntityHashing.ATTR_ENTITY_KEY + 1;
+        uint8 aboveRange = Entity.ATTR_ENTITY_KEY + 1;
         bytes32[4] memory v;
-        EntityHashing.Attribute memory attr =
-            EntityHashing.Attribute({name: Lib.packName("bad"), valueType: aboveRange, value: v});
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.InvalidValueType.selector, attr.name, aboveRange));
+        Entity.Attribute memory attr =
+            Entity.Attribute({name: Lib.packName("bad"), valueType: aboveRange, value: v});
+        vm.expectRevert(abi.encodeWithSelector(Entity.InvalidValueType.selector, attr.name, aboveRange));
         _hashOne(attr);
     }
 
     // ---- Fuzz ----
 
-    function _refHash(EntityHashing.Attribute memory attr) internal pure returns (bytes32) {
+    function _refHash(Entity.Attribute memory attr) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
-                EntityHashing.ATTRIBUTE_TYPEHASH, Ident32.unwrap(attr.name), attr.valueType, _valueHash(attr.value)
+                Entity.ATTRIBUTE_TYPEHASH, Ident32.unwrap(attr.name), attr.valueType, _valueHash(attr.value)
             )
         );
     }
@@ -225,8 +225,8 @@ contract AttributeHashTest is Test, EntityRegistry {
         vm.assume(_isValidIdent(name));
         bytes32[4] memory v;
         v[0] = bytes32(value);
-        EntityHashing.Attribute memory attr =
-            EntityHashing.Attribute({name: Ident32.wrap(name), valueType: EntityHashing.ATTR_UINT, value: v});
+        Entity.Attribute memory attr =
+            Entity.Attribute({name: Ident32.wrap(name), valueType: Entity.ATTR_UINT, value: v});
         (, bytes32 chain) = this.doAttributeHash(Ident32.wrap(bytes32(0)), bytes32(0), attr);
         assertEq(chain, _refChain(bytes32(0), _refHash(attr)));
     }
@@ -235,16 +235,16 @@ contract AttributeHashTest is Test, EntityRegistry {
         vm.assume(_isValidIdent(name));
         bytes32[4] memory v;
         v[0] = value;
-        EntityHashing.Attribute memory attr =
-            EntityHashing.Attribute({name: Ident32.wrap(name), valueType: EntityHashing.ATTR_ENTITY_KEY, value: v});
+        Entity.Attribute memory attr =
+            Entity.Attribute({name: Ident32.wrap(name), valueType: Entity.ATTR_ENTITY_KEY, value: v});
         (, bytes32 chain) = this.doAttributeHash(Ident32.wrap(bytes32(0)), bytes32(0), attr);
         assertEq(chain, _refChain(bytes32(0), _refHash(attr)));
     }
 
     function test_attributeHash_fuzz_string(bytes32 name, bytes32[4] calldata value) public {
         vm.assume(_isValidIdent(name));
-        EntityHashing.Attribute memory attr =
-            EntityHashing.Attribute({name: Ident32.wrap(name), valueType: EntityHashing.ATTR_STRING, value: value});
+        Entity.Attribute memory attr =
+            Entity.Attribute({name: Ident32.wrap(name), valueType: Entity.ATTR_STRING, value: value});
         (, bytes32 chain) = this.doAttributeHash(Ident32.wrap(bytes32(0)), bytes32(0), attr);
         assertEq(chain, _refChain(bytes32(0), _refHash(attr)));
     }

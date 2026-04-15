@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {BlockNumber, currentBlock} from "../../src/BlockNumber.sol";
 import {Test} from "forge-std/Test.sol";
-import {EntityHashing} from "../../src/EntityHashing.sol";
+import {Entity} from "../../src/Entity.sol";
 import {EntityRegistry} from "../../src/EntityRegistry.sol";
 import {encodeMime128} from "../../src/types/Mime128.sol";
 
@@ -17,7 +17,7 @@ contract ExecuteTest is Test, EntityRegistry {
     uint256 internal _stubIndex;
     uint256 internal _stubSeed;
 
-    function _dispatch(EntityHashing.Op calldata, BlockNumber) internal override returns (bytes32, bytes32) {
+    function _dispatch(Entity.Op calldata, BlockNumber) internal override returns (bytes32, bytes32) {
         bytes32 key = _stubKeys[_stubIndex];
         bytes32 hash = _stubHashes[_stubIndex];
         _stubIndex++;
@@ -38,9 +38,9 @@ contract ExecuteTest is Test, EntityRegistry {
     }
 
     /// @dev Build a minimal Op with a given opType.
-    function _op(uint8 opType) internal pure returns (EntityHashing.Op memory) {
-        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        return EntityHashing.Op({
+    function _op(uint8 opType) internal pure returns (Entity.Op memory) {
+        Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
+        return Entity.Op({
             opType: opType,
             entityKey: bytes32(0),
             payload: "",
@@ -56,8 +56,8 @@ contract ExecuteTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_execute_emptyBatch_reverts() public {
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](0);
-        vm.expectRevert(EntityHashing.EmptyBatch.selector);
+        Entity.Op[] memory ops = new Entity.Op[](0);
+        vm.expectRevert(Entity.EmptyBatch.selector);
         this.execute(ops);
     }
 
@@ -72,11 +72,11 @@ contract ExecuteTest is Test, EntityRegistry {
         bytes32 k = _stubKeys[0];
         bytes32 h = _stubHashes[0];
 
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](1);
-        ops[0] = _op(EntityHashing.CREATE);
+        Entity.Op[] memory ops = new Entity.Op[](1);
+        ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 
-        bytes32 expected = EntityHashing.chainOp(bytes32(0), EntityHashing.CREATE, k, h);
+        bytes32 expected = Entity.chainOperationHash(bytes32(0), Entity.CREATE, k, h);
         assertEq(changeSetHash(), expected);
     }
 
@@ -93,15 +93,15 @@ contract ExecuteTest is Test, EntityRegistry {
         bytes32 k2 = _stubKeys[2];
         bytes32 h2 = _stubHashes[2];
 
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](3);
-        ops[0] = _op(EntityHashing.CREATE);
-        ops[1] = _op(EntityHashing.UPDATE);
-        ops[2] = _op(EntityHashing.DELETE);
+        Entity.Op[] memory ops = new Entity.Op[](3);
+        ops[0] = _op(Entity.CREATE);
+        ops[1] = _op(Entity.UPDATE);
+        ops[2] = _op(Entity.DELETE);
         this.execute(ops);
 
-        bytes32 chain0 = EntityHashing.chainOp(bytes32(0), EntityHashing.CREATE, k0, h0);
-        bytes32 chain1 = EntityHashing.chainOp(chain0, EntityHashing.UPDATE, k1, h1);
-        bytes32 chain2 = EntityHashing.chainOp(chain1, EntityHashing.DELETE, k2, h2);
+        bytes32 chain0 = Entity.chainOperationHash(bytes32(0), Entity.CREATE, k0, h0);
+        bytes32 chain1 = Entity.chainOperationHash(chain0, Entity.UPDATE, k1, h1);
+        bytes32 chain2 = Entity.chainOperationHash(chain1, Entity.DELETE, k2, h2);
 
         assertEq(changeSetHash(), chain2);
     }
@@ -119,16 +119,16 @@ contract ExecuteTest is Test, EntityRegistry {
         bytes32 k2 = _stubKeys[2];
         bytes32 h2 = _stubHashes[2];
 
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](3);
-        ops[0] = _op(EntityHashing.CREATE);
-        ops[1] = _op(EntityHashing.UPDATE);
-        ops[2] = _op(EntityHashing.DELETE);
+        Entity.Op[] memory ops = new Entity.Op[](3);
+        ops[0] = _op(Entity.CREATE);
+        ops[1] = _op(Entity.UPDATE);
+        ops[2] = _op(Entity.DELETE);
         this.execute(ops);
 
         BlockNumber current = currentBlock();
-        bytes32 chain0 = EntityHashing.chainOp(bytes32(0), EntityHashing.CREATE, k0, h0);
-        bytes32 chain1 = EntityHashing.chainOp(chain0, EntityHashing.UPDATE, k1, h1);
-        bytes32 chain2 = EntityHashing.chainOp(chain1, EntityHashing.DELETE, k2, h2);
+        bytes32 chain0 = Entity.chainOperationHash(bytes32(0), Entity.CREATE, k0, h0);
+        bytes32 chain1 = Entity.chainOperationHash(chain0, Entity.UPDATE, k1, h1);
+        bytes32 chain2 = Entity.chainOperationHash(chain1, Entity.DELETE, k2, h2);
 
         assertEq(changeSetHashAtOp(current, 0, 0), chain0);
         assertEq(changeSetHashAtOp(current, 0, 1), chain1);
@@ -141,10 +141,10 @@ contract ExecuteTest is Test, EntityRegistry {
 
     function test_execute_recordsTxOpCount() public {
         _pushStubs(3);
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](3);
-        ops[0] = _op(EntityHashing.CREATE);
-        ops[1] = _op(EntityHashing.UPDATE);
-        ops[2] = _op(EntityHashing.DELETE);
+        Entity.Op[] memory ops = new Entity.Op[](3);
+        ops[0] = _op(Entity.CREATE);
+        ops[1] = _op(Entity.UPDATE);
+        ops[2] = _op(Entity.DELETE);
         this.execute(ops);
 
         assertEq(txOpCount(currentBlock(), 0), 3);
@@ -152,8 +152,8 @@ contract ExecuteTest is Test, EntityRegistry {
 
     function test_execute_singleOp_txOpCountIsOne() public {
         _pushStubs(1);
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](1);
-        ops[0] = _op(EntityHashing.CREATE);
+        Entity.Op[] memory ops = new Entity.Op[](1);
+        ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 
         assertEq(txOpCount(currentBlock(), 0), 1);
@@ -168,8 +168,8 @@ contract ExecuteTest is Test, EntityRegistry {
         BlockNumber newBlock = currentBlock();
 
         _pushStubs(1);
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](1);
-        ops[0] = _op(EntityHashing.CREATE);
+        Entity.Op[] memory ops = new Entity.Op[](1);
+        ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 
         assertEq(BlockNumber.unwrap(headBlock()), BlockNumber.unwrap(newBlock));
@@ -181,14 +181,14 @@ contract ExecuteTest is Test, EntityRegistry {
         BlockNumber newBlock = currentBlock();
 
         _pushStubs(1);
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](1);
-        ops[0] = _op(EntityHashing.CREATE);
+        Entity.Op[] memory ops = new Entity.Op[](1);
+        ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 
-        EntityHashing.BlockNode memory deployNode = getBlockNode(deployBlock);
+        Entity.BlockNode memory deployNode = getBlockNode(deployBlock);
         assertEq(BlockNumber.unwrap(deployNode.nextBlock), BlockNumber.unwrap(newBlock));
 
-        EntityHashing.BlockNode memory newNode = getBlockNode(newBlock);
+        Entity.BlockNode memory newNode = getBlockNode(newBlock);
         assertEq(BlockNumber.unwrap(newNode.prevBlock), BlockNumber.unwrap(deployBlock));
     }
 
@@ -196,11 +196,11 @@ contract ExecuteTest is Test, EntityRegistry {
         vm.roll(block.number + 10);
 
         _pushStubs(1);
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](1);
-        ops[0] = _op(EntityHashing.CREATE);
+        Entity.Op[] memory ops = new Entity.Op[](1);
+        ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 
-        EntityHashing.BlockNode memory node = getBlockNode(currentBlock());
+        Entity.BlockNode memory node = getBlockNode(currentBlock());
         assertEq(node.txCount, 1);
     }
 
@@ -212,15 +212,15 @@ contract ExecuteTest is Test, EntityRegistry {
         vm.roll(block.number + 10);
 
         _pushStubs(1);
-        EntityHashing.Op[] memory ops1 = new EntityHashing.Op[](1);
-        ops1[0] = _op(EntityHashing.CREATE);
+        Entity.Op[] memory ops1 = new Entity.Op[](1);
+        ops1[0] = _op(Entity.CREATE);
         this.execute(ops1);
 
         assertEq(getBlockNode(currentBlock()).txCount, 1);
 
         _pushStubs(1);
-        EntityHashing.Op[] memory ops2 = new EntityHashing.Op[](1);
-        ops2[0] = _op(EntityHashing.CREATE);
+        Entity.Op[] memory ops2 = new Entity.Op[](1);
+        ops2[0] = _op(Entity.CREATE);
         this.execute(ops2);
 
         assertEq(getBlockNode(currentBlock()).txCount, 2);
@@ -232,15 +232,15 @@ contract ExecuteTest is Test, EntityRegistry {
 
         // First tx — 2 ops.
         _pushStubs(2);
-        EntityHashing.Op[] memory ops1 = new EntityHashing.Op[](2);
-        ops1[0] = _op(EntityHashing.CREATE);
-        ops1[1] = _op(EntityHashing.UPDATE);
+        Entity.Op[] memory ops1 = new Entity.Op[](2);
+        ops1[0] = _op(Entity.CREATE);
+        ops1[1] = _op(Entity.UPDATE);
         this.execute(ops1);
 
         // Second tx — 1 op.
         _pushStubs(1);
-        EntityHashing.Op[] memory ops2 = new EntityHashing.Op[](1);
-        ops2[0] = _op(EntityHashing.DELETE);
+        Entity.Op[] memory ops2 = new Entity.Op[](1);
+        ops2[0] = _op(Entity.DELETE);
         this.execute(ops2);
 
         assertEq(txOpCount(current, 0), 2);
@@ -251,19 +251,19 @@ contract ExecuteTest is Test, EntityRegistry {
         vm.roll(block.number + 10);
 
         _pushStubs(1);
-        EntityHashing.Op[] memory ops1 = new EntityHashing.Op[](1);
-        ops1[0] = _op(EntityHashing.CREATE);
+        Entity.Op[] memory ops1 = new Entity.Op[](1);
+        ops1[0] = _op(Entity.CREATE);
         this.execute(ops1);
         bytes32 hashAfterTx1 = changeSetHash();
 
         _pushStubs(1);
         bytes32 k1 = _stubKeys[0];
         bytes32 h1 = _stubHashes[0];
-        EntityHashing.Op[] memory ops2 = new EntityHashing.Op[](1);
-        ops2[0] = _op(EntityHashing.UPDATE);
+        Entity.Op[] memory ops2 = new Entity.Op[](1);
+        ops2[0] = _op(Entity.UPDATE);
         this.execute(ops2);
 
-        bytes32 expected = EntityHashing.chainOp(hashAfterTx1, EntityHashing.UPDATE, k1, h1);
+        bytes32 expected = Entity.chainOperationHash(hashAfterTx1, Entity.UPDATE, k1, h1);
         assertEq(changeSetHash(), expected);
     }
 
@@ -277,26 +277,26 @@ contract ExecuteTest is Test, EntityRegistry {
         vm.roll(block.number + 10);
         BlockNumber blockA = currentBlock();
         _pushStubs(1);
-        EntityHashing.Op[] memory ops1 = new EntityHashing.Op[](1);
-        ops1[0] = _op(EntityHashing.CREATE);
+        Entity.Op[] memory ops1 = new Entity.Op[](1);
+        ops1[0] = _op(Entity.CREATE);
         this.execute(ops1);
 
         vm.roll(block.number + 5);
         BlockNumber blockB = currentBlock();
         _pushStubs(1);
-        EntityHashing.Op[] memory ops2 = new EntityHashing.Op[](1);
-        ops2[0] = _op(EntityHashing.CREATE);
+        Entity.Op[] memory ops2 = new Entity.Op[](1);
+        ops2[0] = _op(Entity.CREATE);
         this.execute(ops2);
 
         // deployBlock → blockA → blockB
-        EntityHashing.BlockNode memory deployNode = getBlockNode(deployBlock);
+        Entity.BlockNode memory deployNode = getBlockNode(deployBlock);
         assertEq(BlockNumber.unwrap(deployNode.nextBlock), BlockNumber.unwrap(blockA));
 
-        EntityHashing.BlockNode memory nodeA = getBlockNode(blockA);
+        Entity.BlockNode memory nodeA = getBlockNode(blockA);
         assertEq(BlockNumber.unwrap(nodeA.prevBlock), BlockNumber.unwrap(deployBlock));
         assertEq(BlockNumber.unwrap(nodeA.nextBlock), BlockNumber.unwrap(blockB));
 
-        EntityHashing.BlockNode memory nodeB = getBlockNode(blockB);
+        Entity.BlockNode memory nodeB = getBlockNode(blockB);
         assertEq(BlockNumber.unwrap(nodeB.prevBlock), BlockNumber.unwrap(blockA));
         assertEq(BlockNumber.unwrap(nodeB.nextBlock), 0);
     }
@@ -305,24 +305,24 @@ contract ExecuteTest is Test, EntityRegistry {
         vm.roll(block.number + 10);
         BlockNumber blockA = currentBlock();
         _pushStubs(1);
-        EntityHashing.Op[] memory ops1 = new EntityHashing.Op[](1);
-        ops1[0] = _op(EntityHashing.CREATE);
+        Entity.Op[] memory ops1 = new Entity.Op[](1);
+        ops1[0] = _op(Entity.CREATE);
         this.execute(ops1);
         assertEq(BlockNumber.unwrap(headBlock()), BlockNumber.unwrap(blockA));
 
         vm.roll(block.number + 5);
         BlockNumber blockB = currentBlock();
         _pushStubs(1);
-        EntityHashing.Op[] memory ops2 = new EntityHashing.Op[](1);
-        ops2[0] = _op(EntityHashing.CREATE);
+        Entity.Op[] memory ops2 = new Entity.Op[](1);
+        ops2[0] = _op(Entity.CREATE);
         this.execute(ops2);
         assertEq(BlockNumber.unwrap(headBlock()), BlockNumber.unwrap(blockB));
     }
 
     function test_execute_crossBlock_hashChainContinues() public {
         _pushStubs(1);
-        EntityHashing.Op[] memory ops1 = new EntityHashing.Op[](1);
-        ops1[0] = _op(EntityHashing.CREATE);
+        Entity.Op[] memory ops1 = new Entity.Op[](1);
+        ops1[0] = _op(Entity.CREATE);
         this.execute(ops1);
         bytes32 hashAfterBlock1 = changeSetHash();
 
@@ -330,11 +330,11 @@ contract ExecuteTest is Test, EntityRegistry {
         _pushStubs(1);
         bytes32 k1 = _stubKeys[0];
         bytes32 h1 = _stubHashes[0];
-        EntityHashing.Op[] memory ops2 = new EntityHashing.Op[](1);
-        ops2[0] = _op(EntityHashing.UPDATE);
+        Entity.Op[] memory ops2 = new Entity.Op[](1);
+        ops2[0] = _op(Entity.UPDATE);
         this.execute(ops2);
 
-        bytes32 expected = EntityHashing.chainOp(hashAfterBlock1, EntityHashing.UPDATE, k1, h1);
+        bytes32 expected = Entity.chainOperationHash(hashAfterBlock1, Entity.UPDATE, k1, h1);
         assertEq(changeSetHash(), expected);
     }
 
@@ -354,15 +354,15 @@ contract ExecuteTest is Test, EntityRegistry {
         bytes32 k2 = _stubKeys[2];
         bytes32 h2 = _stubHashes[2];
 
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](3);
-        ops[0] = _op(EntityHashing.CREATE);
-        ops[1] = _op(EntityHashing.UPDATE);
-        ops[2] = _op(EntityHashing.DELETE);
+        Entity.Op[] memory ops = new Entity.Op[](3);
+        ops[0] = _op(Entity.CREATE);
+        ops[1] = _op(Entity.UPDATE);
+        ops[2] = _op(Entity.DELETE);
         this.execute(ops);
 
-        bytes32 chain0 = EntityHashing.chainOp(bytes32(0), EntityHashing.CREATE, k0, h0);
-        bytes32 chain1 = EntityHashing.chainOp(chain0, EntityHashing.UPDATE, k1, h1);
-        bytes32 chain2 = EntityHashing.chainOp(chain1, EntityHashing.DELETE, k2, h2);
+        bytes32 chain0 = Entity.chainOperationHash(bytes32(0), Entity.CREATE, k0, h0);
+        bytes32 chain1 = Entity.chainOperationHash(chain0, Entity.UPDATE, k1, h1);
+        bytes32 chain2 = Entity.chainOperationHash(chain1, Entity.DELETE, k2, h2);
 
         assertEq(changeSetHashAtBlock(current), chain2);
     }
@@ -377,24 +377,24 @@ contract ExecuteTest is Test, EntityRegistry {
         bytes32 tx0h0 = _stubHashes[0];
         bytes32 tx0k1 = _stubKeys[1];
         bytes32 tx0h1 = _stubHashes[1];
-        EntityHashing.Op[] memory ops1 = new EntityHashing.Op[](2);
-        ops1[0] = _op(EntityHashing.CREATE);
-        ops1[1] = _op(EntityHashing.UPDATE);
+        Entity.Op[] memory ops1 = new Entity.Op[](2);
+        ops1[0] = _op(Entity.CREATE);
+        ops1[1] = _op(Entity.UPDATE);
         this.execute(ops1);
 
         // tx1: 1 op.
         _pushStubs(1);
         bytes32 tx1k0 = _stubKeys[0];
         bytes32 tx1h0 = _stubHashes[0];
-        EntityHashing.Op[] memory ops2 = new EntityHashing.Op[](1);
-        ops2[0] = _op(EntityHashing.DELETE);
+        Entity.Op[] memory ops2 = new Entity.Op[](1);
+        ops2[0] = _op(Entity.DELETE);
         this.execute(ops2);
 
-        bytes32 chain0 = EntityHashing.chainOp(bytes32(0), EntityHashing.CREATE, tx0k0, tx0h0);
-        bytes32 chain1 = EntityHashing.chainOp(chain0, EntityHashing.UPDATE, tx0k1, tx0h1);
+        bytes32 chain0 = Entity.chainOperationHash(bytes32(0), Entity.CREATE, tx0k0, tx0h0);
+        bytes32 chain1 = Entity.chainOperationHash(chain0, Entity.UPDATE, tx0k1, tx0h1);
         assertEq(changeSetHashAtTx(current, 0), chain1);
 
-        bytes32 chain2 = EntityHashing.chainOp(chain1, EntityHashing.DELETE, tx1k0, tx1h0);
+        bytes32 chain2 = Entity.chainOperationHash(chain1, Entity.DELETE, tx1k0, tx1h0);
         assertEq(changeSetHashAtTx(current, 1), chain2);
     }
 
@@ -414,8 +414,8 @@ contract ExecuteTest is Test, EntityRegistry {
         BlockNumber deployBlock = currentBlock();
 
         _pushStubs(1);
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](1);
-        ops[0] = _op(EntityHashing.CREATE);
+        Entity.Op[] memory ops = new Entity.Op[](1);
+        ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 
         assertEq(BlockNumber.unwrap(headBlock()), BlockNumber.unwrap(deployBlock));

@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {BlockNumber, currentBlock} from "../../../src/BlockNumber.sol";
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
-import {EntityHashing} from "../../../src/EntityHashing.sol";
+import {Entity} from "../../../src/Entity.sol";
 import {EntityRegistry} from "../../../src/EntityRegistry.sol";
 import {encodeMime128} from "../../../src/types/Mime128.sol";
 
@@ -31,12 +31,12 @@ contract CreateTest is Test, EntityRegistry {
         address,
         BlockNumber,
         BlockNumber,
-        EntityHashing.Op calldata
+        Entity.Op calldata
     ) internal pure override returns (bytes32, bytes32) {
         return (STUB_CORE_HASH, STUB_ENTITY_HASH);
     }
 
-    function doCreate(EntityHashing.Op calldata op) external returns (bytes32, bytes32) {
+    function doCreate(Entity.Op calldata op) external returns (bytes32, bytes32) {
         return _create(op, currentBlock());
     }
 
@@ -44,8 +44,8 @@ contract CreateTest is Test, EntityRegistry {
         expiresAt = currentBlock() + BlockNumber.wrap(1000);
     }
 
-    function _defaultOp() internal view returns (EntityHashing.Op memory) {
-        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
+    function _defaultOp() internal view returns (Entity.Op memory) {
+        Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         return Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
     }
 
@@ -54,8 +54,8 @@ contract CreateTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_create_expiryEqualToCurrentBlock_reverts() public {
-        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        EntityHashing.Op memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, currentBlock());
+        Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
+        Entity.Op memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, currentBlock());
 
         vm.prank(alice);
         vm.expectRevert(); // ExpiryInPast
@@ -65,8 +65,8 @@ contract CreateTest is Test, EntityRegistry {
     function test_create_expiryInPast_reverts() public {
         vm.roll(block.number + 100);
 
-        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        EntityHashing.Op memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, BlockNumber.wrap(1));
+        Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
+        Entity.Op memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, BlockNumber.wrap(1));
 
         vm.prank(alice);
         vm.expectRevert(); // ExpiryInPast
@@ -74,8 +74,8 @@ contract CreateTest is Test, EntityRegistry {
     }
 
     function test_create_expiryOneBlockAhead_succeeds() public {
-        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](0);
-        EntityHashing.Op memory op =
+        Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
+        Entity.Op memory op =
             Lib.createOp("hello", encodeMime128("text/plain"), attrs, currentBlock() + BlockNumber.wrap(1));
 
         vm.prank(alice);
@@ -88,12 +88,12 @@ contract CreateTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_create_storesCommitment() public {
-        EntityHashing.Op memory op = _defaultOp();
+        Entity.Op memory op = _defaultOp();
 
         vm.prank(alice);
         this.doCreate(op);
 
-        EntityHashing.Commitment memory c = commitment(STUB_KEY);
+        Entity.Commitment memory c = commitment(STUB_KEY);
         assertEq(c.creator, alice);
         assertEq(c.owner, alice);
         assertEq(BlockNumber.unwrap(c.createdAt), uint32(block.number));
@@ -107,11 +107,11 @@ contract CreateTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_create_emitsEntityOp() public {
-        EntityHashing.Op memory op = _defaultOp();
+        Entity.Op memory op = _defaultOp();
 
         vm.prank(alice);
         vm.expectEmit(true, true, true, true);
-        emit EntityOp(STUB_KEY, EntityHashing.CREATE, alice, expiresAt, STUB_ENTITY_HASH);
+        emit EntityOp(STUB_KEY, Entity.CREATE, alice, expiresAt, STUB_ENTITY_HASH);
         this.doCreate(op);
     }
 
@@ -120,7 +120,7 @@ contract CreateTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_create_returnsKeyAndEntityHash() public {
-        EntityHashing.Op memory op = _defaultOp();
+        Entity.Op memory op = _defaultOp();
 
         vm.prank(alice);
         (bytes32 key, bytes32 entityHash_) = this.doCreate(op);

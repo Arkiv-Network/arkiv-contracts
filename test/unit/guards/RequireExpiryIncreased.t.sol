@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {BlockNumber} from "../../../src/BlockNumber.sol";
 import {Test} from "forge-std/Test.sol";
-import {EntityHashing} from "../../../src/EntityHashing.sol";
+import {Entity} from "../../../src/Entity.sol";
 import {EntityRegistry} from "../../../src/EntityRegistry.sol";
 
 contract RequireExpiryIncreasedTest is Test, EntityRegistry {
@@ -14,7 +14,7 @@ contract RequireExpiryIncreasedTest is Test, EntityRegistry {
         external
         pure
     {
-        EntityHashing.requireExpiryIncreased(key, newExpiresAt, currentExpiresAt);
+        Entity.requireExpiryIncreased(key, newExpiresAt, currentExpiresAt);
     }
 
     function test_increased_succeeds() public view {
@@ -26,13 +26,13 @@ contract RequireExpiryIncreasedTest is Test, EntityRegistry {
     }
 
     function test_sameExpiry_reverts() public {
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.ExpiryNotExtended.selector, KEY, CURRENT, CURRENT));
+        vm.expectRevert(abi.encodeWithSelector(Entity.ExpiryNotExtended.selector, KEY, CURRENT, CURRENT));
         this.doRequireExpiryIncreased(KEY, CURRENT, CURRENT);
     }
 
     function test_decreased_reverts() public {
         BlockNumber lower = BlockNumber.wrap(500);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.ExpiryNotExtended.selector, KEY, lower, CURRENT));
+        vm.expectRevert(abi.encodeWithSelector(Entity.ExpiryNotExtended.selector, KEY, lower, CURRENT));
         this.doRequireExpiryIncreased(KEY, lower, CURRENT);
     }
 }

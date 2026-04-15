@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {EntityHashing} from "../../src/EntityHashing.sol";
+import {Entity} from "../../src/Entity.sol";
 import {EntityRegistry} from "../../src/EntityRegistry.sol";
 
 contract CreateEntityKeyTest is Test, EntityRegistry {

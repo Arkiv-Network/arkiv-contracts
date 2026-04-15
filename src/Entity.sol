@@ -8,7 +8,7 @@ import {Mime128} from "./types/Mime128.sol";
 type OpKey is uint256;
 type TxKey is uint256;
 
-/// @title EntityHashing
+/// @title Entity
 /// @dev Pure encoding and hashing scheme for the Arkiv EntityRegistry.
 ///
 /// Separated from the stateful EntityRegistry contract so that the encoding
@@ -18,7 +18,7 @@ type TxKey is uint256;
 /// The hashing follows EIP-712 structured data conventions: each struct type
 /// has a typehash derived from its canonical type string, and dynamic fields
 /// (bytes, string, arrays) are keccak256-hashed before encoding.
-library EntityHashing {
+library Entity {
     // -------------------------------------------------------------------------
     // Type declarations
     // -------------------------------------------------------------------------
@@ -283,7 +283,7 @@ library EntityHashing {
     /// the previous hash. The changeset is an append-only hash chain where
     /// each link encodes the operation type, entity key, and resulting
     /// entity hash.
-    function chainOp(bytes32 prev, uint8 opType, bytes32 key, bytes32 entityHash_) internal pure returns (bytes32) {
+    function chainOperationHash(bytes32 prev, uint8 opType, bytes32 key, bytes32 entityHash_) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(prev, opType, key, entityHash_));
     }
 

@@ -101,7 +101,7 @@ Where `++` is byte concatenation (64 bytes: 32-byte chain + 32-byte attribute ha
 
 An empty attribute array produces `bytes32(0)`.
 
-This follows the same pattern as the changeset hash chain (`chainOp`).
+This follows the same pattern as the changeset hash chain (`chainOperationHash`).
 
 ---
 
