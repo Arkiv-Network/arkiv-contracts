@@ -144,6 +144,32 @@ contract CoreHashTest is Test, EntityRegistry {
     }
 
     // -------------------------------------------------------------------------
+    // Attribute count — exceeds MAX_ATTRIBUTES
+    // -------------------------------------------------------------------------
+
+    function test_coreHash_tooManyAttributes_reverts() public {
+        bytes32 key = keccak256("key");
+        uint256 count = 33;
+
+        EntityHashing.Attribute[] memory attrs = new EntityHashing.Attribute[](count);
+        for (uint256 i = 0; i < count; i++) {
+            // "a", "b", ... sorted single-char names (a–z then a0–a6 won't work;
+            // use zero-padded hex strings to guarantee sort order).
+            bytes32 name = bytes32(bytes1(uint8(0x61 + i))); // 'a'+i, left-aligned
+            bytes32[4] memory v;
+            v[0] = bytes32(i);
+            attrs[i] = EntityHashing.Attribute({
+                name: Ident32.wrap(name),
+                valueType: EntityHashing.ATTR_UINT,
+                value: v
+            });
+        }
+
+        vm.expectRevert(abi.encodeWithSelector(EntityHashing.TooManyAttributes.selector, count, 32));
+        this.hashCore(key, alice, BlockNumber.wrap(100), textPlain, "hello", attrs);
+    }
+
+    // -------------------------------------------------------------------------
     // EIP-712 structure — manual encoding match
     // -------------------------------------------------------------------------
 
