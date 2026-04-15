@@ -108,11 +108,7 @@ library Lib {
         return Entity.Attribute({name: packName(name), valueType: Entity.ATTR_UINT, value: v});
     }
 
-    function stringAttr(string memory name, string memory value)
-        internal
-        pure
-        returns (Entity.Attribute memory)
-    {
+    function stringAttr(string memory name, string memory value) internal pure returns (Entity.Attribute memory) {
         bytes memory b = bytes(value);
         bytes32[4] memory v;
         for (uint256 i = 0; i < b.length; i++) {

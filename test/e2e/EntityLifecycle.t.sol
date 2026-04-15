@@ -206,10 +206,7 @@ contract EntityLifecycleTest is Test {
 
     function test_initialState() public view {
         assertEq(registry.changeSetHash(), bytes32(0));
-        assertEq(
-            BlockNumber.unwrap(registry.genesisBlock()),
-            BlockNumber.unwrap(registry.headBlock())
-        );
+        assertEq(BlockNumber.unwrap(registry.genesisBlock()), BlockNumber.unwrap(registry.headBlock()));
         assertEq(registry.nonces(alice), 0);
     }
 }

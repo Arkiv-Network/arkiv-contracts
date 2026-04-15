@@ -158,11 +158,7 @@ contract CoreHashTest is Test, EntityRegistry {
             bytes32 name = bytes32(abi.encodePacked(bytes1(uint8(0x61 + i / 6)), bytes1(uint8(0x61 + i % 6))));
             bytes32[4] memory v;
             v[0] = bytes32(i);
-            attrs[i] = Entity.Attribute({
-                name: Ident32.wrap(name),
-                valueType: Entity.ATTR_UINT,
-                value: v
-            });
+            attrs[i] = Entity.Attribute({name: Ident32.wrap(name), valueType: Entity.ATTR_UINT, value: v});
         }
 
         vm.expectRevert(abi.encodeWithSelector(Entity.TooManyAttributes.selector, count, 32));
@@ -179,11 +175,7 @@ contract CoreHashTest is Test, EntityRegistry {
             bytes32 name = bytes32(abi.encodePacked(bytes1(uint8(0x61 + i / 6)), bytes1(uint8(0x61 + i % 6))));
             bytes32[4] memory v;
             v[0] = bytes32(i);
-            attrs[i] = Entity.Attribute({
-                name: Ident32.wrap(name),
-                valueType: Entity.ATTR_UINT,
-                value: v
-            });
+            attrs[i] = Entity.Attribute({name: Ident32.wrap(name), valueType: Entity.ATTR_UINT, value: v});
         }
 
         bytes32 hash = this.hashCore(key, alice, BlockNumber.wrap(100), textPlain, "hello", attrs);
@@ -239,9 +231,7 @@ contract CoreHashTest is Test, EntityRegistry {
             keccak256(abi.encode(textPlain.data[0], textPlain.data[1], textPlain.data[2], textPlain.data[3]));
 
         bytes32 expected = keccak256(
-            abi.encode(
-                Entity.CORE_HASH_TYPEHASH, key, alice, BlockNumber.wrap(100), ctHash, keccak256(""), bytes32(0)
-            )
+            abi.encode(Entity.CORE_HASH_TYPEHASH, key, alice, BlockNumber.wrap(100), ctHash, keccak256(""), bytes32(0))
         );
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);

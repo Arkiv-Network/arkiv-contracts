@@ -82,10 +82,7 @@ contract AttributeHashTest is Test, EntityRegistry {
                 bytes32(0),
                 keccak256(
                     abi.encode(
-                        Entity.ATTRIBUTE_TYPEHASH,
-                        Ident32.unwrap(attr.name),
-                        attr.valueType,
-                        _valueHash(attr.value)
+                        Entity.ATTRIBUTE_TYPEHASH, Ident32.unwrap(attr.name), attr.valueType, _valueHash(attr.value)
                     )
                 )
             )
@@ -100,10 +97,7 @@ contract AttributeHashTest is Test, EntityRegistry {
                 bytes32(0),
                 keccak256(
                     abi.encode(
-                        Entity.ATTRIBUTE_TYPEHASH,
-                        Ident32.unwrap(attr.name),
-                        attr.valueType,
-                        _valueHash(attr.value)
+                        Entity.ATTRIBUTE_TYPEHASH, Ident32.unwrap(attr.name), attr.valueType, _valueHash(attr.value)
                     )
                 )
             )
@@ -119,10 +113,7 @@ contract AttributeHashTest is Test, EntityRegistry {
                 bytes32(0),
                 keccak256(
                     abi.encode(
-                        Entity.ATTRIBUTE_TYPEHASH,
-                        Ident32.unwrap(attr.name),
-                        attr.valueType,
-                        _valueHash(attr.value)
+                        Entity.ATTRIBUTE_TYPEHASH, Ident32.unwrap(attr.name), attr.valueType, _valueHash(attr.value)
                     )
                 )
             )
@@ -141,12 +132,10 @@ contract AttributeHashTest is Test, EntityRegistry {
         Entity.Attribute memory a = Lib.uintAttr("count", 42);
         Entity.Attribute memory b = Lib.stringAttr("label", "hello");
 
-        bytes32 hashA = keccak256(
-            abi.encode(Entity.ATTRIBUTE_TYPEHASH, Ident32.unwrap(a.name), a.valueType, _valueHash(a.value))
-        );
-        bytes32 hashB = keccak256(
-            abi.encode(Entity.ATTRIBUTE_TYPEHASH, Ident32.unwrap(b.name), b.valueType, _valueHash(b.value))
-        );
+        bytes32 hashA =
+            keccak256(abi.encode(Entity.ATTRIBUTE_TYPEHASH, Ident32.unwrap(a.name), a.valueType, _valueHash(a.value)));
+        bytes32 hashB =
+            keccak256(abi.encode(Entity.ATTRIBUTE_TYPEHASH, Ident32.unwrap(b.name), b.valueType, _valueHash(b.value)));
         bytes32 chain = keccak256(abi.encodePacked(bytes32(0), hashA));
         chain = keccak256(abi.encodePacked(chain, hashB));
 
@@ -175,17 +164,14 @@ contract AttributeHashTest is Test, EntityRegistry {
         v[0] = bytes32(uint256(1));
         Entity.Attribute memory attr =
             Entity.Attribute({name: Lib.packName("bad"), valueType: Entity.UNINITIALIZED, value: v});
-        vm.expectRevert(
-            abi.encodeWithSelector(Entity.InvalidValueType.selector, attr.name, Entity.UNINITIALIZED)
-        );
+        vm.expectRevert(abi.encodeWithSelector(Entity.InvalidValueType.selector, attr.name, Entity.UNINITIALIZED));
         _hashOne(attr);
     }
 
     function test_attributeHash_revertsOnValueTypeAboveRange() public {
         uint8 aboveRange = Entity.ATTR_ENTITY_KEY + 1;
         bytes32[4] memory v;
-        Entity.Attribute memory attr =
-            Entity.Attribute({name: Lib.packName("bad"), valueType: aboveRange, value: v});
+        Entity.Attribute memory attr = Entity.Attribute({name: Lib.packName("bad"), valueType: aboveRange, value: v});
         vm.expectRevert(abi.encodeWithSelector(Entity.InvalidValueType.selector, attr.name, aboveRange));
         _hashOne(attr);
     }
@@ -194,9 +180,7 @@ contract AttributeHashTest is Test, EntityRegistry {
 
     function _refHash(Entity.Attribute memory attr) internal pure returns (bytes32) {
         return keccak256(
-            abi.encode(
-                Entity.ATTRIBUTE_TYPEHASH, Ident32.unwrap(attr.name), attr.valueType, _valueHash(attr.value)
-            )
+            abi.encode(Entity.ATTRIBUTE_TYPEHASH, Ident32.unwrap(attr.name), attr.valueType, _valueHash(attr.value))
         );
     }
 

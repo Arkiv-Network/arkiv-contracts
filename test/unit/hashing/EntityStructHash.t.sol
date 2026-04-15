@@ -30,10 +30,8 @@ contract EntityStructHashTest is Test {
 
     function test_entityStructHash_differentCoreHash_differs() public view {
         // GIVEN two calls differing only in coreHash
-        bytes32 hashA =
-            Entity.entityStructHash(keccak256("core1"), alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
-        bytes32 hashB =
-            Entity.entityStructHash(keccak256("core2"), alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
+        bytes32 hashA = Entity.entityStructHash(keccak256("core1"), alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
+        bytes32 hashB = Entity.entityStructHash(keccak256("core2"), alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -133,8 +131,7 @@ contract EntityStructHashTest is Test {
         bytes32 actual = Entity.entityStructHash(coreHash_, owner, updatedAt, expiresAt);
 
         // THEN it matches the pure-Solidity reference
-        bytes32 expected =
-            keccak256(abi.encode(Entity.ENTITY_HASH_TYPEHASH, coreHash_, owner, updatedAt, expiresAt));
+        bytes32 expected = keccak256(abi.encode(Entity.ENTITY_HASH_TYPEHASH, coreHash_, owner, updatedAt, expiresAt));
         assertEq(actual, expected);
     }
 }

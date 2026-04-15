@@ -286,7 +286,11 @@ library Entity {
     /// the previous hash. The changeset is an append-only hash chain where
     /// each link encodes the operation type, entity key, and resulting
     /// entity hash.
-    function chainOperationHash(bytes32 prev, uint8 operationType, bytes32 key, bytes32 entityHash_) internal pure returns (bytes32) {
+    function chainOperationHash(bytes32 prev, uint8 operationType, bytes32 key, bytes32 entityHash_)
+        internal
+        pure
+        returns (bytes32)
+    {
         return keccak256(abi.encodePacked(prev, operationType, key, entityHash_));
     }
 
