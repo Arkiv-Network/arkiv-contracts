@@ -157,7 +157,7 @@ contract TransferTest is Test, EntityRegistry {
     // Event
     // =========================================================================
 
-    function test_transfer_emitsEntityOp() public {
+    function test_transfer_emitsEntityOperation() public {
         Entity.Operation memory op = Lib.transferOp(testKey, bob);
 
         vm.prank(alice);
@@ -166,7 +166,7 @@ contract TransferTest is Test, EntityRegistry {
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertEq(logs.length, 1);
-        assertEq(logs[0].topics[0], EntityOp.selector);
+        assertEq(logs[0].topics[0], EntityOperation.selector);
         assertEq(logs[0].topics[1], testKey);
         assertEq(logs[0].topics[2], bytes32(uint256(Entity.TRANSFER)));
         assertEq(logs[0].topics[3], bytes32(uint256(uint160(bob))));

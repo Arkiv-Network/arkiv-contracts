@@ -83,7 +83,7 @@ contract DeleteTest is Test, EntityRegistry {
     // Event
     // =========================================================================
 
-    function test_delete_emitsEntityOp() public {
+    function test_delete_emitsEntityOperation() public {
         Entity.Operation memory op = Lib.deleteOp(testKey);
 
         vm.prank(alice);
@@ -92,7 +92,7 @@ contract DeleteTest is Test, EntityRegistry {
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertEq(logs.length, 1);
-        assertEq(logs[0].topics[0], EntityOp.selector);
+        assertEq(logs[0].topics[0], EntityOperation.selector);
         assertEq(logs[0].topics[1], testKey);
         assertEq(logs[0].topics[2], bytes32(uint256(Entity.DELETE)));
         assertEq(logs[0].topics[3], bytes32(uint256(uint160(alice))));

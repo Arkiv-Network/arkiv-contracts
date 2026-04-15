@@ -76,14 +76,14 @@ contract ExpireTest is Test, EntityRegistry {
     // Event
     // =========================================================================
 
-    function test_expire_emitsEntityOp() public {
+    function test_expire_emitsEntityOperation() public {
         vm.roll(BlockNumber.unwrap(expiresAt));
         vm.recordLogs();
         (, bytes32 entityHash_) = this.doExpire(Lib.expireOp(testKey));
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertEq(logs.length, 1);
-        assertEq(logs[0].topics[0], EntityOp.selector);
+        assertEq(logs[0].topics[0], EntityOperation.selector);
         assertEq(logs[0].topics[1], testKey);
         assertEq(logs[0].topics[2], bytes32(uint256(Entity.EXPIRE)));
         assertEq(logs[0].topics[3], bytes32(uint256(uint160(alice))));

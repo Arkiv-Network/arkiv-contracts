@@ -56,7 +56,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Events
     // -------------------------------------------------------------------------
 
-    event EntityOp(
+    event EntityOperation(
         bytes32 indexed entityKey,
         uint8 indexed operationType,
         address indexed owner,
@@ -260,7 +260,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
             coreHash: coreHash_
         });
 
-        emit EntityOp(key, Entity.CREATE, msg.sender, op.expiresAt, entityHash_);
+        emit EntityOperation(key, Entity.CREATE, msg.sender, op.expiresAt, entityHash_);
     }
 
     /// @dev Update an existing entity's payload, contentType, and attributes.
@@ -288,7 +288,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         c.coreHash = coreHash_;
         c.updatedAt = current;
 
-        emit EntityOp(key, Entity.UPDATE, c.owner, c.expiresAt, entityHash_);
+        emit EntityOperation(key, Entity.UPDATE, c.owner, c.expiresAt, entityHash_);
         return (key, entityHash_);
     }
 
@@ -313,7 +313,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
         bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, current, op.expiresAt);
 
-        emit EntityOp(key, Entity.EXTEND, c.owner, op.expiresAt, entityHash_);
+        emit EntityOperation(key, Entity.EXTEND, c.owner, op.expiresAt, entityHash_);
         return (key, entityHash_);
     }
 
@@ -339,7 +339,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
         bytes32 entityHash_ = _wrapEntityHash(c.coreHash, op.newOwner, current, c.expiresAt);
 
-        emit EntityOp(key, Entity.TRANSFER, op.newOwner, c.expiresAt, entityHash_);
+        emit EntityOperation(key, Entity.TRANSFER, op.newOwner, c.expiresAt, entityHash_);
         return (key, entityHash_);
     }
 
@@ -364,7 +364,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
         delete _commitments[key];
 
-        emit EntityOp(key, Entity.DELETE, owner, expiresAt, entityHash_);
+        emit EntityOperation(key, Entity.DELETE, owner, expiresAt, entityHash_);
         return (key, entityHash_);
     }
 
@@ -387,7 +387,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
         delete _commitments[key];
 
-        emit EntityOp(key, Entity.EXPIRE, owner, expiresAt, entityHash_);
+        emit EntityOperation(key, Entity.EXPIRE, owner, expiresAt, entityHash_);
         return (key, entityHash_);
     }
 }

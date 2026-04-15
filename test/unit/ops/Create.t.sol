@@ -107,7 +107,7 @@ contract CreateTest is Test, EntityRegistry {
     // Event
     // =========================================================================
 
-    function test_create_emitsEntityOp() public {
+    function test_create_emitsEntityOperation() public {
         Entity.Operation memory op = _defaultOp();
 
         vm.prank(alice);
@@ -116,7 +116,7 @@ contract CreateTest is Test, EntityRegistry {
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertEq(logs.length, 1);
-        assertEq(logs[0].topics[0], EntityOp.selector);
+        assertEq(logs[0].topics[0], EntityOperation.selector);
         assertEq(logs[0].topics[1], STUB_KEY);
         assertEq(logs[0].topics[2], bytes32(uint256(Entity.CREATE)));
         assertEq(logs[0].topics[3], bytes32(uint256(uint160(alice))));

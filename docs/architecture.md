@@ -23,7 +23,7 @@ granularity: per-operation, per-transaction, or per-block.
                           |  block linked list       |
                           +-----------+--------------+
                                       |
-                          EntityOp events + calldata
+                          EntityOperation events + calldata
                                       |
                           +-----------v--------------+
                           |     Off-chain DB Node    |
@@ -71,22 +71,37 @@ the entity's cryptographic hash from chain state alone:
 +--------------------------------------------------------------+
 ```
 
-### Off-chain Content
+### What Is and Isn't Stored On-chain
 
-The full entity data — payload bytes, MIME content type, and typed
-attributes — is passed in calldata and emitted in events. It is never
-stored on-chain. Off-chain nodes reconstruct the complete entity from
-transaction data.
+The contract stores only the commitment fields listed above. Entity
+payload bytes, content type, and attributes are **never written to
+contract storage** — they exist only in transaction calldata and event
+logs. Off-chain database nodes reconstruct the complete entity from
+this transaction data.
+
+Content type (128-byte fixed `Mime128`) and attributes (fixed-size
+`Attribute` structs) are encoded at fixed widths, so they *could* be
+stored on-chain at predictable cost. The current design intentionally
+keeps them off-chain to minimise storage gas — the commitment's
+`coreHash` already commits to their exact content cryptographically.
 
 ### Attributes
 
-Entities carry up to 32 typed key-value attributes:
+Entities carry up to 32 typed key-value attributes. Each attribute has
+a validated name (up to 32 bytes) and a fixed 128-byte value container
+(`bytes32[4]`). The value container holds different types with
+type-specific alignment:
 
-| Value Type   | Description                        |
-|--------------|------------------------------------|
-| UINT         | 256-bit unsigned integer           |
-| STRING       | UTF-8 string (up to 128 bytes)     |
-| ENTITY_KEY   | Reference to another entity        |
+| Value Type   | Encoding in 128-byte container              |
+|--------------|----------------------------------------------|
+| UINT         | 256-bit unsigned integer in first 32 bytes, remaining bytes zero |
+| STRING       | UTF-8 bytes left-aligned across all 128 bytes, zero-padded      |
+| ENTITY_KEY   | bytes32 entity key in first 32 bytes, remaining bytes zero      |
+
+The 128-byte fixed size means all attribute values hash at constant cost
+regardless of content length, and the `valueType` discriminator prevents
+collisions between types (a UINT zero and an empty STRING produce
+different hashes).
 
 Attribute names are validated identifiers (`a-z`, `0-9`, `.`, `-`, `_`,
 lowercase only, max 32 bytes). They must be sorted ascending by name —
@@ -183,7 +198,7 @@ execute(operations[])
   |     |      owner, expiry)                      |
   |     |    compute hashes                        |
   |     |    update commitment storage             |
-  |     |    emit EntityOp event                   |
+  |     |    emit EntityOperation event                   |
   |     |    return (entityKey, entityHash)         |
   |     +------------------------------------------+
   |     |
@@ -312,10 +327,10 @@ verify all entity state from on-chain data.
 
 ### Event-Driven Indexing
 
-Every operation emits an `EntityOp` event:
+Every operation emits an `EntityOperation` event:
 
 ```
-event EntityOp(
+event EntityOperation(
     bytes32 indexed entityKey,
     uint8   indexed operationType,
     address indexed owner,
