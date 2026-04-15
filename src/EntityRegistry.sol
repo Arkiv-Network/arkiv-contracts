@@ -114,27 +114,8 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
         // Process ops — one SSTORE per op for the snapshot.
         for (uint32 opSeq = 0; opSeq < ops.length; opSeq++) {
-            uint8 opType = ops[opSeq].opType;
-            bytes32 key;
-            bytes32 entityHash_;
-
-            if (opType == EntityHashing.CREATE) {
-                (key, entityHash_) = _create(ops[opSeq], current);
-            } else if (opType == EntityHashing.UPDATE) {
-                (key, entityHash_) = _update(ops[opSeq], current);
-            } else if (opType == EntityHashing.EXTEND) {
-                (key, entityHash_) = _extend(ops[opSeq], current);
-            } else if (opType == EntityHashing.TRANSFER) {
-                (key, entityHash_) = _transfer(ops[opSeq], current);
-            } else if (opType == EntityHashing.DELETE) {
-                (key, entityHash_) = _delete(ops[opSeq], current);
-            } else if (opType == EntityHashing.EXPIRE) {
-                (key, entityHash_) = _expire(ops[opSeq], current);
-            } else {
-                revert EntityHashing.InvalidOpType(opType);
-            }
-
-            hash = EntityHashing.chainOp(hash, opType, key, entityHash_);
+            (bytes32 key, bytes32 entityHash_) = _dispatch(ops[opSeq], current);
+            hash = EntityHashing.chainOp(hash, ops[opSeq].opType, key, entityHash_);
             _hashAt[EntityHashing.opKey(current, txSeq, opSeq)] = hash;
         }
 
@@ -220,6 +201,27 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _createEntityKey(address owner) internal virtual returns (bytes32) {
         uint32 nonce = nonces[owner]++;
         return EntityHashing.entityKey(block.chainid, address(this), owner, nonce);
+    }
+
+    // -------------------------------------------------------------------------
+    // Internal functions — dispatch
+    // -------------------------------------------------------------------------
+
+    /// @dev Route an op to the correct handler by opType.
+    /// Reverts with InvalidOpType for unrecognised values.
+    function _dispatch(EntityHashing.Op calldata op, BlockNumber current)
+        internal
+        virtual
+        returns (bytes32 key, bytes32 entityHash_)
+    {
+        uint8 opType = op.opType;
+        if (opType == EntityHashing.CREATE) return _create(op, current);
+        if (opType == EntityHashing.UPDATE) return _update(op, current);
+        if (opType == EntityHashing.EXTEND) return _extend(op, current);
+        if (opType == EntityHashing.TRANSFER) return _transfer(op, current);
+        if (opType == EntityHashing.DELETE) return _delete(op, current);
+        if (opType == EntityHashing.EXPIRE) return _expire(op, current);
+        revert EntityHashing.InvalidOpType(opType);
     }
 
     // -------------------------------------------------------------------------

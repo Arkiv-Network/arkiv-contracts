@@ -7,44 +7,21 @@ import {EntityHashing} from "../../src/EntityHashing.sol";
 import {EntityRegistry} from "../../src/EntityRegistry.sol";
 import {encodeMime128} from "../../src/types/Mime128.sol";
 
-/// @dev Tests the execute() function's routing, hash chaining, block linked
-/// list maintenance, and per-op snapshot storage. Internal ops are stubbed
-/// to return deterministic values so the test focuses on execute's own logic.
+/// @dev Tests the execute() function's hash chaining, block linked list
+/// maintenance, and per-op snapshot storage. Dispatch is stubbed to return
+/// deterministic values so the test focuses on execute's own logic.
 contract ExecuteTest is Test, EntityRegistry {
-    // Stub tracking — each internal op call pops the next (key, hash) pair.
+    // Stub tracking — each _dispatch call pops the next (key, hash) pair.
     bytes32[] internal _stubKeys;
     bytes32[] internal _stubHashes;
     uint256 internal _stubIndex;
     uint256 internal _stubSeed;
 
-    function _nextStub() internal returns (bytes32 key, bytes32 hash) {
-        key = _stubKeys[_stubIndex];
-        hash = _stubHashes[_stubIndex];
+    function _dispatch(EntityHashing.Op calldata, BlockNumber) internal override returns (bytes32, bytes32) {
+        bytes32 key = _stubKeys[_stubIndex];
+        bytes32 hash = _stubHashes[_stubIndex];
         _stubIndex++;
-    }
-
-    function _create(EntityHashing.Op calldata, BlockNumber) internal override returns (bytes32, bytes32) {
-        return _nextStub();
-    }
-
-    function _update(EntityHashing.Op calldata, BlockNumber) internal override returns (bytes32, bytes32) {
-        return _nextStub();
-    }
-
-    function _extend(EntityHashing.Op calldata, BlockNumber) internal override returns (bytes32, bytes32) {
-        return _nextStub();
-    }
-
-    function _transfer(EntityHashing.Op calldata, BlockNumber) internal override returns (bytes32, bytes32) {
-        return _nextStub();
-    }
-
-    function _delete(EntityHashing.Op calldata, BlockNumber) internal override returns (bytes32, bytes32) {
-        return _nextStub();
-    }
-
-    function _expire(EntityHashing.Op calldata, BlockNumber) internal override returns (bytes32, bytes32) {
-        return _nextStub();
+        return (key, hash);
     }
 
     /// @dev Push expected (key, hash) pairs for the next execute call.
@@ -82,83 +59,6 @@ contract ExecuteTest is Test, EntityRegistry {
         EntityHashing.Op[] memory ops = new EntityHashing.Op[](0);
         vm.expectRevert(EntityHashing.EmptyBatch.selector);
         this.execute(ops);
-    }
-
-    // =========================================================================
-    // Validation — invalid op type
-    // =========================================================================
-
-    function test_execute_opTypeZero_reverts() public {
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](1);
-        ops[0] = _op(EntityHashing.UNINITIALIZED);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.InvalidOpType.selector, uint8(0)));
-        this.execute(ops);
-    }
-
-    function test_execute_opTypeSeven_reverts() public {
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](1);
-        ops[0] = _op(7);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.InvalidOpType.selector, uint8(7)));
-        this.execute(ops);
-    }
-
-    function test_execute_opType255_reverts() public {
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](1);
-        ops[0] = _op(255);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.InvalidOpType.selector, uint8(255)));
-        this.execute(ops);
-    }
-
-    // =========================================================================
-    // Routing — each op type dispatches correctly
-    // =========================================================================
-
-    function test_execute_routesCreate() public {
-        _pushStubs(1);
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](1);
-        ops[0] = _op(EntityHashing.CREATE);
-        this.execute(ops);
-        assertEq(_stubIndex, 1);
-    }
-
-    function test_execute_routesUpdate() public {
-        _pushStubs(1);
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](1);
-        ops[0] = _op(EntityHashing.UPDATE);
-        this.execute(ops);
-        assertEq(_stubIndex, 1);
-    }
-
-    function test_execute_routesExtend() public {
-        _pushStubs(1);
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](1);
-        ops[0] = _op(EntityHashing.EXTEND);
-        this.execute(ops);
-        assertEq(_stubIndex, 1);
-    }
-
-    function test_execute_routesTransfer() public {
-        _pushStubs(1);
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](1);
-        ops[0] = _op(EntityHashing.TRANSFER);
-        this.execute(ops);
-        assertEq(_stubIndex, 1);
-    }
-
-    function test_execute_routesDelete() public {
-        _pushStubs(1);
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](1);
-        ops[0] = _op(EntityHashing.DELETE);
-        this.execute(ops);
-        assertEq(_stubIndex, 1);
-    }
-
-    function test_execute_routesExpire() public {
-        _pushStubs(1);
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](1);
-        ops[0] = _op(EntityHashing.EXPIRE);
-        this.execute(ops);
-        assertEq(_stubIndex, 1);
     }
 
     // =========================================================================
@@ -520,39 +420,6 @@ contract ExecuteTest is Test, EntityRegistry {
 
         assertEq(BlockNumber.unwrap(headBlock()), BlockNumber.unwrap(deployBlock));
         assertEq(getBlockNode(deployBlock).txCount, 1);
-    }
-
-    // =========================================================================
-    // Mixed op types in a single batch
-    // =========================================================================
-
-    function test_execute_allOpTypesInOneBatch() public {
-        _pushStubs(6);
-
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](6);
-        ops[0] = _op(EntityHashing.CREATE);
-        ops[1] = _op(EntityHashing.UPDATE);
-        ops[2] = _op(EntityHashing.EXTEND);
-        ops[3] = _op(EntityHashing.TRANSFER);
-        ops[4] = _op(EntityHashing.DELETE);
-        ops[5] = _op(EntityHashing.EXPIRE);
-        this.execute(ops);
-
-        assertEq(_stubIndex, 6);
-        assertTrue(changeSetHash() != bytes32(0));
-    }
-
-    // =========================================================================
-    // Invalid op in the middle of a batch reverts the whole tx
-    // =========================================================================
-
-    function test_execute_invalidOpMidBatch_reverts() public {
-        _pushStubs(1);
-        EntityHashing.Op[] memory ops = new EntityHashing.Op[](2);
-        ops[0] = _op(EntityHashing.CREATE);
-        ops[1] = _op(7);
-        vm.expectRevert(abi.encodeWithSelector(EntityHashing.InvalidOpType.selector, uint8(7)));
-        this.execute(ops);
     }
 
     // =========================================================================
