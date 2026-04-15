@@ -5,7 +5,10 @@ import {BlockNumber} from "./types/BlockNumber.sol";
 import {Ident32, validateIdent32} from "./types/Ident32.sol";
 import {Mime128} from "./types/Mime128.sol";
 
+/// @dev Packed (block, tx, op) triple used as a key into the _hashAt mapping.
 type OperationKey is uint256;
+
+/// @dev Packed (block, tx) pair used as a key into the _txOpCount mapping.
 type TransactionKey is uint256;
 
 /// @title Entity

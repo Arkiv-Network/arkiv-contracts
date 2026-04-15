@@ -75,6 +75,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Public view functions
     // -------------------------------------------------------------------------
 
+    /// @notice Current changeset hash — the hash at the head block.
     function changeSetHash() public view returns (bytes32) {
         return changeSetHashAtBlock(_headBlock);
     }
@@ -121,6 +122,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Public view functions — changeset hash lookups
     // -------------------------------------------------------------------------
 
+    /// @notice Changeset hash after the last operation in the given block.
     function changeSetHashAtBlock(BlockNumber blockNumber) public view returns (bytes32) {
         uint32 txCount = _blocks[blockNumber].txCount;
         if (txCount == 0) return bytes32(0);
@@ -129,12 +131,14 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         return _hashAt[Entity.operationKey(blockNumber, lastTx, opCount - 1)];
     }
 
+    /// @notice Changeset hash after the last operation in the given transaction.
     function changeSetHashAtTx(BlockNumber blockNumber, uint32 txSeq) public view returns (bytes32) {
         uint32 opCount = _txOpCount[Entity.transactionKey(blockNumber, txSeq)];
         if (opCount == 0) return bytes32(0);
         return _hashAt[Entity.operationKey(blockNumber, txSeq, opCount - 1)];
     }
 
+    /// @notice Changeset hash after a specific operation.
     function changeSetHashAtOp(BlockNumber blockNumber, uint32 txSeq, uint32 opSeq) public view returns (bytes32) {
         return _hashAt[Entity.operationKey(blockNumber, txSeq, opSeq)];
     }
