@@ -102,33 +102,30 @@ library EntityHashing {
 
     /// @dev Reverted when `execute()` is called with an empty ops array.
     error EmptyBatch();
+    /// @dev Reverted when attributes are not in strictly ascending name order.
     error AttributesNotSorted();
+    /// @dev Reverted when an attribute value has the wrong byte length for its type.
     error InvalidValueLength(Ident32 name, uint8 valueType, uint256 length);
+    /// @dev Reverted when an attribute's valueType is unrecognized (including 0 / uninitialized).
     error InvalidValueType(Ident32 name, uint8 valueType);
     /// @dev Reverted when opType is unrecognized (including 0 / uninitialized).
     error InvalidOpType(uint8 opType);
-
+    /// @dev Reverted when expiresAt is not strictly after the current block.
     error ExpiryInPast(BlockNumber expiresAt, BlockNumber currentBlock);
+    /// @dev Reverted when the attribute count exceeds MAX_ATTRIBUTES.
     error TooManyAttributes(uint256 count, uint256 maxCount);
-
     /// @dev Reverted when an entity key does not exist in storage.
     error EntityNotFound(bytes32 entityKey);
-
     /// @dev Reverted when the caller is not the entity owner.
     error NotOwner(bytes32 entityKey, address caller, address owner);
-
     /// @dev Reverted when an operation targets an expired entity.
     error EntityExpired(bytes32 entityKey, BlockNumber expiresAt);
-
     /// @dev Reverted when new expiresAt is not strictly greater than current.
     error ExpiryNotExtended(bytes32 entityKey, BlockNumber newExpiresAt, BlockNumber currentExpiresAt);
-
     /// @dev Reverted when transfer target is the zero address.
     error TransferToZeroAddress(bytes32 entityKey);
-
     /// @dev Reverted when transfer target is the current owner (no-op).
     error TransferToSelf(bytes32 entityKey);
-
     /// @dev Reverted when expire is called on an entity that hasn't expired yet.
     error EntityNotExpired(bytes32 entityKey, BlockNumber expiresAt);
 
