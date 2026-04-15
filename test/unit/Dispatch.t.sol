@@ -104,17 +104,17 @@ contract DispatchTest is Test, EntityRegistry {
     // Invalid op types
     // =========================================================================
 
-    function test_dispatch_opTypeZero_reverts() public {
+    function test_dispatch_operationTypeZero_reverts() public {
         vm.expectRevert(abi.encodeWithSelector(Entity.InvalidOpType.selector, uint8(0)));
         this.doDispatch(_op(Entity.UNINITIALIZED));
     }
 
-    function test_dispatch_opTypeSeven_reverts() public {
+    function test_dispatch_operationTypeSeven_reverts() public {
         vm.expectRevert(abi.encodeWithSelector(Entity.InvalidOpType.selector, uint8(7)));
         this.doDispatch(_op(7));
     }
 
-    function test_dispatch_opType255_reverts() public {
+    function test_dispatch_operationType255_reverts() public {
         vm.expectRevert(abi.encodeWithSelector(Entity.InvalidOpType.selector, uint8(255)));
         this.doDispatch(_op(255));
     }

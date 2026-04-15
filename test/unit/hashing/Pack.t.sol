@@ -14,7 +14,7 @@ contract PackTest is Test {
     // Determinism
     // -------------------------------------------------------------------------
 
-    function test_opKey_deterministic() public pure {
+    function test_operationKey_deterministic() public pure {
         // GIVEN the same inputs
         // WHEN packing twice
         // THEN the results are equal
@@ -28,21 +28,21 @@ contract PackTest is Test {
     // Different inputs produce different keys
     // -------------------------------------------------------------------------
 
-    function test_opKey_differentBlock_differs() public pure {
+    function test_operationKey_differentBlock_differs() public pure {
         assertNotEq(
             OperationKey.unwrap(Entity.operationKey(BlockNumber.wrap(1), 1, 1)),
             OperationKey.unwrap(Entity.operationKey(BlockNumber.wrap(2), 1, 1))
         );
     }
 
-    function test_opKey_differentTx_differs() public pure {
+    function test_operationKey_differentTx_differs() public pure {
         assertNotEq(
             OperationKey.unwrap(Entity.operationKey(BlockNumber.wrap(1), 1, 1)),
             OperationKey.unwrap(Entity.operationKey(BlockNumber.wrap(1), 2, 1))
         );
     }
 
-    function test_opKey_differentOp_differs() public pure {
+    function test_operationKey_differentOp_differs() public pure {
         assertNotEq(
             OperationKey.unwrap(Entity.operationKey(BlockNumber.wrap(1), 1, 1)),
             OperationKey.unwrap(Entity.operationKey(BlockNumber.wrap(1), 1, 2))
@@ -53,7 +53,7 @@ contract PackTest is Test {
     // Bit layout — manual verification
     // -------------------------------------------------------------------------
 
-    function test_opKey_layout() public pure {
+    function test_operationKey_layout() public pure {
         // GIVEN known inputs
         BlockNumber blockNumber = BlockNumber.wrap(0xAB);
         uint32 txSeq = 0xCD;
@@ -67,7 +67,7 @@ contract PackTest is Test {
         assertEq(packed, expected);
     }
 
-    function test_opKey_zeroInputs() public pure {
+    function test_operationKey_zeroInputs() public pure {
         // GIVEN all zeros
         // THEN the packed key is zero
         assertEq(OperationKey.unwrap(Entity.operationKey(BlockNumber.wrap(0), 0, 0)), 0);
@@ -77,7 +77,7 @@ contract PackTest is Test {
     // Assembly correctness — fuzz
     // -------------------------------------------------------------------------
 
-    function test_opKey_fuzz(uint32 rawBlock, uint32 txSeq, uint32 opSeq) public pure {
+    function test_operationKey_fuzz(uint32 rawBlock, uint32 txSeq, uint32 opSeq) public pure {
         // GIVEN arbitrary inputs
         BlockNumber blockNumber = BlockNumber.wrap(rawBlock);
 
@@ -93,7 +93,7 @@ contract PackTest is Test {
     // operationKey builds on transactionKey
     // -------------------------------------------------------------------------
 
-    function test_opKey_extendsTxKey(uint32 rawBlock, uint32 txSeq, uint32 opSeq) public pure {
+    function test_operationKey_extendsTransactionKey(uint32 rawBlock, uint32 txSeq, uint32 opSeq) public pure {
         // GIVEN an operationKey and its corresponding transactionKey
         BlockNumber blockNumber = BlockNumber.wrap(rawBlock);
         uint256 ok = OperationKey.unwrap(Entity.operationKey(blockNumber, txSeq, opSeq));
@@ -111,7 +111,7 @@ contract PackTest is Test {
     // Determinism
     // -------------------------------------------------------------------------
 
-    function test_txKey_deterministic() public pure {
+    function test_transactionKey_deterministic() public pure {
         // GIVEN the same inputs
         // WHEN packing twice
         // THEN the results are equal
@@ -125,14 +125,14 @@ contract PackTest is Test {
     // Different inputs produce different keys
     // -------------------------------------------------------------------------
 
-    function test_txKey_differentBlock_differs() public pure {
+    function test_transactionKey_differentBlock_differs() public pure {
         assertNotEq(
             TransactionKey.unwrap(Entity.transactionKey(BlockNumber.wrap(1), 1)),
             TransactionKey.unwrap(Entity.transactionKey(BlockNumber.wrap(2), 1))
         );
     }
 
-    function test_txKey_differentTx_differs() public pure {
+    function test_transactionKey_differentTx_differs() public pure {
         assertNotEq(
             TransactionKey.unwrap(Entity.transactionKey(BlockNumber.wrap(1), 1)),
             TransactionKey.unwrap(Entity.transactionKey(BlockNumber.wrap(1), 2))
@@ -143,7 +143,7 @@ contract PackTest is Test {
     // Bit layout — manual verification
     // -------------------------------------------------------------------------
 
-    function test_txKey_layout() public pure {
+    function test_transactionKey_layout() public pure {
         // GIVEN known inputs
         BlockNumber blockNumber = BlockNumber.wrap(0xAB);
         uint32 txSeq = 0xCD;
@@ -156,7 +156,7 @@ contract PackTest is Test {
         assertEq(packed, expected);
     }
 
-    function test_txKey_zeroInputs() public pure {
+    function test_transactionKey_zeroInputs() public pure {
         // GIVEN all zeros
         // THEN the packed key is zero
         assertEq(TransactionKey.unwrap(Entity.transactionKey(BlockNumber.wrap(0), 0)), 0);
@@ -166,7 +166,7 @@ contract PackTest is Test {
     // Assembly correctness — fuzz
     // -------------------------------------------------------------------------
 
-    function test_txKey_fuzz(uint32 rawBlock, uint32 txSeq) public pure {
+    function test_transactionKey_fuzz(uint32 rawBlock, uint32 txSeq) public pure {
         // GIVEN arbitrary inputs
         BlockNumber blockNumber = BlockNumber.wrap(rawBlock);
 

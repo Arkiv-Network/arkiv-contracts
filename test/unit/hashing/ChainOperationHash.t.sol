@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {Entity} from "../../../src/Entity.sol";
 
-contract ChainOpTest is Test {
+contract ChainOperationHashTest is Test {
     // -------------------------------------------------------------------------
     // Determinism
     // -------------------------------------------------------------------------
