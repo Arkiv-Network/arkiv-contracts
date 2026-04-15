@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {BlockNumber, currentBlock} from "../../../src/types/BlockNumber.sol";
-import {Test} from "forge-std/Test.sol";
+import {Test, Vm} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {Entity} from "../../../src/Entity.sol";
 import {EntityRegistry} from "../../../src/EntityRegistry.sol";
@@ -111,9 +111,18 @@ contract CreateTest is Test, EntityRegistry {
         Entity.Operation memory op = _defaultOp();
 
         vm.prank(alice);
-        vm.expectEmit(true, true, true, true);
-        emit EntityOp(STUB_KEY, Entity.CREATE, alice, expiresAt, STUB_ENTITY_HASH);
+        vm.recordLogs();
         this.doCreate(op);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].topics[0], EntityOp.selector);
+        assertEq(logs[0].topics[1], STUB_KEY);
+        assertEq(logs[0].topics[2], bytes32(uint256(Entity.CREATE)));
+        assertEq(logs[0].topics[3], bytes32(uint256(uint160(alice))));
+        (BlockNumber emittedExpiry, bytes32 emittedHash) = abi.decode(logs[0].data, (BlockNumber, bytes32));
+        assertEq(BlockNumber.unwrap(emittedExpiry), BlockNumber.unwrap(expiresAt));
+        assertEq(emittedHash, STUB_ENTITY_HASH);
     }
 
     // =========================================================================
