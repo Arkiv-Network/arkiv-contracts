@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {BlockNumber, currentBlock} from "./BlockNumber.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {EntityHashing, OpKey, TxKey} from "./EntityHashing.sol";
-import {validateMime128} from "./Mime128.sol";
+import {validateMime128} from "./types/Mime128.sol";
 
 /// @title EntityRegistry
 /// @dev Stateful entity registry. All encoding and hashing logic is delegated

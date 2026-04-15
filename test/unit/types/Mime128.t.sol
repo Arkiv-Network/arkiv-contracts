@@ -15,7 +15,7 @@ import {
     mime128HashM,
     MIME_TOKEN,
     LOWER_PRINTABLE_ASCII
-} from "../../src/Mime128.sol";
+} from "../../../src/types/Mime128.sol";
 
 contract Mime128Test is Test {
     // -------------------------------------------------------------------------

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {BlockNumber} from "./BlockNumber.sol";
-import {Mime128} from "./Mime128.sol";
+import {Mime128} from "./types/Mime128.sol";
 
 type OpKey is uint256;
 type TxKey is uint256;

@@ -6,7 +6,7 @@ import {Test} from "forge-std/Test.sol";
 import {Lib} from "../utils/Lib.sol";
 import {EntityHashing} from "../../src/EntityHashing.sol";
 import {EntityRegistry} from "../../src/EntityRegistry.sol";
-import {Mime128, encodeMime128} from "../../src/Mime128.sol";
+import {Mime128, encodeMime128} from "../../src/types/Mime128.sol";
 
 /// @dev Tests _computeEntityHash in isolation — verifies the two-level EIP-712
 /// hash (coreHash + entityHash) matches manual computation.

@@ -6,7 +6,7 @@ import {Test} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {EntityHashing} from "../../../src/EntityHashing.sol";
 import {EntityRegistry} from "../../../src/EntityRegistry.sol";
-import {encodeMime128} from "../../../src/Mime128.sol";
+import {encodeMime128} from "../../../src/types/Mime128.sol";
 
 /// @dev Tests _create logic (expiry, commitment, events) with stubbed key
 /// generation and hash computation so the test focuses on state transitions.

@@ -6,7 +6,7 @@ import {Test, Vm} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {EntityHashing} from "../../../src/EntityHashing.sol";
 import {EntityRegistry} from "../../../src/EntityRegistry.sol";
-import {encodeMime128} from "../../../src/Mime128.sol";
+import {encodeMime128} from "../../../src/types/Mime128.sol";
 
 contract ExtendTest is Test, EntityRegistry {
     address alice = makeAddr("alice");

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {BlockNumber} from "../../../src/BlockNumber.sol";
-import {Mime128, encodeMime128} from "../../../src/Mime128.sol";
+import {Mime128, encodeMime128} from "../../../src/types/Mime128.sol";
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {EntityHashing} from "../../../src/EntityHashing.sol";

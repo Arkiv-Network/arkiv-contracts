@@ -6,7 +6,7 @@ import {Test, Vm} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {EntityHashing} from "../../../src/EntityHashing.sol";
 import {EntityRegistry} from "../../../src/EntityRegistry.sol";
-import {Mime128, encodeMime128} from "../../../src/Mime128.sol";
+import {Mime128, encodeMime128} from "../../../src/types/Mime128.sol";
 
 contract UpdateTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
@@ -17,7 +17,6 @@ contract UpdateTest is Test, EntityRegistry {
 
     Mime128 textPlain;
     Mime128 appJson;
-
 
     // Calldata wrappers.
     function doCreate(EntityHashing.Op calldata op) external returns (bytes32, bytes32) {
