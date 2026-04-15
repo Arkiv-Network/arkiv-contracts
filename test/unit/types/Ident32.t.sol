@@ -12,7 +12,7 @@ import {
     encodeIdent32,
     decodeIdent32,
     validateIdent32
-} from "../../src/Ident32.sol";
+} from "../../../src/types/Ident32.sol";
 
 contract Ident32Test is Test {
     // -------------------------------------------------------------------------

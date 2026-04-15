@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {EntityHashing} from "../../../src/EntityHashing.sol";
 import {EntityRegistry} from "../../../src/EntityRegistry.sol";
-import {Ident32, IDENT_CHARSET, IDENT_LEADING} from "../../../src/Ident32.sol";
+import {Ident32, IDENT_CHARSET, IDENT_LEADING} from "../../../src/types/Ident32.sol";
 
 contract AttributeHashTest is Test, EntityRegistry {
     function doAttributeHash(Ident32 prevName, bytes32 chain, EntityHashing.Attribute calldata attr)

@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {BlockNumber} from "../../src/BlockNumber.sol";
 import {EntityRegistry} from "../../src/EntityRegistry.sol";
 import {EntityHashing} from "../../src/EntityHashing.sol";
-import {Ident32} from "../../src/Ident32.sol";
+import {Ident32} from "../../src/types/Ident32.sol";
 import {Mime128} from "../../src/types/Mime128.sol";
 
 /// @dev Harness for pure hash function tests (attributeHash, coreHash, entityStructHash).

@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {BlockNumber} from "../../src/BlockNumber.sol";
 import {EntityHashing} from "../../src/EntityHashing.sol";
-import {Ident32, encodeIdent32} from "../../src/Ident32.sol";
+import {Ident32, encodeIdent32} from "../../src/types/Ident32.sol";
 import {Mime128} from "../../src/types/Mime128.sol";
 
 library Lib {
