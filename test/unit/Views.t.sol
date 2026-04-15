@@ -9,18 +9,19 @@ import {EntityRegistry} from "../../src/EntityRegistry.sol";
 import {encodeMime128} from "../../src/types/Mime128.sol";
 
 /// @dev Exercises every public view function via external calls so that
-/// forge coverage counts them. Correctness of the underlying logic is
-/// tested in Execute.t.sol and the ops/ tests.
+/// forge coverage counts them, and verifies correctness of returned values.
 contract ViewsTest is Test {
     EntityRegistry registry;
 
     address alice = makeAddr("alice");
     bytes32 testKey;
     BlockNumber deployBlock;
+    BlockNumber expiresAt;
 
     function setUp() public {
         registry = new EntityRegistry();
         deployBlock = currentBlock();
+        expiresAt = currentBlock() + BlockNumber.wrap(1000);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         Entity.Operation[] memory ops = new Entity.Operation[](1);
@@ -30,7 +31,7 @@ contract ViewsTest is Test {
             payload: "hello",
             contentType: encodeMime128("text/plain"),
             attributes: attrs,
-            expiresAt: currentBlock() + BlockNumber.wrap(1000),
+            expiresAt: expiresAt,
             newOwner: address(0)
         });
 
@@ -40,26 +41,45 @@ contract ViewsTest is Test {
         testKey = registry.entityKey(alice, 0);
     }
 
+    // =========================================================================
+    // Changeset hash views — single op means all four levels agree
+    // =========================================================================
+
     function test_changeSetHash() public view {
-        assertTrue(registry.changeSetHash() != bytes32(0));
+        bytes32 hash = registry.changeSetHash();
+        assertTrue(hash != bytes32(0));
+        // Head block, block-level, tx-level, and op-level should all match.
+        assertEq(hash, registry.changeSetHashAtBlock(deployBlock));
+        assertEq(hash, registry.changeSetHashAtTx(deployBlock, 0));
+        assertEq(hash, registry.changeSetHashAtOp(deployBlock, 0, 0));
     }
 
-    function test_changeSetHashAtBlock() public view {
-        assertTrue(registry.changeSetHashAtBlock(deployBlock) != bytes32(0));
+    function test_changeSetHashAtBlock_uninitializedReturnsZero() public view {
+        assertEq(registry.changeSetHashAtBlock(BlockNumber.wrap(999999)), bytes32(0));
     }
 
-    function test_changeSetHashAtTx() public view {
-        assertTrue(registry.changeSetHashAtTx(deployBlock, 0) != bytes32(0));
+    function test_changeSetHashAtTx_uninitializedReturnsZero() public view {
+        assertEq(registry.changeSetHashAtTx(BlockNumber.wrap(999999), 0), bytes32(0));
     }
 
-    function test_changeSetHashAtOp() public view {
-        assertTrue(registry.changeSetHashAtOp(deployBlock, 0, 0) != bytes32(0));
+    function test_changeSetHashAtOp_uninitializedReturnsZero() public view {
+        assertEq(registry.changeSetHashAtOp(BlockNumber.wrap(999999), 0, 0), bytes32(0));
     }
+
+    // =========================================================================
+    // entityKey
+    // =========================================================================
 
     function test_entityKey() public view {
         bytes32 key = registry.entityKey(alice, 0);
         assertEq(key, testKey);
+        // Different nonce produces different key.
+        assertTrue(registry.entityKey(alice, 1) != testKey);
     }
+
+    // =========================================================================
+    // Block pointers
+    // =========================================================================
 
     function test_genesisBlock() public view {
         assertEq(BlockNumber.unwrap(registry.genesisBlock()), BlockNumber.unwrap(deployBlock));
@@ -72,17 +92,54 @@ contract ViewsTest is Test {
     function test_getBlockNode() public view {
         Entity.BlockNode memory node = registry.getBlockNode(deployBlock);
         assertEq(node.txCount, 1);
+        // Deploy block is both genesis and head — no neighbours.
+        assertEq(BlockNumber.unwrap(node.prevBlock), 0);
+        assertEq(BlockNumber.unwrap(node.nextBlock), 0);
     }
+
+    function test_getBlockNode_uninitializedReturnsZero() public view {
+        Entity.BlockNode memory node = registry.getBlockNode(BlockNumber.wrap(999999));
+        assertEq(node.txCount, 0);
+        assertEq(BlockNumber.unwrap(node.prevBlock), 0);
+        assertEq(BlockNumber.unwrap(node.nextBlock), 0);
+    }
+
+    // =========================================================================
+    // txOpCount
+    // =========================================================================
 
     function test_txOpCount() public view {
         assertEq(registry.txOpCount(deployBlock, 0), 1);
     }
 
+    function test_txOpCount_uninitializedReturnsZero() public view {
+        assertEq(registry.txOpCount(BlockNumber.wrap(999999), 0), 0);
+    }
+
+    // =========================================================================
+    // commitment
+    // =========================================================================
+
     function test_commitment() public view {
         Entity.Commitment memory c = registry.commitment(testKey);
         assertEq(c.owner, alice);
         assertEq(c.creator, alice);
+        assertEq(BlockNumber.unwrap(c.createdAt), BlockNumber.unwrap(deployBlock));
+        assertEq(BlockNumber.unwrap(c.updatedAt), BlockNumber.unwrap(deployBlock));
+        assertEq(BlockNumber.unwrap(c.expiresAt), BlockNumber.unwrap(expiresAt));
+        assertTrue(c.coreHash != bytes32(0));
     }
+
+    function test_commitment_uninitializedReturnsZero() public view {
+        Entity.Commitment memory c = registry.commitment(keccak256("nonexistent"));
+        assertEq(c.creator, address(0));
+        assertEq(c.owner, address(0));
+        assertEq(c.coreHash, bytes32(0));
+    }
+
+    // =========================================================================
+    // nonces
+    // =========================================================================
 
     function test_nonces() public view {
         assertEq(registry.nonces(alice), 1);
