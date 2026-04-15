@@ -64,7 +64,7 @@ mapping(uint256 blockNumber => bytes32 changeSetHash) internal _changeSetHashAtB
 On every entity mutation:
 
 ```solidity
-function _accumulateChangeSet(Op op, bytes32 _entityKey, bytes32 _entityHash) internal {
+function _accumulateChangeSet(Operation op, bytes32 _entityKey, bytes32 _entityHash) internal {
     // Lazy finalization: write previous block's hash when entering a new block
     if (block.number != _lastMutationBlock) {
         _changeSetHashAtBlock[_lastMutationBlock] = _changeSetHash;

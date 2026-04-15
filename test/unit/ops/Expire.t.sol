@@ -15,11 +15,11 @@ contract ExpireTest is Test, EntityRegistry {
     BlockNumber expiresAt;
     bytes32 testKey;
 
-    function doCreate(Entity.Op calldata op) external returns (bytes32, bytes32) {
+    function doCreate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
         return _create(op, currentBlock());
     }
 
-    function doExpire(Entity.Op calldata op) external returns (bytes32, bytes32) {
+    function doExpire(Entity.Operation calldata op) external returns (bytes32, bytes32) {
         return _expire(op, currentBlock());
     }
 
@@ -27,7 +27,7 @@ contract ExpireTest is Test, EntityRegistry {
         expiresAt = currentBlock() + BlockNumber.wrap(1000);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Op memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
+        Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
         vm.prank(alice);
         (testKey,) = this.doCreate(createOp);
     }

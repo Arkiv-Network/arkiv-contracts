@@ -30,17 +30,17 @@ graph TD
         BM["Block M<br/>txCount: 2"]
         subgraph "Tx 1"
             T1["Tx 1<br/>opCount: 3"]
-            O1["Op 1<br/>hash: 0xabc..."]
-            O2["Op 2<br/>hash: 0xdef..."]
-            O3["Op 3<br/>hash: 0x123..."]
+            O1["Operation 1<br/>hash: 0xabc..."]
+            O2["Operation 2<br/>hash: 0xdef..."]
+            O3["Operation 3<br/>hash: 0x123..."]
             T1 --> O1
             T1 --> O2
             T1 --> O3
         end
         subgraph "Tx 2"
             T2["Tx 2<br/>opCount: 2"]
-            O4["Op 1<br/>hash: 0x456..."]
-            O5["Op 2<br/>hash: 0x789..."]
+            O4["Operation 1<br/>hash: 0x456..."]
+            O5["Operation 2<br/>hash: 0x789..."]
             T2 --> O4
             T2 --> O5
         end
@@ -51,7 +51,7 @@ graph TD
 
 Each level's hash is the changeset hash after all operations at that scope:
 
-- **Op-level**: stored directly in `_hashAt[(block << 64) | (tx << 32) | op]`
+- **Operation-level**: stored directly in `_hashAt[(block << 64) | (tx << 32) | op]`
 - **Tx-level**: derived as the last op's hash in that tx
 - **Block-level**: derived as the last op of the last tx in that block
 
@@ -180,10 +180,10 @@ function txOpCount(uint256 blockNumber, uint32 txSeq) public view returns (uint3
 
 ### Batch Execution
 
-All entity mutations flow through `execute(Op[] calldata ops)`. Each call is one transaction containing one or more operations:
+All entity mutations flow through `execute(Operation[] calldata ops)`. Each call is one transaction containing one or more operations:
 
 ```solidity
-function execute(Op[] calldata ops) external {
+function execute(Operation[] calldata ops) external {
     // 1. Read previous hash from per-op mapping (before counter mutation)
     // 2. Block transition: update linked list if new block
     // 3. Advance tx sequence, update BlockNode.txCount
@@ -197,7 +197,7 @@ function execute(Op[] calldata ops) external {
 
 ### Operation Types
 
-| Op | Requires Content | Mutates coreHash | Mutates Mutable Fields |
+| Operation | Requires Content | Mutates coreHash | Mutates Mutable Fields |
 |----|-----------------|------------------|----------------------|
 | CREATE | yes | creates | creates |
 | UPDATE | yes | replaces | updatedAt |
@@ -238,7 +238,7 @@ V3 is +1 SSTORE over V2 on block transitions (the linked list pointer), while pr
 
 The SSTORE overhead of V3 is negligible compared to the calldata cost of entity payloads. An entity with a 120KB payload costs approximately 1.9M gas in calldata alone (120,000 bytes * 16 gas/byte). The entire V3 bookkeeping for that operation — one per-op snapshot SSTORE (~5k gas warm), plus amortized tx/block overhead — is under 10k gas, less than 0.5% of the calldata cost.
 
-Even in a batch of small entities, calldata dominates. The `Op` struct itself (opType, entityKey, contentType, attributes, payload) contributes far more gas in calldata encoding than the storage writes that track it. On Arkiv's rollup where gas pricing is controlled, this ratio is even more favourable — the storage costs for per-op snapshots and the block linked list are effectively free relative to the data the operations carry.
+Even in a batch of small entities, calldata dominates. The `Operation` struct itself (opType, entityKey, contentType, attributes, payload) contributes far more gas in calldata encoding than the storage writes that track it. On Arkiv's rollup where gas pricing is controlled, this ratio is even more favourable — the storage costs for per-op snapshots and the block linked list are effectively free relative to the data the operations carry.
 
 This is why V3 doesn't optimise for fewer SSTOREs at the cost of complexity (as V2 did with lazy finalization). The straightforward approach — store everything, derive what you can — is the correct design when storage is a rounding error on the payload.
 

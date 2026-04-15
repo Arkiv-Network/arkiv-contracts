@@ -17,8 +17,8 @@ library Lib {
         Mime128 memory contentType_,
         Entity.Attribute[] memory attributes_,
         BlockNumber expiresAt_
-    ) internal pure returns (Entity.Op memory) {
-        return Entity.Op({
+    ) internal pure returns (Entity.Operation memory) {
+        return Entity.Operation({
             opType: Entity.CREATE,
             entityKey: bytes32(0),
             payload: payload_,
@@ -34,8 +34,8 @@ library Lib {
         bytes memory payload_,
         Mime128 memory contentType_,
         Entity.Attribute[] memory attributes_
-    ) internal pure returns (Entity.Op memory) {
-        return Entity.Op({
+    ) internal pure returns (Entity.Operation memory) {
+        return Entity.Operation({
             opType: Entity.UPDATE,
             entityKey: entityKey_,
             payload: payload_,
@@ -46,10 +46,10 @@ library Lib {
         });
     }
 
-    function deleteOp(bytes32 entityKey_) internal pure returns (Entity.Op memory) {
+    function deleteOp(bytes32 entityKey_) internal pure returns (Entity.Operation memory) {
         Entity.Attribute[] memory empty = new Entity.Attribute[](0);
         Mime128 memory emptyCt;
-        return Entity.Op({
+        return Entity.Operation({
             opType: Entity.DELETE,
             entityKey: entityKey_,
             payload: "",
@@ -60,10 +60,10 @@ library Lib {
         });
     }
 
-    function transferOp(bytes32 entityKey_, address newOwner_) internal pure returns (Entity.Op memory) {
+    function transferOp(bytes32 entityKey_, address newOwner_) internal pure returns (Entity.Operation memory) {
         Entity.Attribute[] memory empty = new Entity.Attribute[](0);
         Mime128 memory emptyCt;
-        return Entity.Op({
+        return Entity.Operation({
             opType: Entity.TRANSFER,
             entityKey: entityKey_,
             payload: "",
@@ -74,10 +74,10 @@ library Lib {
         });
     }
 
-    function expireOp(bytes32 entityKey_) internal pure returns (Entity.Op memory) {
+    function expireOp(bytes32 entityKey_) internal pure returns (Entity.Operation memory) {
         Entity.Attribute[] memory empty = new Entity.Attribute[](0);
         Mime128 memory emptyCt;
-        return Entity.Op({
+        return Entity.Operation({
             opType: Entity.EXPIRE,
             entityKey: entityKey_,
             payload: "",
@@ -88,10 +88,10 @@ library Lib {
         });
     }
 
-    function extendOp(bytes32 entityKey_, BlockNumber expiresAt_) internal pure returns (Entity.Op memory) {
+    function extendOp(bytes32 entityKey_, BlockNumber expiresAt_) internal pure returns (Entity.Operation memory) {
         Entity.Attribute[] memory empty = new Entity.Attribute[](0);
         Mime128 memory emptyCt;
-        return Entity.Op({
+        return Entity.Operation({
             opType: Entity.EXTEND,
             entityKey: entityKey_,
             payload: "",

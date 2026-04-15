@@ -31,12 +31,12 @@ contract CreateTest is Test, EntityRegistry {
         address,
         BlockNumber,
         BlockNumber,
-        Entity.Op calldata
+        Entity.Operation calldata
     ) internal pure override returns (bytes32, bytes32) {
         return (STUB_CORE_HASH, STUB_ENTITY_HASH);
     }
 
-    function doCreate(Entity.Op calldata op) external returns (bytes32, bytes32) {
+    function doCreate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
         return _create(op, currentBlock());
     }
 
@@ -44,7 +44,7 @@ contract CreateTest is Test, EntityRegistry {
         expiresAt = currentBlock() + BlockNumber.wrap(1000);
     }
 
-    function _defaultOp() internal view returns (Entity.Op memory) {
+    function _defaultOp() internal view returns (Entity.Operation memory) {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         return Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
     }
@@ -55,7 +55,7 @@ contract CreateTest is Test, EntityRegistry {
 
     function test_create_expiryEqualToCurrentBlock_reverts() public {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Op memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, currentBlock());
+        Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, currentBlock());
 
         vm.prank(alice);
         vm.expectRevert(); // ExpiryInPast
@@ -66,7 +66,7 @@ contract CreateTest is Test, EntityRegistry {
         vm.roll(block.number + 100);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Op memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, BlockNumber.wrap(1));
+        Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, BlockNumber.wrap(1));
 
         vm.prank(alice);
         vm.expectRevert(); // ExpiryInPast
@@ -75,7 +75,7 @@ contract CreateTest is Test, EntityRegistry {
 
     function test_create_expiryOneBlockAhead_succeeds() public {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Op memory op =
+        Entity.Operation memory op =
             Lib.createOp("hello", encodeMime128("text/plain"), attrs, currentBlock() + BlockNumber.wrap(1));
 
         vm.prank(alice);
@@ -88,7 +88,7 @@ contract CreateTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_create_storesCommitment() public {
-        Entity.Op memory op = _defaultOp();
+        Entity.Operation memory op = _defaultOp();
 
         vm.prank(alice);
         this.doCreate(op);
@@ -107,7 +107,7 @@ contract CreateTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_create_emitsEntityOp() public {
-        Entity.Op memory op = _defaultOp();
+        Entity.Operation memory op = _defaultOp();
 
         vm.prank(alice);
         vm.expectEmit(true, true, true, true);
@@ -120,7 +120,7 @@ contract CreateTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_create_returnsKeyAndEntityHash() public {
-        Entity.Op memory op = _defaultOp();
+        Entity.Operation memory op = _defaultOp();
 
         vm.prank(alice);
         (bytes32 key, bytes32 entityHash_) = this.doCreate(op);

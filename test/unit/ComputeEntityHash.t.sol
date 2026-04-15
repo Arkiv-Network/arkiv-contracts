@@ -26,7 +26,7 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         address owner,
         BlockNumber updatedAt,
         BlockNumber expiresAt,
-        Entity.Op calldata op
+        Entity.Operation calldata op
     ) external view returns (bytes32, bytes32) {
         return _computeEntityHash(key, creator, createdAt, owner, updatedAt, expiresAt, op);
     }
@@ -52,7 +52,7 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](1);
         attrs[0] = Lib.uintAttr("count", 42);
-        Entity.Op memory op = Lib.createOp("hello", textPlain, attrs, currentBlock() + BlockNumber.wrap(1000));
+        Entity.Operation memory op = Lib.createOp("hello", textPlain, attrs, currentBlock() + BlockNumber.wrap(1000));
 
         (bytes32 coreHash_,) = this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
         bytes32 expected = this.doCoreHash(key, alice, current, textPlain, "hello", attrs);
@@ -69,7 +69,7 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         BlockNumber current = BlockNumber.wrap(100);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Op memory op = Lib.createOp("hello", textPlain, attrs, currentBlock() + BlockNumber.wrap(1000));
+        Entity.Operation memory op = Lib.createOp("hello", textPlain, attrs, currentBlock() + BlockNumber.wrap(1000));
 
         (bytes32 coreHash_, bytes32 entityHash_) =
             this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
@@ -89,7 +89,7 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         BlockNumber current = BlockNumber.wrap(100);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Op memory op = Lib.createOp("hello", textPlain, attrs, currentBlock() + BlockNumber.wrap(1000));
+        Entity.Operation memory op = Lib.createOp("hello", textPlain, attrs, currentBlock() + BlockNumber.wrap(1000));
 
         (bytes32 coreA, bytes32 entityA) =
             this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
@@ -110,8 +110,8 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         BlockNumber expiry = currentBlock() + BlockNumber.wrap(1000);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Op memory opA = Lib.createOp("hello", textPlain, attrs, expiry);
-        Entity.Op memory opB = Lib.createOp("world", textPlain, attrs, expiry);
+        Entity.Operation memory opA = Lib.createOp("hello", textPlain, attrs, expiry);
+        Entity.Operation memory opB = Lib.createOp("world", textPlain, attrs, expiry);
 
         (bytes32 coreA,) = this.doComputeEntityHash(key, alice, current, alice, current, opA.expiresAt, opA);
         (bytes32 coreB,) = this.doComputeEntityHash(key, alice, current, alice, current, opB.expiresAt, opB);
@@ -124,8 +124,8 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         BlockNumber current = BlockNumber.wrap(100);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Op memory opA = Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(500));
-        Entity.Op memory opB = Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(600));
+        Entity.Operation memory opA = Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(500));
+        Entity.Operation memory opB = Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(600));
 
         (bytes32 coreA, bytes32 entityA) =
             this.doComputeEntityHash(key, alice, current, alice, current, opA.expiresAt, opA);
@@ -149,8 +149,8 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         Entity.Attribute[] memory attrsB = new Entity.Attribute[](1);
         attrsB[0] = Lib.uintAttr("count", 2);
 
-        Entity.Op memory opA = Lib.createOp("hello", textPlain, attrsA, expiry);
-        Entity.Op memory opB = Lib.createOp("hello", textPlain, attrsB, expiry);
+        Entity.Operation memory opA = Lib.createOp("hello", textPlain, attrsA, expiry);
+        Entity.Operation memory opB = Lib.createOp("hello", textPlain, attrsB, expiry);
 
         (bytes32 coreA,) = this.doComputeEntityHash(key, alice, current, alice, current, opA.expiresAt, opA);
         (bytes32 coreB,) = this.doComputeEntityHash(key, alice, current, alice, current, opB.expiresAt, opB);

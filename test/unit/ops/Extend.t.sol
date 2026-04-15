@@ -15,11 +15,11 @@ contract ExtendTest is Test, EntityRegistry {
     BlockNumber expiresAt;
     bytes32 testKey;
 
-    function doCreate(Entity.Op calldata op) external returns (bytes32, bytes32) {
+    function doCreate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
         return _create(op, currentBlock());
     }
 
-    function doExtend(Entity.Op calldata op) external returns (bytes32, bytes32) {
+    function doExtend(Entity.Operation calldata op) external returns (bytes32, bytes32) {
         return _extend(op, currentBlock());
     }
 
@@ -27,7 +27,7 @@ contract ExtendTest is Test, EntityRegistry {
         expiresAt = currentBlock() + BlockNumber.wrap(1000);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Op memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
+        Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
         vm.prank(alice);
         (testKey,) = this.doCreate(createOp);
     }
@@ -37,7 +37,7 @@ contract ExtendTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_extend_sameExpiry_reverts() public {
-        Entity.Op memory op = Lib.extendOp(testKey, expiresAt);
+        Entity.Operation memory op = Lib.extendOp(testKey, expiresAt);
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.ExpiryNotExtended.selector, testKey, expiresAt, expiresAt));
@@ -46,7 +46,7 @@ contract ExtendTest is Test, EntityRegistry {
 
     function test_extend_lowerExpiry_reverts() public {
         BlockNumber lower = expiresAt - BlockNumber.wrap(100);
-        Entity.Op memory op = Lib.extendOp(testKey, lower);
+        Entity.Operation memory op = Lib.extendOp(testKey, lower);
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.ExpiryNotExtended.selector, testKey, lower, expiresAt));
@@ -59,7 +59,7 @@ contract ExtendTest is Test, EntityRegistry {
 
     function test_extend_updatesExpiresAt() public {
         BlockNumber newExpiry = expiresAt + BlockNumber.wrap(500);
-        Entity.Op memory op = Lib.extendOp(testKey, newExpiry);
+        Entity.Operation memory op = Lib.extendOp(testKey, newExpiry);
 
         vm.prank(alice);
         this.doExtend(op);
@@ -72,7 +72,7 @@ contract ExtendTest is Test, EntityRegistry {
         vm.roll(block.number + 10);
 
         BlockNumber newExpiry = expiresAt + BlockNumber.wrap(500);
-        Entity.Op memory op = Lib.extendOp(testKey, newExpiry);
+        Entity.Operation memory op = Lib.extendOp(testKey, newExpiry);
 
         vm.prank(alice);
         this.doExtend(op);
@@ -85,7 +85,7 @@ contract ExtendTest is Test, EntityRegistry {
         Entity.Commitment memory before_ = commitment(testKey);
 
         BlockNumber newExpiry = expiresAt + BlockNumber.wrap(500);
-        Entity.Op memory op = Lib.extendOp(testKey, newExpiry);
+        Entity.Operation memory op = Lib.extendOp(testKey, newExpiry);
 
         vm.prank(alice);
         this.doExtend(op);
@@ -103,7 +103,7 @@ contract ExtendTest is Test, EntityRegistry {
 
     function test_extend_returnsEntityKey() public {
         BlockNumber newExpiry = expiresAt + BlockNumber.wrap(500);
-        Entity.Op memory op = Lib.extendOp(testKey, newExpiry);
+        Entity.Operation memory op = Lib.extendOp(testKey, newExpiry);
 
         vm.prank(alice);
         (bytes32 returnedKey,) = this.doExtend(op);
@@ -117,7 +117,7 @@ contract ExtendTest is Test, EntityRegistry {
 
     function test_extend_entityHashUsesNewExpiry() public {
         BlockNumber newExpiry = expiresAt + BlockNumber.wrap(500);
-        Entity.Op memory op = Lib.extendOp(testKey, newExpiry);
+        Entity.Operation memory op = Lib.extendOp(testKey, newExpiry);
 
         vm.prank(alice);
         (, bytes32 entityHash_) = this.doExtend(op);
@@ -131,11 +131,11 @@ contract ExtendTest is Test, EntityRegistry {
         BlockNumber expiry1 = expiresAt + BlockNumber.wrap(100);
         BlockNumber expiry2 = expiresAt + BlockNumber.wrap(200);
 
-        Entity.Op memory op1 = Lib.extendOp(testKey, expiry1);
+        Entity.Operation memory op1 = Lib.extendOp(testKey, expiry1);
         vm.prank(alice);
         (, bytes32 hash1) = this.doExtend(op1);
 
-        Entity.Op memory op2 = Lib.extendOp(testKey, expiry2);
+        Entity.Operation memory op2 = Lib.extendOp(testKey, expiry2);
         vm.prank(alice);
         (, bytes32 hash2) = this.doExtend(op2);
 
@@ -148,7 +148,7 @@ contract ExtendTest is Test, EntityRegistry {
 
     function test_extend_emitsEntityOp() public {
         BlockNumber newExpiry = expiresAt + BlockNumber.wrap(500);
-        Entity.Op memory op = Lib.extendOp(testKey, newExpiry);
+        Entity.Operation memory op = Lib.extendOp(testKey, newExpiry);
 
         vm.prank(alice);
         vm.recordLogs();
@@ -170,7 +170,7 @@ contract ExtendTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_extend_revertsIfNotFound() public {
-        Entity.Op memory op = Lib.extendOp(keccak256("bogus"), expiresAt + BlockNumber.wrap(500));
+        Entity.Operation memory op = Lib.extendOp(keccak256("bogus"), expiresAt + BlockNumber.wrap(500));
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityNotFound.selector, keccak256("bogus")));
         this.doExtend(op);
@@ -178,14 +178,14 @@ contract ExtendTest is Test, EntityRegistry {
 
     function test_extend_revertsIfExpired() public {
         vm.roll(BlockNumber.unwrap(expiresAt));
-        Entity.Op memory op = Lib.extendOp(testKey, expiresAt + BlockNumber.wrap(500));
+        Entity.Operation memory op = Lib.extendOp(testKey, expiresAt + BlockNumber.wrap(500));
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityExpired.selector, testKey, expiresAt));
         this.doExtend(op);
     }
 
     function test_extend_revertsIfNotOwner() public {
-        Entity.Op memory op = Lib.extendOp(testKey, expiresAt + BlockNumber.wrap(500));
+        Entity.Operation memory op = Lib.extendOp(testKey, expiresAt + BlockNumber.wrap(500));
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(Entity.NotOwner.selector, testKey, bob, alice));
         this.doExtend(op);

@@ -15,11 +15,11 @@ contract DeleteTest is Test, EntityRegistry {
     BlockNumber expiresAt;
     bytes32 testKey;
 
-    function doCreate(Entity.Op calldata op) external returns (bytes32, bytes32) {
+    function doCreate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
         return _create(op, currentBlock());
     }
 
-    function doDelete(Entity.Op calldata op) external returns (bytes32, bytes32) {
+    function doDelete(Entity.Operation calldata op) external returns (bytes32, bytes32) {
         return _delete(op, currentBlock());
     }
 
@@ -27,7 +27,7 @@ contract DeleteTest is Test, EntityRegistry {
         expiresAt = currentBlock() + BlockNumber.wrap(1000);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Op memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
+        Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
         vm.prank(alice);
         (testKey,) = this.doCreate(createOp);
     }
@@ -37,7 +37,7 @@ contract DeleteTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_delete_removesCommitment() public {
-        Entity.Op memory op = Lib.deleteOp(testKey);
+        Entity.Operation memory op = Lib.deleteOp(testKey);
 
         vm.prank(alice);
         this.doDelete(op);
@@ -56,7 +56,7 @@ contract DeleteTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_delete_returnsEntityKey() public {
-        Entity.Op memory op = Lib.deleteOp(testKey);
+        Entity.Operation memory op = Lib.deleteOp(testKey);
 
         vm.prank(alice);
         (bytes32 returnedKey,) = this.doDelete(op);
@@ -72,7 +72,7 @@ contract DeleteTest is Test, EntityRegistry {
         Entity.Commitment memory c = commitment(testKey);
         bytes32 expected = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
 
-        Entity.Op memory op = Lib.deleteOp(testKey);
+        Entity.Operation memory op = Lib.deleteOp(testKey);
         vm.prank(alice);
         (, bytes32 entityHash_) = this.doDelete(op);
 
@@ -84,7 +84,7 @@ contract DeleteTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_delete_emitsEntityOp() public {
-        Entity.Op memory op = Lib.deleteOp(testKey);
+        Entity.Operation memory op = Lib.deleteOp(testKey);
 
         vm.prank(alice);
         vm.recordLogs();
@@ -106,7 +106,7 @@ contract DeleteTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_delete_revertsIfNotFound() public {
-        Entity.Op memory op = Lib.deleteOp(keccak256("bogus"));
+        Entity.Operation memory op = Lib.deleteOp(keccak256("bogus"));
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityNotFound.selector, keccak256("bogus")));
         this.doDelete(op);
@@ -114,14 +114,14 @@ contract DeleteTest is Test, EntityRegistry {
 
     function test_delete_revertsIfExpired() public {
         vm.roll(BlockNumber.unwrap(expiresAt));
-        Entity.Op memory op = Lib.deleteOp(testKey);
+        Entity.Operation memory op = Lib.deleteOp(testKey);
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityExpired.selector, testKey, expiresAt));
         this.doDelete(op);
     }
 
     function test_delete_revertsIfNotOwner() public {
-        Entity.Op memory op = Lib.deleteOp(testKey);
+        Entity.Operation memory op = Lib.deleteOp(testKey);
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(Entity.NotOwner.selector, testKey, bob, alice));
         this.doDelete(op);

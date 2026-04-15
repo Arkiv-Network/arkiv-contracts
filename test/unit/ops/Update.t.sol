@@ -19,11 +19,11 @@ contract UpdateTest is Test, EntityRegistry {
     Mime128 appJson;
 
     // Calldata wrappers.
-    function doCreate(Entity.Op calldata op) external returns (bytes32, bytes32) {
+    function doCreate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
         return _create(op, currentBlock());
     }
 
-    function doUpdate(Entity.Op calldata op) external returns (bytes32, bytes32) {
+    function doUpdate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
         return _update(op, currentBlock());
     }
 
@@ -46,7 +46,7 @@ contract UpdateTest is Test, EntityRegistry {
 
         // Create an entity owned by alice.
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Op memory createOp = Lib.createOp("hello", textPlain, attrs, expiresAt);
+        Entity.Operation memory createOp = Lib.createOp("hello", textPlain, attrs, expiresAt);
         vm.prank(alice);
         (testKey,) = this.doCreate(createOp);
     }
@@ -55,7 +55,7 @@ contract UpdateTest is Test, EntityRegistry {
     // Helpers
     // =========================================================================
 
-    function _simpleUpdateOp() internal view returns (Entity.Op memory) {
+    function _simpleUpdateOp() internal view returns (Entity.Operation memory) {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         return Lib.updateOp(testKey, "world", textPlain, attrs);
     }
@@ -67,7 +67,7 @@ contract UpdateTest is Test, EntityRegistry {
     function test_update_updatesCoreHash() public {
         Entity.Commitment memory before_ = commitment(testKey);
 
-        Entity.Op memory op = _simpleUpdateOp();
+        Entity.Operation memory op = _simpleUpdateOp();
         vm.prank(alice);
         this.doUpdate(op);
 
@@ -78,7 +78,7 @@ contract UpdateTest is Test, EntityRegistry {
     function test_update_updatesUpdatedAt() public {
         vm.roll(block.number + 10);
 
-        Entity.Op memory op = _simpleUpdateOp();
+        Entity.Operation memory op = _simpleUpdateOp();
         vm.prank(alice);
         this.doUpdate(op);
 
@@ -89,7 +89,7 @@ contract UpdateTest is Test, EntityRegistry {
     function test_update_preservesImmutableFields() public {
         Entity.Commitment memory before_ = commitment(testKey);
 
-        Entity.Op memory op = _simpleUpdateOp();
+        Entity.Operation memory op = _simpleUpdateOp();
         vm.prank(alice);
         this.doUpdate(op);
 
@@ -105,7 +105,7 @@ contract UpdateTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_update_returnsEntityKey() public {
-        Entity.Op memory op = _simpleUpdateOp();
+        Entity.Operation memory op = _simpleUpdateOp();
         vm.prank(alice);
         (bytes32 returnedKey,) = this.doUpdate(op);
 
@@ -119,7 +119,7 @@ contract UpdateTest is Test, EntityRegistry {
     function test_update_coreHashMatchesManualComputation() public {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](1);
         attrs[0] = Lib.uintAttr("count", 99);
-        Entity.Op memory op = Lib.updateOp(testKey, "new payload", textPlain, attrs);
+        Entity.Operation memory op = Lib.updateOp(testKey, "new payload", textPlain, attrs);
 
         vm.prank(alice);
         this.doUpdate(op);
@@ -130,7 +130,7 @@ contract UpdateTest is Test, EntityRegistry {
     }
 
     function test_update_entityHashMatchesManualComputation() public {
-        Entity.Op memory op = _simpleUpdateOp();
+        Entity.Operation memory op = _simpleUpdateOp();
 
         vm.prank(alice);
         (, bytes32 entityHash_) = this.doUpdate(op);
@@ -145,7 +145,7 @@ contract UpdateTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_update_emitsEntityOp() public {
-        Entity.Op memory op = _simpleUpdateOp();
+        Entity.Operation memory op = _simpleUpdateOp();
 
         vm.prank(alice);
         vm.recordLogs();
@@ -171,7 +171,7 @@ contract UpdateTest is Test, EntityRegistry {
 
         // Update with the exact same content as the original create.
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Op memory op = Lib.updateOp(testKey, "hello", textPlain, attrs);
+        Entity.Operation memory op = Lib.updateOp(testKey, "hello", textPlain, attrs);
 
         vm.prank(alice);
         this.doUpdate(op);
@@ -182,7 +182,7 @@ contract UpdateTest is Test, EntityRegistry {
 
     function test_update_emptyPayloadAndAttributes() public {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Op memory op = Lib.updateOp(testKey, "", textPlain, attrs);
+        Entity.Operation memory op = Lib.updateOp(testKey, "", textPlain, attrs);
 
         vm.prank(alice);
         (bytes32 key, bytes32 entityHash_) = this.doUpdate(op);
@@ -194,7 +194,7 @@ contract UpdateTest is Test, EntityRegistry {
     function test_update_multipleUpdatesChain() public {
         // First update.
         Entity.Attribute[] memory attrs1 = new Entity.Attribute[](0);
-        Entity.Op memory op1 = Lib.updateOp(testKey, "v2", textPlain, attrs1);
+        Entity.Operation memory op1 = Lib.updateOp(testKey, "v2", textPlain, attrs1);
         vm.prank(alice);
         this.doUpdate(op1);
 
@@ -203,7 +203,7 @@ contract UpdateTest is Test, EntityRegistry {
         // Second update with different content.
         Entity.Attribute[] memory attrs2 = new Entity.Attribute[](1);
         attrs2[0] = Lib.uintAttr("version", 3);
-        Entity.Op memory op2 = Lib.updateOp(testKey, "v3", appJson, attrs2);
+        Entity.Operation memory op2 = Lib.updateOp(testKey, "v3", appJson, attrs2);
         vm.prank(alice);
         this.doUpdate(op2);
 
@@ -216,7 +216,7 @@ contract UpdateTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_update_revertsIfNotFound() public {
-        Entity.Op memory op = _simpleUpdateOp();
+        Entity.Operation memory op = _simpleUpdateOp();
         op.entityKey = keccak256("bogus");
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityNotFound.selector, op.entityKey));
@@ -225,14 +225,14 @@ contract UpdateTest is Test, EntityRegistry {
 
     function test_update_revertsIfExpired() public {
         vm.roll(BlockNumber.unwrap(expiresAt));
-        Entity.Op memory op = _simpleUpdateOp();
+        Entity.Operation memory op = _simpleUpdateOp();
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityExpired.selector, testKey, expiresAt));
         this.doUpdate(op);
     }
 
     function test_update_revertsIfNotOwner() public {
-        Entity.Op memory op = _simpleUpdateOp();
+        Entity.Operation memory op = _simpleUpdateOp();
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(Entity.NotOwner.selector, testKey, bob, alice));
         this.doUpdate(op);

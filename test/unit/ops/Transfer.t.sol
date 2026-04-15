@@ -16,11 +16,11 @@ contract TransferTest is Test, EntityRegistry {
     BlockNumber expiresAt;
     bytes32 testKey;
 
-    function doCreate(Entity.Op calldata op) external returns (bytes32, bytes32) {
+    function doCreate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
         return _create(op, currentBlock());
     }
 
-    function doTransfer(Entity.Op calldata op) external returns (bytes32, bytes32) {
+    function doTransfer(Entity.Operation calldata op) external returns (bytes32, bytes32) {
         return _transfer(op, currentBlock());
     }
 
@@ -28,7 +28,7 @@ contract TransferTest is Test, EntityRegistry {
         expiresAt = currentBlock() + BlockNumber.wrap(1000);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Op memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
+        Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
         vm.prank(alice);
         (testKey,) = this.doCreate(createOp);
     }
@@ -38,7 +38,7 @@ contract TransferTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_transfer_toZeroAddress_reverts() public {
-        Entity.Op memory op = Lib.transferOp(testKey, address(0));
+        Entity.Operation memory op = Lib.transferOp(testKey, address(0));
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.TransferToZeroAddress.selector, testKey));
@@ -46,7 +46,7 @@ contract TransferTest is Test, EntityRegistry {
     }
 
     function test_transfer_toSelf_reverts() public {
-        Entity.Op memory op = Lib.transferOp(testKey, alice);
+        Entity.Operation memory op = Lib.transferOp(testKey, alice);
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.TransferToSelf.selector, testKey));
@@ -58,7 +58,7 @@ contract TransferTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_transfer_updatesOwner() public {
-        Entity.Op memory op = Lib.transferOp(testKey, bob);
+        Entity.Operation memory op = Lib.transferOp(testKey, bob);
 
         vm.prank(alice);
         this.doTransfer(op);
@@ -70,7 +70,7 @@ contract TransferTest is Test, EntityRegistry {
     function test_transfer_updatesUpdatedAt() public {
         vm.roll(block.number + 10);
 
-        Entity.Op memory op = Lib.transferOp(testKey, bob);
+        Entity.Operation memory op = Lib.transferOp(testKey, bob);
         vm.prank(alice);
         this.doTransfer(op);
 
@@ -81,7 +81,7 @@ contract TransferTest is Test, EntityRegistry {
     function test_transfer_preservesCoreHashCreatorExpiry() public {
         Entity.Commitment memory before_ = commitment(testKey);
 
-        Entity.Op memory op = Lib.transferOp(testKey, bob);
+        Entity.Operation memory op = Lib.transferOp(testKey, bob);
         vm.prank(alice);
         this.doTransfer(op);
 
@@ -98,12 +98,12 @@ contract TransferTest is Test, EntityRegistry {
 
     function test_transfer_newOwnerCanTransferAgain() public {
         // alice → bob
-        Entity.Op memory op1 = Lib.transferOp(testKey, bob);
+        Entity.Operation memory op1 = Lib.transferOp(testKey, bob);
         vm.prank(alice);
         this.doTransfer(op1);
 
         // bob → charlie
-        Entity.Op memory op2 = Lib.transferOp(testKey, charlie);
+        Entity.Operation memory op2 = Lib.transferOp(testKey, charlie);
         vm.prank(bob);
         this.doTransfer(op2);
 
@@ -116,7 +116,7 @@ contract TransferTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_transfer_returnsEntityKey() public {
-        Entity.Op memory op = Lib.transferOp(testKey, bob);
+        Entity.Operation memory op = Lib.transferOp(testKey, bob);
 
         vm.prank(alice);
         (bytes32 returnedKey,) = this.doTransfer(op);
@@ -129,7 +129,7 @@ contract TransferTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_transfer_entityHashUsesNewOwner() public {
-        Entity.Op memory op = Lib.transferOp(testKey, bob);
+        Entity.Operation memory op = Lib.transferOp(testKey, bob);
 
         vm.prank(alice);
         (, bytes32 entityHash_) = this.doTransfer(op);
@@ -146,7 +146,7 @@ contract TransferTest is Test, EntityRegistry {
             _wrapEntityHash(beforeTransfer.coreHash, alice, beforeTransfer.updatedAt, beforeTransfer.expiresAt);
 
         // Transfer to bob.
-        Entity.Op memory op = Lib.transferOp(testKey, bob);
+        Entity.Operation memory op = Lib.transferOp(testKey, bob);
         vm.prank(alice);
         (, bytes32 hashBob) = this.doTransfer(op);
 
@@ -158,7 +158,7 @@ contract TransferTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_transfer_emitsEntityOp() public {
-        Entity.Op memory op = Lib.transferOp(testKey, bob);
+        Entity.Operation memory op = Lib.transferOp(testKey, bob);
 
         vm.prank(alice);
         vm.recordLogs();
@@ -180,7 +180,7 @@ contract TransferTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_transfer_revertsIfNotFound() public {
-        Entity.Op memory op = Lib.transferOp(keccak256("bogus"), bob);
+        Entity.Operation memory op = Lib.transferOp(keccak256("bogus"), bob);
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityNotFound.selector, keccak256("bogus")));
         this.doTransfer(op);
@@ -188,14 +188,14 @@ contract TransferTest is Test, EntityRegistry {
 
     function test_transfer_revertsIfExpired() public {
         vm.roll(BlockNumber.unwrap(expiresAt));
-        Entity.Op memory op = Lib.transferOp(testKey, bob);
+        Entity.Operation memory op = Lib.transferOp(testKey, bob);
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityExpired.selector, testKey, expiresAt));
         this.doTransfer(op);
     }
 
     function test_transfer_revertsIfNotOwner() public {
-        Entity.Op memory op = Lib.transferOp(testKey, bob);
+        Entity.Operation memory op = Lib.transferOp(testKey, bob);
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(Entity.NotOwner.selector, testKey, bob, alice));
         this.doTransfer(op);

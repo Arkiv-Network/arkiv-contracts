@@ -152,4 +152,4 @@ The `Mime128` approach is, to our knowledge, novel: a fixed-size EVM-native type
 
 - **Quoted string parameter values**: RFC 2045 allows `; charset="utf-8"` with quoted values. The current implementation only accepts token characters in parameter values. Quoted strings could be added as a sixth state (`S_QUOTED`) if needed — the state machine extends naturally.
 - **Multiple parameters**: Supported. The `;` transition from `PVALUE` loops back to `OWS`, allowing `type/subtype; a=b; c=d`.
-- **Integration with EntityRegistry**: `Mime128` is designed to replace the `string contentType` field in the `Op` struct. This is a separate change that will update the `CORE_HASH_TYPEHASH` from `string contentType` to `bytes32[4] contentType`.
+- **Integration with EntityRegistry**: `Mime128` is designed to replace the `string contentType` field in the `Operation` struct. This is a separate change that will update the `CORE_HASH_TYPEHASH` from `string contentType` to `bytes32[4] contentType`.

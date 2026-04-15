@@ -24,7 +24,7 @@ library Entity {
     // -------------------------------------------------------------------------
 
     /// @dev Sentinel value for uninitialized or invalid opType / valueType.
-    /// Solidity zero-initializes uint8 fields, so any Op or Attribute with
+    /// Solidity zero-initializes uint8 fields, so any Operation or Attribute with
     /// an unset discriminator will carry this value and be rejected.
     uint8 public constant UNINITIALIZED = 0;
 
@@ -43,7 +43,7 @@ library Entity {
     ///   - TRANSFER: entityKey, newOwner
     ///   - DELETE:   entityKey
     ///   - EXPIRE:   entityKey
-    struct Op {
+    struct Operation {
         uint8 opType;
         bytes32 entityKey;
         bytes payload;

@@ -17,45 +17,45 @@ contract DispatchTest is Test, EntityRegistry {
         return (keccak256("key"), keccak256("hash"));
     }
 
-    function _create(Entity.Op calldata, BlockNumber) internal override returns (bytes32, bytes32) {
+    function _create(Entity.Operation calldata, BlockNumber) internal override returns (bytes32, bytes32) {
         _calledOpType = Entity.CREATE;
         return _stubReturn();
     }
 
-    function _update(Entity.Op calldata, BlockNumber) internal override returns (bytes32, bytes32) {
+    function _update(Entity.Operation calldata, BlockNumber) internal override returns (bytes32, bytes32) {
         _calledOpType = Entity.UPDATE;
         return _stubReturn();
     }
 
-    function _extend(Entity.Op calldata, BlockNumber) internal override returns (bytes32, bytes32) {
+    function _extend(Entity.Operation calldata, BlockNumber) internal override returns (bytes32, bytes32) {
         _calledOpType = Entity.EXTEND;
         return _stubReturn();
     }
 
-    function _transfer(Entity.Op calldata, BlockNumber) internal override returns (bytes32, bytes32) {
+    function _transfer(Entity.Operation calldata, BlockNumber) internal override returns (bytes32, bytes32) {
         _calledOpType = Entity.TRANSFER;
         return _stubReturn();
     }
 
-    function _delete(Entity.Op calldata, BlockNumber) internal override returns (bytes32, bytes32) {
+    function _delete(Entity.Operation calldata, BlockNumber) internal override returns (bytes32, bytes32) {
         _calledOpType = Entity.DELETE;
         return _stubReturn();
     }
 
-    function _expire(Entity.Op calldata, BlockNumber) internal override returns (bytes32, bytes32) {
+    function _expire(Entity.Operation calldata, BlockNumber) internal override returns (bytes32, bytes32) {
         _calledOpType = Entity.EXPIRE;
         return _stubReturn();
     }
 
     /// @dev External wrapper so we can call _dispatch via this.doDispatch()
     /// to get calldata encoding.
-    function doDispatch(Entity.Op calldata op) external returns (bytes32, bytes32) {
+    function doDispatch(Entity.Operation calldata op) external returns (bytes32, bytes32) {
         return _dispatch(op, currentBlock());
     }
 
-    function _op(uint8 opType) internal pure returns (Entity.Op memory) {
+    function _op(uint8 opType) internal pure returns (Entity.Operation memory) {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        return Entity.Op({
+        return Entity.Operation({
             opType: opType,
             entityKey: bytes32(0),
             payload: "",

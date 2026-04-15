@@ -23,8 +23,8 @@ contract ViewsTest is Test {
         deployBlock = currentBlock();
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Op[] memory ops = new Entity.Op[](1);
-        ops[0] = Entity.Op({
+        Entity.Operation[] memory ops = new Entity.Operation[](1);
+        ops[0] = Entity.Operation({
             opType: Entity.CREATE,
             entityKey: bytes32(0),
             payload: "hello",

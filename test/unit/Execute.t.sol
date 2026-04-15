@@ -17,7 +17,7 @@ contract ExecuteTest is Test, EntityRegistry {
     uint256 internal _stubIndex;
     uint256 internal _stubSeed;
 
-    function _dispatch(Entity.Op calldata, BlockNumber) internal override returns (bytes32, bytes32) {
+    function _dispatch(Entity.Operation calldata, BlockNumber) internal override returns (bytes32, bytes32) {
         bytes32 key = _stubKeys[_stubIndex];
         bytes32 hash = _stubHashes[_stubIndex];
         _stubIndex++;
@@ -37,10 +37,10 @@ contract ExecuteTest is Test, EntityRegistry {
         _stubSeed += count;
     }
 
-    /// @dev Build a minimal Op with a given opType.
-    function _op(uint8 opType) internal pure returns (Entity.Op memory) {
+    /// @dev Build a minimal Operation with a given opType.
+    function _op(uint8 opType) internal pure returns (Entity.Operation memory) {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        return Entity.Op({
+        return Entity.Operation({
             opType: opType,
             entityKey: bytes32(0),
             payload: "",
@@ -56,7 +56,7 @@ contract ExecuteTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_execute_emptyBatch_reverts() public {
-        Entity.Op[] memory ops = new Entity.Op[](0);
+        Entity.Operation[] memory ops = new Entity.Operation[](0);
         vm.expectRevert(Entity.EmptyBatch.selector);
         this.execute(ops);
     }
@@ -72,7 +72,7 @@ contract ExecuteTest is Test, EntityRegistry {
         bytes32 k = _stubKeys[0];
         bytes32 h = _stubHashes[0];
 
-        Entity.Op[] memory ops = new Entity.Op[](1);
+        Entity.Operation[] memory ops = new Entity.Operation[](1);
         ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 
@@ -93,7 +93,7 @@ contract ExecuteTest is Test, EntityRegistry {
         bytes32 k2 = _stubKeys[2];
         bytes32 h2 = _stubHashes[2];
 
-        Entity.Op[] memory ops = new Entity.Op[](3);
+        Entity.Operation[] memory ops = new Entity.Operation[](3);
         ops[0] = _op(Entity.CREATE);
         ops[1] = _op(Entity.UPDATE);
         ops[2] = _op(Entity.DELETE);
@@ -119,7 +119,7 @@ contract ExecuteTest is Test, EntityRegistry {
         bytes32 k2 = _stubKeys[2];
         bytes32 h2 = _stubHashes[2];
 
-        Entity.Op[] memory ops = new Entity.Op[](3);
+        Entity.Operation[] memory ops = new Entity.Operation[](3);
         ops[0] = _op(Entity.CREATE);
         ops[1] = _op(Entity.UPDATE);
         ops[2] = _op(Entity.DELETE);
@@ -141,7 +141,7 @@ contract ExecuteTest is Test, EntityRegistry {
 
     function test_execute_recordsTxOpCount() public {
         _pushStubs(3);
-        Entity.Op[] memory ops = new Entity.Op[](3);
+        Entity.Operation[] memory ops = new Entity.Operation[](3);
         ops[0] = _op(Entity.CREATE);
         ops[1] = _op(Entity.UPDATE);
         ops[2] = _op(Entity.DELETE);
@@ -152,7 +152,7 @@ contract ExecuteTest is Test, EntityRegistry {
 
     function test_execute_singleOp_txOpCountIsOne() public {
         _pushStubs(1);
-        Entity.Op[] memory ops = new Entity.Op[](1);
+        Entity.Operation[] memory ops = new Entity.Operation[](1);
         ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 
@@ -168,7 +168,7 @@ contract ExecuteTest is Test, EntityRegistry {
         BlockNumber newBlock = currentBlock();
 
         _pushStubs(1);
-        Entity.Op[] memory ops = new Entity.Op[](1);
+        Entity.Operation[] memory ops = new Entity.Operation[](1);
         ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 
@@ -181,7 +181,7 @@ contract ExecuteTest is Test, EntityRegistry {
         BlockNumber newBlock = currentBlock();
 
         _pushStubs(1);
-        Entity.Op[] memory ops = new Entity.Op[](1);
+        Entity.Operation[] memory ops = new Entity.Operation[](1);
         ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 
@@ -196,7 +196,7 @@ contract ExecuteTest is Test, EntityRegistry {
         vm.roll(block.number + 10);
 
         _pushStubs(1);
-        Entity.Op[] memory ops = new Entity.Op[](1);
+        Entity.Operation[] memory ops = new Entity.Operation[](1);
         ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 
@@ -212,14 +212,14 @@ contract ExecuteTest is Test, EntityRegistry {
         vm.roll(block.number + 10);
 
         _pushStubs(1);
-        Entity.Op[] memory ops1 = new Entity.Op[](1);
+        Entity.Operation[] memory ops1 = new Entity.Operation[](1);
         ops1[0] = _op(Entity.CREATE);
         this.execute(ops1);
 
         assertEq(getBlockNode(currentBlock()).txCount, 1);
 
         _pushStubs(1);
-        Entity.Op[] memory ops2 = new Entity.Op[](1);
+        Entity.Operation[] memory ops2 = new Entity.Operation[](1);
         ops2[0] = _op(Entity.CREATE);
         this.execute(ops2);
 
@@ -232,14 +232,14 @@ contract ExecuteTest is Test, EntityRegistry {
 
         // First tx — 2 ops.
         _pushStubs(2);
-        Entity.Op[] memory ops1 = new Entity.Op[](2);
+        Entity.Operation[] memory ops1 = new Entity.Operation[](2);
         ops1[0] = _op(Entity.CREATE);
         ops1[1] = _op(Entity.UPDATE);
         this.execute(ops1);
 
         // Second tx — 1 op.
         _pushStubs(1);
-        Entity.Op[] memory ops2 = new Entity.Op[](1);
+        Entity.Operation[] memory ops2 = new Entity.Operation[](1);
         ops2[0] = _op(Entity.DELETE);
         this.execute(ops2);
 
@@ -251,7 +251,7 @@ contract ExecuteTest is Test, EntityRegistry {
         vm.roll(block.number + 10);
 
         _pushStubs(1);
-        Entity.Op[] memory ops1 = new Entity.Op[](1);
+        Entity.Operation[] memory ops1 = new Entity.Operation[](1);
         ops1[0] = _op(Entity.CREATE);
         this.execute(ops1);
         bytes32 hashAfterTx1 = changeSetHash();
@@ -259,7 +259,7 @@ contract ExecuteTest is Test, EntityRegistry {
         _pushStubs(1);
         bytes32 k1 = _stubKeys[0];
         bytes32 h1 = _stubHashes[0];
-        Entity.Op[] memory ops2 = new Entity.Op[](1);
+        Entity.Operation[] memory ops2 = new Entity.Operation[](1);
         ops2[0] = _op(Entity.UPDATE);
         this.execute(ops2);
 
@@ -277,14 +277,14 @@ contract ExecuteTest is Test, EntityRegistry {
         vm.roll(block.number + 10);
         BlockNumber blockA = currentBlock();
         _pushStubs(1);
-        Entity.Op[] memory ops1 = new Entity.Op[](1);
+        Entity.Operation[] memory ops1 = new Entity.Operation[](1);
         ops1[0] = _op(Entity.CREATE);
         this.execute(ops1);
 
         vm.roll(block.number + 5);
         BlockNumber blockB = currentBlock();
         _pushStubs(1);
-        Entity.Op[] memory ops2 = new Entity.Op[](1);
+        Entity.Operation[] memory ops2 = new Entity.Operation[](1);
         ops2[0] = _op(Entity.CREATE);
         this.execute(ops2);
 
@@ -305,7 +305,7 @@ contract ExecuteTest is Test, EntityRegistry {
         vm.roll(block.number + 10);
         BlockNumber blockA = currentBlock();
         _pushStubs(1);
-        Entity.Op[] memory ops1 = new Entity.Op[](1);
+        Entity.Operation[] memory ops1 = new Entity.Operation[](1);
         ops1[0] = _op(Entity.CREATE);
         this.execute(ops1);
         assertEq(BlockNumber.unwrap(headBlock()), BlockNumber.unwrap(blockA));
@@ -313,7 +313,7 @@ contract ExecuteTest is Test, EntityRegistry {
         vm.roll(block.number + 5);
         BlockNumber blockB = currentBlock();
         _pushStubs(1);
-        Entity.Op[] memory ops2 = new Entity.Op[](1);
+        Entity.Operation[] memory ops2 = new Entity.Operation[](1);
         ops2[0] = _op(Entity.CREATE);
         this.execute(ops2);
         assertEq(BlockNumber.unwrap(headBlock()), BlockNumber.unwrap(blockB));
@@ -321,7 +321,7 @@ contract ExecuteTest is Test, EntityRegistry {
 
     function test_execute_crossBlock_hashChainContinues() public {
         _pushStubs(1);
-        Entity.Op[] memory ops1 = new Entity.Op[](1);
+        Entity.Operation[] memory ops1 = new Entity.Operation[](1);
         ops1[0] = _op(Entity.CREATE);
         this.execute(ops1);
         bytes32 hashAfterBlock1 = changeSetHash();
@@ -330,7 +330,7 @@ contract ExecuteTest is Test, EntityRegistry {
         _pushStubs(1);
         bytes32 k1 = _stubKeys[0];
         bytes32 h1 = _stubHashes[0];
-        Entity.Op[] memory ops2 = new Entity.Op[](1);
+        Entity.Operation[] memory ops2 = new Entity.Operation[](1);
         ops2[0] = _op(Entity.UPDATE);
         this.execute(ops2);
 
@@ -354,7 +354,7 @@ contract ExecuteTest is Test, EntityRegistry {
         bytes32 k2 = _stubKeys[2];
         bytes32 h2 = _stubHashes[2];
 
-        Entity.Op[] memory ops = new Entity.Op[](3);
+        Entity.Operation[] memory ops = new Entity.Operation[](3);
         ops[0] = _op(Entity.CREATE);
         ops[1] = _op(Entity.UPDATE);
         ops[2] = _op(Entity.DELETE);
@@ -377,7 +377,7 @@ contract ExecuteTest is Test, EntityRegistry {
         bytes32 tx0h0 = _stubHashes[0];
         bytes32 tx0k1 = _stubKeys[1];
         bytes32 tx0h1 = _stubHashes[1];
-        Entity.Op[] memory ops1 = new Entity.Op[](2);
+        Entity.Operation[] memory ops1 = new Entity.Operation[](2);
         ops1[0] = _op(Entity.CREATE);
         ops1[1] = _op(Entity.UPDATE);
         this.execute(ops1);
@@ -386,7 +386,7 @@ contract ExecuteTest is Test, EntityRegistry {
         _pushStubs(1);
         bytes32 tx1k0 = _stubKeys[0];
         bytes32 tx1h0 = _stubHashes[0];
-        Entity.Op[] memory ops2 = new Entity.Op[](1);
+        Entity.Operation[] memory ops2 = new Entity.Operation[](1);
         ops2[0] = _op(Entity.DELETE);
         this.execute(ops2);
 
@@ -414,7 +414,7 @@ contract ExecuteTest is Test, EntityRegistry {
         BlockNumber deployBlock = currentBlock();
 
         _pushStubs(1);
-        Entity.Op[] memory ops = new Entity.Op[](1);
+        Entity.Operation[] memory ops = new Entity.Operation[](1);
         ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 

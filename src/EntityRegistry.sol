@@ -89,7 +89,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // External functions
     // -------------------------------------------------------------------------
 
-    function execute(Entity.Op[] calldata ops) external {
+    function execute(Entity.Operation[] calldata ops) external {
         if (ops.length == 0) revert Entity.EmptyBatch();
 
         bytes32 hash = changeSetHash();
@@ -188,7 +188,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         address owner,
         BlockNumber updatedAt,
         BlockNumber expiresAt,
-        Entity.Op calldata op
+        Entity.Operation calldata op
     ) internal view virtual returns (bytes32 coreHash_, bytes32 entityHash_) {
         coreHash_ = Entity.coreHash(key, creator, createdAt, op.contentType, op.payload, op.attributes);
         entityHash_ = _wrapEntityHash(coreHash_, owner, updatedAt, expiresAt);
@@ -207,7 +207,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
     /// @dev Route an op to the correct handler by opType.
     /// Reverts with InvalidOpType for unrecognised values.
-    function _dispatch(Entity.Op calldata op, BlockNumber current)
+    function _dispatch(Entity.Operation calldata op, BlockNumber current)
         internal
         virtual
         returns (bytes32 key, bytes32 entityHash_)
@@ -234,7 +234,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     ///   1. contentType must be valid MIME
     ///   2. expiresAt must be strictly in the future
     ///   3. Attributes validated inside coreHash (count, sorting, value type/length)
-    function _create(Entity.Op calldata op, BlockNumber current)
+    function _create(Entity.Operation calldata op, BlockNumber current)
         internal
         virtual
         returns (bytes32 key, bytes32 entityHash_)
@@ -268,7 +268,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     ///   2. Caller must be the owner
     ///   3. contentType must be valid MIME
     ///   4. Attributes validated inside coreHash (count, sorting, value type/length)
-    function _update(Entity.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
+    function _update(Entity.Operation calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         Entity.Commitment storage c = _commitments[key];
 
@@ -295,7 +295,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     ///   1. Entity must exist and be active
     ///   2. Caller must be the owner
     ///   3. New expiresAt must be strictly greater than current expiresAt
-    function _extend(Entity.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
+    function _extend(Entity.Operation calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         Entity.Commitment storage c = _commitments[key];
 
@@ -320,7 +320,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     ///   1. Entity must exist and be active
     ///   2. Caller must be the current owner
     ///   3. New owner must not be the zero address or current owner
-    function _transfer(Entity.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
+    function _transfer(Entity.Operation calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         Entity.Commitment storage c = _commitments[key];
 
@@ -345,7 +345,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// Validation:
     ///   1. Entity must exist and be active
     ///   2. Caller must be the owner
-    function _delete(Entity.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
+    function _delete(Entity.Operation calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         Entity.Commitment storage c = _commitments[key];
 
@@ -370,7 +370,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// Validation:
     ///   1. Entity must exist
     ///   2. Entity must have expired (expiresAt <= current)
-    function _expire(Entity.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
+    function _expire(Entity.Operation calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         Entity.Commitment storage c = _commitments[key];
 
