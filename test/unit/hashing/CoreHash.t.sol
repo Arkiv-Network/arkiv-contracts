@@ -151,11 +151,11 @@ contract CoreHashTest is Test, EntityRegistry {
         bytes32 key = keccak256("key");
         uint256 count = 33;
 
+        // Two-char names "aa".."ff" — sorted, all valid Ident32.
+        // Reverts before validation so names don't need to be exhaustive.
         Entity.Attribute[] memory attrs = new Entity.Attribute[](count);
         for (uint256 i = 0; i < count; i++) {
-            // "a", "b", ... sorted single-char names (a–z then a0–a6 won't work;
-            // use zero-padded hex strings to guarantee sort order).
-            bytes32 name = bytes32(bytes1(uint8(0x61 + i))); // 'a'+i, left-aligned
+            bytes32 name = bytes32(abi.encodePacked(bytes1(uint8(0x61 + i / 6)), bytes1(uint8(0x61 + i % 6))));
             bytes32[4] memory v;
             v[0] = bytes32(i);
             attrs[i] = Entity.Attribute({
@@ -167,6 +167,27 @@ contract CoreHashTest is Test, EntityRegistry {
 
         vm.expectRevert(abi.encodeWithSelector(Entity.TooManyAttributes.selector, count, 32));
         this.hashCore(key, alice, BlockNumber.wrap(100), textPlain, "hello", attrs);
+    }
+
+    function test_coreHash_maxAttributes_succeeds() public {
+        bytes32 key = keccak256("key");
+        uint256 count = 32;
+
+        // Two-char names "aa".."bf" — sorted, all valid Ident32.
+        Entity.Attribute[] memory attrs = new Entity.Attribute[](count);
+        for (uint256 i = 0; i < count; i++) {
+            bytes32 name = bytes32(abi.encodePacked(bytes1(uint8(0x61 + i / 6)), bytes1(uint8(0x61 + i % 6))));
+            bytes32[4] memory v;
+            v[0] = bytes32(i);
+            attrs[i] = Entity.Attribute({
+                name: Ident32.wrap(name),
+                valueType: Entity.ATTR_UINT,
+                value: v
+            });
+        }
+
+        bytes32 hash = this.hashCore(key, alice, BlockNumber.wrap(100), textPlain, "hello", attrs);
+        assertTrue(hash != bytes32(0));
     }
 
     // -------------------------------------------------------------------------
