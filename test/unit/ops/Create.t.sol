@@ -58,18 +58,19 @@ contract CreateTest is Test, EntityRegistry {
         Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, currentBlock());
 
         vm.prank(alice);
-        vm.expectRevert(); // ExpiryInPast
+        vm.expectRevert(abi.encodeWithSelector(Entity.ExpiryInPast.selector, currentBlock(), currentBlock()));
         this.doCreate(op);
     }
 
     function test_create_expiryInPast_reverts() public {
         vm.roll(block.number + 100);
 
+        BlockNumber pastBlock = BlockNumber.wrap(1);
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, BlockNumber.wrap(1));
+        Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, pastBlock);
 
         vm.prank(alice);
-        vm.expectRevert(); // ExpiryInPast
+        vm.expectRevert(abi.encodeWithSelector(Entity.ExpiryInPast.selector, pastBlock, currentBlock()));
         this.doCreate(op);
     }
 
