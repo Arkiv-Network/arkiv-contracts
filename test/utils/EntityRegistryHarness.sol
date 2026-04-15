@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {BlockNumber} from "../../src/BlockNumber.sol";
+import {BlockNumber} from "../../src/types/BlockNumber.sol";
 import {EntityRegistry} from "../../src/EntityRegistry.sol";
 import {Entity} from "../../src/Entity.sol";
 import {Ident32} from "../../src/types/Ident32.sol";

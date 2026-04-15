@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {BlockNumber, currentBlock} from "./BlockNumber.sol";
+import {BlockNumber, currentBlock} from "./types/BlockNumber.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {Entity, OperationKey, TransactionKey} from "./Entity.sol";
 import {validateMime128} from "./types/Mime128.sol";

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {BlockNumber} from "../../../src/BlockNumber.sol";
+import {BlockNumber} from "../../../src/types/BlockNumber.sol";
 import {Ident32} from "../../../src/types/Ident32.sol";
 import {Mime128, encodeMime128} from "../../../src/types/Mime128.sol";
 import {Test} from "forge-std/Test.sol";
