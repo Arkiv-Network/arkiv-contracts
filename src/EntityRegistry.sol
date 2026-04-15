@@ -64,12 +64,10 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     );
 
     // -------------------------------------------------------------------------
-    // State — linked list pointers
+    // State — block chain pointers
     // -------------------------------------------------------------------------
 
     BlockNumber internal immutable _genesisBlock;
-
-    // _headBlock: most recent block with mutations (head of linked list)
     BlockNumber internal _headBlock;
 
     // -------------------------------------------------------------------------
@@ -93,13 +91,10 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function execute(EntityHashing.Op[] calldata ops) external {
         if (ops.length == 0) revert EntityHashing.EmptyBatch();
 
-        // Read previous hash from the head of the chain.
         bytes32 hash = changeSetHash();
 
-        // Block transition: maintain the block-level linked list.
-        // _headBlock is initialised to the deploy block (sentinel anchor),
-        // so it is always non-zero when we reach this point.
-        // nextBlock == 0 on the head node means "end of chain."
+        // Block bookkeeping: advance the linked list on a new block,
+        // or continue the current block's tx sequence.
         BlockNumber current = currentBlock();
         uint32 txSeq;
         if (current != _headBlock) {
@@ -109,17 +104,15 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         } else {
             txSeq = _blocks[current].txCount;
         }
-
         _blocks[current].txCount = txSeq + 1;
 
-        // Process ops — one SSTORE per op for the snapshot.
+        // Dispatch each op and extend the changeset hash chain.
         for (uint32 opSeq = 0; opSeq < ops.length; opSeq++) {
             (bytes32 key, bytes32 entityHash_) = _dispatch(ops[opSeq], current);
             hash = EntityHashing.chainOp(hash, ops[opSeq].opType, key, entityHash_);
             _hashAt[EntityHashing.opKey(current, txSeq, opSeq)] = hash;
         }
 
-        // Record op count for this tx.
         _txOpCount[EntityHashing.txKey(current, txSeq)] = uint32(ops.length);
     }
 
@@ -228,26 +221,14 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Internal functions — entity operations
     // -------------------------------------------------------------------------
 
-    /// @dev Create a new entity. Validates inputs, mints a deterministic key
-    /// from the caller's nonce, computes the EIP-712 hash chain, and stores
-    /// a minimal on-chain commitment. Full entity data (payload, contentType,
-    /// attributes) remains in calldata — off-chain indexers reconstruct it
-    /// from the transaction, not from the event.
+    /// @dev Create a new entity. Mints a deterministic key from the caller's
+    /// nonce, computes the two-level EIP-712 hash, and stores a minimal
+    /// on-chain commitment. Full entity data lives in calldata.
     ///
-    /// Validation order:
-    ///   1. Attribute count (bounded by MAX_ATTRIBUTES)
-    ///   2. Per-attribute validation (sorting, value type/length) via coreHash → attributeHash
-    ///   3. Expiry must be strictly in the future
-    ///
-    /// Hash computation:
-    ///   coreHash  = EIP-712 hash of immutable content (key, creator, createdAt,
-    ///               contentType, payload, attributes)
-    ///   entityHash = EIP-712 domain-wrapped hash of (coreHash, owner, updatedAt,
-    ///                expiresAt)
-    ///
-    /// Storage: writes a Commitment struct (3 slots) keyed by entityKey.
-    /// Key uniqueness is guaranteed by the monotonic per-owner nonce —
-    /// no existence check is needed.
+    /// Validation:
+    ///   1. contentType must be valid MIME
+    ///   2. expiresAt must be strictly in the future
+    ///   3. Attributes validated inside coreHash (count, sorting, value type/length)
     function _create(EntityHashing.Op calldata op, BlockNumber current)
         internal
         virtual
@@ -278,12 +259,10 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// the new content and the entity's immutable fields (key, creator, createdAt).
     ///
     /// Validation:
-    ///   1. Entity must exist (creator != address(0))
-    ///   2. Entity must not be expired (expiresAt > current)
-    ///   3. Caller must be the owner
-    ///   4. Attributes validated (same rules as create)
-    ///
-    /// Storage: updates coreHash and updatedAt (2 SSTOREs on the existing Commitment).
+    ///   1. Entity must exist and be active
+    ///   2. Caller must be the owner
+    ///   3. contentType must be valid MIME
+    ///   4. Attributes validated inside coreHash (count, sorting, value type/length)
     function _update(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
@@ -294,8 +273,6 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
         validateMime128(op.contentType);
 
-        // Recompute hashes with new content but immutable identity fields.
-        // Attribute validation (sorting, value type/length, count) runs inside coreHash.
         (bytes32 coreHash_, bytes32 entityHash_) =
             _computeEntityHash(key, c.creator, c.createdAt, c.owner, current, c.expiresAt, op);
 
@@ -310,12 +287,9 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// The entityHash is recomputed from the stored coreHash with the new expiresAt.
     ///
     /// Validation:
-    ///   1. Entity must exist (creator != address(0))
-    ///   2. Entity must not be expired (expiresAt > current)
-    ///   3. Caller must be the owner
-    ///   4. New expiresAt must be strictly greater than current expiresAt
-    ///
-    /// Storage: updates expiresAt and updatedAt (1 SSTORE — both pack into slot 0).
+    ///   1. Entity must exist and be active
+    ///   2. Caller must be the owner
+    ///   3. New expiresAt must be strictly greater than current expiresAt
     function _extend(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
@@ -338,12 +312,9 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// The entityHash is recomputed from the stored coreHash with the new owner.
     ///
     /// Validation:
-    ///   1. Entity must exist (creator != address(0))
-    ///   2. Entity must not be expired (expiresAt > current)
-    ///   3. Caller must be the current owner
-    ///   4. New owner must not be the zero address
-    ///
-    /// Storage: updates owner and updatedAt (2 SSTOREs — owner in slot 1, updatedAt in slot 0).
+    ///   1. Entity must exist and be active
+    ///   2. Caller must be the current owner
+    ///   3. New owner must not be the zero address or current owner
     function _transfer(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
@@ -364,15 +335,11 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     }
 
     /// @dev Delete an entity before its expiry. Owner-initiated.
-    /// Snapshots the entityHash before deletion so it can be chained into
-    /// the changeset hash, then zeroes the commitment from storage.
+    /// Snapshots the entityHash before zeroing the commitment.
     ///
     /// Validation:
-    ///   1. Entity must exist (creator != address(0))
-    ///   2. Entity must not be expired (expiresAt > current)
-    ///   3. Caller must be the owner
-    ///
-    /// Storage: deletes the Commitment (zeroes 3 slots via SSTORE to 0, gas refund).
+    ///   1. Entity must exist and be active
+    ///   2. Caller must be the owner
     function _delete(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
@@ -392,16 +359,12 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         return (key, entityHash_);
     }
 
-    /// @dev Remove an expired entity from storage. Callable by anyone — no
-    /// ownership check. The entity must exist and must have expired
-    /// (expiresAt <= current). This is the inverse of the expiry guard on
-    /// other ops (which require expiresAt > current).
+    /// @dev Remove an expired entity from storage. Callable by anyone.
+    /// Snapshots the entityHash before zeroing the commitment.
     ///
     /// Validation:
-    ///   1. Entity must exist (creator != address(0))
+    ///   1. Entity must exist
     ///   2. Entity must have expired (expiresAt <= current)
-    ///
-    /// Storage: deletes the Commitment (zeroes 3 slots via SSTORE to 0, gas refund).
     function _expire(EntityHashing.Op calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         EntityHashing.Commitment storage c = _commitments[key];
