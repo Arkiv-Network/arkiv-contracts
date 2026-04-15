@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {BlockNumber, currentBlock} from "./BlockNumber.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
-import {Entity, OpKey, TxKey} from "./Entity.sol";
+import {Entity, OperationKey, TransactionKey} from "./Entity.sol";
 import {validateMime128} from "./types/Mime128.sol";
 
 /// @title EntityRegistry
@@ -32,21 +32,21 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
     // Three-level changeset hash lookup table.
     //
-    // Key: Entity.opKey(blockNumber, txSeq, opSeq)
+    // Key: Entity.operationKey(blockNumber, txSeq, opSeq)
     //   (block, tx, op) → changeset hash after that specific op
     //
     // All indices are 0-based. No redundant tx-level or block-level snapshots
     // are stored — those are derived via counts:
-    //   tx hash   = _hashAt[opKey(block, lastTx, lastOp)]
+    //   tx hash   = _hashAt[operationKey(block, lastTx, lastOp)]
     //   block hash = tx hash of last tx in block (via BlockNode.txCount)
     //
     // Traversal: for block M, walk txSeq 0..blocks[M].txCount-1,
-    //   for each tx walk opSeq 0.._txOpCount[txKey(M, txSeq)]-1.
+    //   for each tx walk opSeq 0.._txOpCount[transactionKey(M, txSeq)]-1.
     //   Across blocks, follow blocks[M].nextBlock.
-    mapping(OpKey opKey => bytes32 changeSetHash) internal _hashAt;
+    mapping(OperationKey operationKey => bytes32 changeSetHash) internal _hashAt;
 
-    // Key: Entity.txKey(blockNumber, txSeq) → op count for that tx
-    mapping(TxKey txKey => uint32 opCount) internal _txOpCount;
+    // Key: Entity.transactionKey(blockNumber, txSeq) → op count for that tx
+    mapping(TransactionKey transactionKey => uint32 opCount) internal _txOpCount;
 
     // Block-level linked list: only blocks with mutations have entries.
     // Enables O(1) traversal across sparse blocks.
@@ -111,10 +111,10 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         for (uint32 opSeq = 0; opSeq < ops.length; opSeq++) {
             (bytes32 key, bytes32 entityHash_) = _dispatch(ops[opSeq], current);
             hash = Entity.chainOperationHash(hash, ops[opSeq].opType, key, entityHash_);
-            _hashAt[Entity.opKey(current, txSeq, opSeq)] = hash;
+            _hashAt[Entity.operationKey(current, txSeq, opSeq)] = hash;
         }
 
-        _txOpCount[Entity.txKey(current, txSeq)] = uint32(ops.length);
+        _txOpCount[Entity.transactionKey(current, txSeq)] = uint32(ops.length);
     }
 
     // -------------------------------------------------------------------------
@@ -125,18 +125,18 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         uint32 txCount = _blocks[blockNumber].txCount;
         if (txCount == 0) return bytes32(0);
         uint32 lastTx = txCount - 1;
-        uint32 opCount = _txOpCount[Entity.txKey(blockNumber, lastTx)];
-        return _hashAt[Entity.opKey(blockNumber, lastTx, opCount - 1)];
+        uint32 opCount = _txOpCount[Entity.transactionKey(blockNumber, lastTx)];
+        return _hashAt[Entity.operationKey(blockNumber, lastTx, opCount - 1)];
     }
 
     function changeSetHashAtTx(BlockNumber blockNumber, uint32 txSeq) public view returns (bytes32) {
-        uint32 opCount = _txOpCount[Entity.txKey(blockNumber, txSeq)];
+        uint32 opCount = _txOpCount[Entity.transactionKey(blockNumber, txSeq)];
         if (opCount == 0) return bytes32(0);
-        return _hashAt[Entity.opKey(blockNumber, txSeq, opCount - 1)];
+        return _hashAt[Entity.operationKey(blockNumber, txSeq, opCount - 1)];
     }
 
     function changeSetHashAtOp(BlockNumber blockNumber, uint32 txSeq, uint32 opSeq) public view returns (bytes32) {
-        return _hashAt[Entity.opKey(blockNumber, txSeq, opSeq)];
+        return _hashAt[Entity.operationKey(blockNumber, txSeq, opSeq)];
     }
 
     function genesisBlock() public view returns (BlockNumber) {
@@ -152,7 +152,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     }
 
     function txOpCount(BlockNumber blockNumber, uint32 txSeq) public view returns (uint32) {
-        return _txOpCount[Entity.txKey(blockNumber, txSeq)];
+        return _txOpCount[Entity.transactionKey(blockNumber, txSeq)];
     }
 
     function commitment(bytes32 key) public view returns (Entity.Commitment memory) {

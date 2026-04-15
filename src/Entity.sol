@@ -5,8 +5,8 @@ import {BlockNumber} from "./BlockNumber.sol";
 import {Ident32, validateIdent32} from "./types/Ident32.sol";
 import {Mime128} from "./types/Mime128.sol";
 
-type OpKey is uint256;
-type TxKey is uint256;
+type OperationKey is uint256;
+type TransactionKey is uint256;
 
 /// @title Entity
 /// @dev Pure encoding and hashing scheme for the Arkiv EntityRegistry.
@@ -291,16 +291,16 @@ library Entity {
     // Storage key packing
     // -------------------------------------------------------------------------
 
-    /// @notice Pack a (block, tx) pair into a TxKey for the `_txOpCount`
+    /// @notice Pack a (block, tx) pair into a TransactionKey for the `_txOpCount`
     /// mapping. Layout: block in bits [32..95], tx in bits [0..31].
-    function txKey(BlockNumber blockNumber, uint32 txSeq) internal pure returns (TxKey) {
-        return TxKey.wrap((uint256(BlockNumber.unwrap(blockNumber)) << 32) | txSeq);
+    function transactionKey(BlockNumber blockNumber, uint32 txSeq) internal pure returns (TransactionKey) {
+        return TransactionKey.wrap((uint256(BlockNumber.unwrap(blockNumber)) << 32) | txSeq);
     }
 
-    /// @notice Pack a (block, tx, op) triple into an OpKey for the `_hashAt`
+    /// @notice Pack a (block, tx, op) triple into an OperationKey for the `_hashAt`
     /// mapping. Layout: block in bits [64..127], tx in bits [32..63], op in
-    /// bits [0..31]. Extends txKey with the op dimension.
-    function opKey(BlockNumber blockNumber, uint32 txSeq, uint32 opSeq) internal pure returns (OpKey) {
-        return OpKey.wrap((TxKey.unwrap(txKey(blockNumber, txSeq)) << 32) | opSeq);
+    /// bits [0..31]. Extends transactionKey with the op dimension.
+    function operationKey(BlockNumber blockNumber, uint32 txSeq, uint32 opSeq) internal pure returns (OperationKey) {
+        return OperationKey.wrap((TransactionKey.unwrap(transactionKey(blockNumber, txSeq)) << 32) | opSeq);
     }
 }
