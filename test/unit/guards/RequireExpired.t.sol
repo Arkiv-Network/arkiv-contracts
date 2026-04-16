@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber, currentBlock} from "../../../src/types/BlockNumber.sol";
+import {BlockNumber} from "../../../src/types/BlockNumber.sol";
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {Entity} from "../../../src/Entity.sol";
@@ -16,7 +16,7 @@ contract RequireExpiredTest is Test, EntityRegistry {
     bytes32 testKey;
 
     function doCreate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _create(op, currentBlock());
+        return _create(op, BlockNumber.wrap(uint32(block.number)));
     }
 
     function doRequireExpired(bytes32 key, BlockNumber current) external view {
@@ -25,7 +25,7 @@ contract RequireExpiredTest is Test, EntityRegistry {
     }
 
     function setUp() public {
-        expiresAt = currentBlock() + BlockNumber.wrap(1000);
+        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
@@ -35,30 +35,30 @@ contract RequireExpiredTest is Test, EntityRegistry {
 
     function test_atExactExpiryBlock_succeeds() public {
         vm.roll(BlockNumber.unwrap(expiresAt));
-        this.doRequireExpired(testKey, currentBlock());
+        this.doRequireExpired(testKey, BlockNumber.wrap(uint32(block.number)));
     }
 
     function test_afterExpiryBlock_succeeds() public {
         vm.roll(BlockNumber.unwrap(expiresAt) + 100);
-        this.doRequireExpired(testKey, currentBlock());
+        this.doRequireExpired(testKey, BlockNumber.wrap(uint32(block.number)));
     }
 
     function test_beforeExpiry_reverts() public {
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityNotExpired.selector, testKey, expiresAt));
-        this.doRequireExpired(testKey, currentBlock());
+        this.doRequireExpired(testKey, BlockNumber.wrap(uint32(block.number)));
     }
 
     function test_oneBlockBeforeExpiry_reverts() public {
         vm.roll(BlockNumber.unwrap(expiresAt) - 1);
 
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityNotExpired.selector, testKey, expiresAt));
-        this.doRequireExpired(testKey, currentBlock());
+        this.doRequireExpired(testKey, BlockNumber.wrap(uint32(block.number)));
     }
 
     function test_callableByNonOwner() public {
         vm.roll(BlockNumber.unwrap(expiresAt));
 
         vm.prank(bob);
-        this.doRequireExpired(testKey, currentBlock());
+        this.doRequireExpired(testKey, BlockNumber.wrap(uint32(block.number)));
     }
 }

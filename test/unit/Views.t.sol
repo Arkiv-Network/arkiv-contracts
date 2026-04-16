@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber, currentBlock} from "../../src/types/BlockNumber.sol";
+import {BlockNumber} from "../../src/types/BlockNumber.sol";
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../utils/Lib.sol";
 import {Entity} from "../../src/Entity.sol";
@@ -21,7 +21,7 @@ contract ViewsTest is Test {
     function setUp() public {
         registry = new EntityRegistry();
         deployBlock = registry.genesisBlock();
-        expiresAt = currentBlock() + BlockNumber.wrap(1000);
+        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         Entity.Operation[] memory ops = new Entity.Operation[](1);

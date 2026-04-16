@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber, currentBlock} from "../../../src/types/BlockNumber.sol";
+import {BlockNumber} from "../../../src/types/BlockNumber.sol";
 import {Test, Vm} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {Entity} from "../../../src/Entity.sol";
@@ -20,11 +20,11 @@ contract UpdateTest is Test, EntityRegistry {
 
     // Calldata wrappers.
     function doCreate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _create(op, currentBlock());
+        return _create(op, BlockNumber.wrap(uint32(block.number)));
     }
 
     function doUpdate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _update(op, currentBlock());
+        return _update(op, BlockNumber.wrap(uint32(block.number)));
     }
 
     function hashCore(
@@ -42,7 +42,7 @@ contract UpdateTest is Test, EntityRegistry {
         textPlain = encodeMime128("text/plain");
         appJson = encodeMime128("application/json");
 
-        expiresAt = currentBlock() + BlockNumber.wrap(1000);
+        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
 
         // Create an entity owned by alice.
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);

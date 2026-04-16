@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber, currentBlock} from "../../src/types/BlockNumber.sol";
+import {BlockNumber} from "../../src/types/BlockNumber.sol";
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../utils/Lib.sol";
 import {Entity} from "../../src/Entity.sol";
@@ -25,7 +25,7 @@ contract EntityLifecycleTest is Test {
         alice = makeAddr("alice");
         bob = makeAddr("bob");
         textPlain = encodeMime128("text/plain");
-        expiresAt = currentBlock() + BlockNumber.wrap(1000);
+        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
     }
 
     /// @dev Helper — build a single-op array and execute as sender.

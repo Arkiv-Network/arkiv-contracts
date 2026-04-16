@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber, currentBlock} from "./types/BlockNumber.sol";
+import {BlockNumber} from "./types/BlockNumber.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {Entity, OperationKey, TransactionKey} from "./Entity.sol";
 import {validateMime128} from "./types/Mime128.sol";
@@ -12,7 +12,7 @@ import {validateMime128} from "./types/Mime128.sol";
 /// and the changeset hash chain.
 contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     constructor() {
-        BlockNumber genesis = currentBlock();
+        BlockNumber genesis = BlockNumber.wrap(uint32(block.number));
         _genesisBlock = genesis;
         _headBlock = genesis;
     }
@@ -97,7 +97,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
         // Block bookkeeping: advance the linked list on a new block,
         // or continue the current block's tx sequence.
-        BlockNumber current = currentBlock();
+        BlockNumber current = BlockNumber.wrap(uint32(block.number));
         uint32 txSeq;
         if (current != _headBlock) {
             _blocks[_headBlock].nextBlock = current;

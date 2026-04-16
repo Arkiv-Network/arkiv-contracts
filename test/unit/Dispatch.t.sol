@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber, currentBlock} from "../../src/types/BlockNumber.sol";
+import {BlockNumber} from "../../src/types/BlockNumber.sol";
 import {Test} from "forge-std/Test.sol";
 import {Entity} from "../../src/Entity.sol";
 import {EntityRegistry} from "../../src/EntityRegistry.sol";
@@ -50,7 +50,7 @@ contract DispatchTest is Test, EntityRegistry {
     /// @dev External wrapper so we can call _dispatch via this.doDispatch()
     /// to get calldata encoding.
     function doDispatch(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _dispatch(op, currentBlock());
+        return _dispatch(op, BlockNumber.wrap(uint32(block.number)));
     }
 
     function _op(uint8 operationType) internal pure returns (Entity.Operation memory) {

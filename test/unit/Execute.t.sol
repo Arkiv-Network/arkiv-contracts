@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber, currentBlock} from "../../src/types/BlockNumber.sol";
+import {BlockNumber} from "../../src/types/BlockNumber.sol";
 import {Test} from "forge-std/Test.sol";
 import {Entity} from "../../src/Entity.sol";
 import {EntityRegistry} from "../../src/EntityRegistry.sol";
@@ -165,7 +165,7 @@ contract ExecuteTest is Test, EntityRegistry {
 
     function test_execute_newBlock_headBlockUpdated() public {
         vm.roll(block.number + 10);
-        BlockNumber newBlock = currentBlock();
+        BlockNumber newBlock = BlockNumber.wrap(uint32(block.number));
 
         _pushStubs(1);
         Entity.Operation[] memory ops = new Entity.Operation[](1);
@@ -178,7 +178,7 @@ contract ExecuteTest is Test, EntityRegistry {
     function test_execute_newBlock_linkedListPointers() public {
         BlockNumber genesis = genesisBlock();
         vm.roll(block.number + 10);
-        BlockNumber newBlock = currentBlock();
+        BlockNumber newBlock = BlockNumber.wrap(uint32(block.number));
 
         _pushStubs(1);
         Entity.Operation[] memory ops = new Entity.Operation[](1);

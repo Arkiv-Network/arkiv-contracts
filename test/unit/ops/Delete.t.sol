@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber, currentBlock} from "../../../src/types/BlockNumber.sol";
+import {BlockNumber} from "../../../src/types/BlockNumber.sol";
 import {Test, Vm} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {Entity} from "../../../src/Entity.sol";
@@ -16,15 +16,15 @@ contract DeleteTest is Test, EntityRegistry {
     bytes32 testKey;
 
     function doCreate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _create(op, currentBlock());
+        return _create(op, BlockNumber.wrap(uint32(block.number)));
     }
 
     function doDelete(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _delete(op, currentBlock());
+        return _delete(op, BlockNumber.wrap(uint32(block.number)));
     }
 
     function setUp() public {
-        expiresAt = currentBlock() + BlockNumber.wrap(1000);
+        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber, currentBlock} from "../../src/types/BlockNumber.sol";
+import {BlockNumber} from "../../src/types/BlockNumber.sol";
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../utils/Lib.sol";
 import {Entity} from "../../src/Entity.sol";
@@ -52,7 +52,7 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](1);
         attrs[0] = Lib.uintAttr("count", 42);
-        Entity.Operation memory op = Lib.createOp("hello", textPlain, attrs, currentBlock() + BlockNumber.wrap(1000));
+        Entity.Operation memory op = Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000));
 
         (bytes32 coreHash_,) = this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
         bytes32 expected = this.doCoreHash(key, alice, current, textPlain, "hello", attrs);
@@ -69,7 +69,7 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         BlockNumber current = BlockNumber.wrap(100);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory op = Lib.createOp("hello", textPlain, attrs, currentBlock() + BlockNumber.wrap(1000));
+        Entity.Operation memory op = Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000));
 
         (bytes32 coreHash_, bytes32 entityHash_) =
             this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
@@ -89,7 +89,7 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         BlockNumber current = BlockNumber.wrap(100);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory op = Lib.createOp("hello", textPlain, attrs, currentBlock() + BlockNumber.wrap(1000));
+        Entity.Operation memory op = Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000));
 
         (bytes32 coreA, bytes32 entityA) =
             this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
@@ -107,7 +107,7 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
     function test_differentPayload_differs() public {
         bytes32 key = keccak256("key");
         BlockNumber current = BlockNumber.wrap(100);
-        BlockNumber expiry = currentBlock() + BlockNumber.wrap(1000);
+        BlockNumber expiry = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         Entity.Operation memory opA = Lib.createOp("hello", textPlain, attrs, expiry);
@@ -141,7 +141,7 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
     function test_differentAttributes_coreHashDiffers() public {
         bytes32 key = keccak256("key");
         BlockNumber current = BlockNumber.wrap(100);
-        BlockNumber expiry = currentBlock() + BlockNumber.wrap(1000);
+        BlockNumber expiry = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
 
         Entity.Attribute[] memory attrsA = new Entity.Attribute[](1);
         attrsA[0] = Lib.uintAttr("count", 1);

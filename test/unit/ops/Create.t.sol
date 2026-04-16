@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber, currentBlock} from "../../../src/types/BlockNumber.sol";
+import {BlockNumber} from "../../../src/types/BlockNumber.sol";
 import {Test, Vm} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {Entity} from "../../../src/Entity.sol";
@@ -37,11 +37,11 @@ contract CreateTest is Test, EntityRegistry {
     }
 
     function doCreate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _create(op, currentBlock());
+        return _create(op, BlockNumber.wrap(uint32(block.number)));
     }
 
     function setUp() public {
-        expiresAt = currentBlock() + BlockNumber.wrap(1000);
+        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
     }
 
     function _defaultOp() internal view returns (Entity.Operation memory) {
@@ -55,10 +55,10 @@ contract CreateTest is Test, EntityRegistry {
 
     function test_create_expiryEqualToCurrentBlock_reverts() public {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, currentBlock());
+        Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, BlockNumber.wrap(uint32(block.number)));
 
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(Entity.ExpiryInPast.selector, currentBlock(), currentBlock()));
+        vm.expectRevert(abi.encodeWithSelector(Entity.ExpiryInPast.selector, BlockNumber.wrap(uint32(block.number)), BlockNumber.wrap(uint32(block.number))));
         this.doCreate(op);
     }
 
@@ -70,14 +70,14 @@ contract CreateTest is Test, EntityRegistry {
         Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, pastBlock);
 
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(Entity.ExpiryInPast.selector, pastBlock, currentBlock()));
+        vm.expectRevert(abi.encodeWithSelector(Entity.ExpiryInPast.selector, pastBlock, BlockNumber.wrap(uint32(block.number))));
         this.doCreate(op);
     }
 
     function test_create_expiryOneBlockAhead_succeeds() public {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         Entity.Operation memory op =
-            Lib.createOp("hello", encodeMime128("text/plain"), attrs, currentBlock() + BlockNumber.wrap(1));
+            Lib.createOp("hello", encodeMime128("text/plain"), attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1));
 
         vm.prank(alice);
         (bytes32 key,) = this.doCreate(op);
