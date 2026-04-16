@@ -4,35 +4,35 @@ pragma solidity ^0.8.28;
 type Ident32 is bytes32;
 
 using {
-    Ident32_eq as ==,
-    Ident32_neq as !=,
-    Ident32_lt as <,
-    Ident32_lte as <=,
-    Ident32_gt as >,
-    Ident32_gte as >=
+    ident32Eq as ==,
+    ident32Neq as !=,
+    ident32Lt as <,
+    ident32Lte as <=,
+    ident32Gt as >,
+    ident32Gte as >=
 } for Ident32 global;
 
-function Ident32_eq(Ident32 a, Ident32 b) pure returns (bool) {
+function ident32Eq(Ident32 a, Ident32 b) pure returns (bool) {
     return Ident32.unwrap(a) == Ident32.unwrap(b);
 }
 
-function Ident32_neq(Ident32 a, Ident32 b) pure returns (bool) {
+function ident32Neq(Ident32 a, Ident32 b) pure returns (bool) {
     return Ident32.unwrap(a) != Ident32.unwrap(b);
 }
 
-function Ident32_lt(Ident32 a, Ident32 b) pure returns (bool) {
+function ident32Lt(Ident32 a, Ident32 b) pure returns (bool) {
     return Ident32.unwrap(a) < Ident32.unwrap(b);
 }
 
-function Ident32_lte(Ident32 a, Ident32 b) pure returns (bool) {
+function ident32Lte(Ident32 a, Ident32 b) pure returns (bool) {
     return Ident32.unwrap(a) <= Ident32.unwrap(b);
 }
 
-function Ident32_gt(Ident32 a, Ident32 b) pure returns (bool) {
+function ident32Gt(Ident32 a, Ident32 b) pure returns (bool) {
     return Ident32.unwrap(a) > Ident32.unwrap(b);
 }
 
-function Ident32_gte(Ident32 a, Ident32 b) pure returns (bool) {
+function ident32Gte(Ident32 a, Ident32 b) pure returns (bool) {
     return Ident32.unwrap(a) >= Ident32.unwrap(b);
 }
 
