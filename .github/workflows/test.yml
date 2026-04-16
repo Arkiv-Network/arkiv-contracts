@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -9,11 +10,8 @@ env:
   FOUNDRY_PROFILE: ci
 
 jobs:
-  check:
-    strategy:
-      fail-fast: true
-
-    name: Foundry project
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,31 +23,66 @@ jobs:
         with:
           version: nightly
 
-      - name: Show Forge version
-        run: |
-          forge --version
+      - name: Check formatting
+        run: forge fmt --check
 
-      - name: Run Forge fmt
-        run: |
-          forge fmt --check
-        id: fmt
+      - name: Lint
+        run: forge lint
 
-      - name: Run Forge build
-        run: |
-          forge build --sizes
-        id: build
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: Run Forge tests
-        run: |
-          forge test -vvv
-        id: test
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
 
-      - name: Run Forge coverage
-        run: |
-          forge coverage --exclude-tests
-        id: coverage
+      - name: Build
+        run: forge build --sizes
 
-      - name: Run gas report
-        run: |
-          forge test --gas-report
-        id: gas-report
+      - name: Test
+        run: forge test -vvv
+
+  # coverage:
+  #   name: Coverage
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         submodules: recursive
+  #
+  #     - name: Install Foundry
+  #       uses: foundry-rs/foundry-toolchain@v1
+  #       with:
+  #         version: nightly
+  #
+  #     - name: Generate coverage
+  #       run: forge coverage --exclude-tests --report lcov
+  #
+  #     - name: Upload to Codecov
+  #       uses: codecov/codecov-action@v5
+  #       with:
+  #         files: ./lcov.info
+  #         fail_ci_if_error: true
+  #         token: ${{ secrets.CODECOV_TOKEN }}
+
+  gas-report:
+    name: Gas Report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Gas report
+        run: forge test --gas-report
