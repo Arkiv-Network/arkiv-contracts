@@ -46,4 +46,6 @@ gas_reports = ["*"]
 # Lint — suppress warnings that are safe in this codebase.
 # ──────────────────────────────────────────────────────────────
 [lint]
+# TODO: benchmark asm keccak256 vs abi.encode — replace if gas savings are meaningful
+exclude_lints = ["asm-keccak256"]
 ignore = ["./test/**/*.sol"]
