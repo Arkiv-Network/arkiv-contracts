@@ -41,3 +41,9 @@ optimizer_runs = 10_000
 via_ir = true
 
 gas_reports = ["*"]
+
+# ──────────────────────────────────────────────────────────────
+# Lint — suppress warnings that are safe in this codebase.
+# ──────────────────────────────────────────────────────────────
+[lint]
+ignore = ["./test/**/*.sol"]
