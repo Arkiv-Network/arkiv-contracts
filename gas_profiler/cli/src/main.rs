@@ -22,9 +22,6 @@ fn main() -> Result<()> {
 
     // 6. Render.
     report::print_report(&report);
-    report::write_json(&report, "gas-report.json")?;
-    println!();
-    println!("Wrote gas-report.json");
 
     Ok(())
 }
