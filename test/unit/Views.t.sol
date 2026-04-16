@@ -20,7 +20,7 @@ contract ViewsTest is Test {
 
     function setUp() public {
         registry = new EntityRegistry();
-        deployBlock = currentBlock();
+        deployBlock = registry.genesisBlock();
         expiresAt = currentBlock() + BlockNumber.wrap(1000);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);

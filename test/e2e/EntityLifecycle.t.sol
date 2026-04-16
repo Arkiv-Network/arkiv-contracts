@@ -107,12 +107,12 @@ contract EntityLifecycleTest is Test {
         assertEq(registry.nonces(alice), 2);
 
         // Both ops recorded in the same tx.
-        BlockNumber current = currentBlock();
-        assertEq(registry.txOpCount(current, 0), 2);
+        BlockNumber head = registry.headBlock();
+        assertEq(registry.txOpCount(head, 0), 2);
 
         // Per-op snapshots differ.
-        bytes32 snap0 = registry.changeSetHashAtOp(current, 0, 0);
-        bytes32 snap1 = registry.changeSetHashAtOp(current, 0, 1);
+        bytes32 snap0 = registry.changeSetHashAtOp(head, 0, 0);
+        bytes32 snap1 = registry.changeSetHashAtOp(head, 0, 1);
         assertTrue(snap0 != bytes32(0));
         assertTrue(snap1 != bytes32(0));
         assertNotEq(snap0, snap1);

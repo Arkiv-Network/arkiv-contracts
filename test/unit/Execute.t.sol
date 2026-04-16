@@ -125,14 +125,14 @@ contract ExecuteTest is Test, EntityRegistry {
         ops[2] = _op(Entity.DELETE);
         this.execute(ops);
 
-        BlockNumber current = currentBlock();
+        BlockNumber head = headBlock();
         bytes32 chain0 = Entity.chainOperationHash(bytes32(0), Entity.CREATE, k0, h0);
         bytes32 chain1 = Entity.chainOperationHash(chain0, Entity.UPDATE, k1, h1);
         bytes32 chain2 = Entity.chainOperationHash(chain1, Entity.DELETE, k2, h2);
 
-        assertEq(changeSetHashAtOp(current, 0, 0), chain0);
-        assertEq(changeSetHashAtOp(current, 0, 1), chain1);
-        assertEq(changeSetHashAtOp(current, 0, 2), chain2);
+        assertEq(changeSetHashAtOp(head, 0, 0), chain0);
+        assertEq(changeSetHashAtOp(head, 0, 1), chain1);
+        assertEq(changeSetHashAtOp(head, 0, 2), chain2);
     }
 
     // =========================================================================
@@ -147,7 +147,7 @@ contract ExecuteTest is Test, EntityRegistry {
         ops[2] = _op(Entity.DELETE);
         this.execute(ops);
 
-        assertEq(txOpCount(currentBlock(), 0), 3);
+        assertEq(txOpCount(headBlock(), 0), 3);
     }
 
     function test_execute_singleOp_txOpCountIsOne() public {
@@ -156,7 +156,7 @@ contract ExecuteTest is Test, EntityRegistry {
         ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 
-        assertEq(txOpCount(currentBlock(), 0), 1);
+        assertEq(txOpCount(headBlock(), 0), 1);
     }
 
     // =========================================================================
@@ -200,7 +200,7 @@ contract ExecuteTest is Test, EntityRegistry {
         ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 
-        Entity.BlockNode memory node = getBlockNode(currentBlock());
+        Entity.BlockNode memory node = getBlockNode(headBlock());
         assertEq(node.txCount, 1);
     }
 
@@ -216,19 +216,18 @@ contract ExecuteTest is Test, EntityRegistry {
         ops1[0] = _op(Entity.CREATE);
         this.execute(ops1);
 
-        assertEq(getBlockNode(currentBlock()).txCount, 1);
+        assertEq(getBlockNode(headBlock()).txCount, 1);
 
         _pushStubs(1);
         Entity.Operation[] memory ops2 = new Entity.Operation[](1);
         ops2[0] = _op(Entity.CREATE);
         this.execute(ops2);
 
-        assertEq(getBlockNode(currentBlock()).txCount, 2);
+        assertEq(getBlockNode(headBlock()).txCount, 2);
     }
 
     function test_execute_sameBlock_secondTx_correctOpCounts() public {
         vm.roll(block.number + 10);
-        BlockNumber current = currentBlock();
 
         // First tx — 2 ops.
         _pushStubs(2);
@@ -243,8 +242,9 @@ contract ExecuteTest is Test, EntityRegistry {
         ops2[0] = _op(Entity.DELETE);
         this.execute(ops2);
 
-        assertEq(txOpCount(current, 0), 2);
-        assertEq(txOpCount(current, 1), 1);
+        BlockNumber head = headBlock();
+        assertEq(txOpCount(head, 0), 2);
+        assertEq(txOpCount(head, 1), 1);
     }
 
     function test_execute_sameBlock_hashChainContinuesAcrossTxs() public {
@@ -346,7 +346,6 @@ contract ExecuteTest is Test, EntityRegistry {
 
     function test_changeSetHashAtBlock_returnsLastOpHash() public {
         vm.roll(block.number + 10);
-        BlockNumber current = currentBlock();
 
         _pushStubs(3);
         bytes32 k0 = _stubKeys[0];
@@ -366,12 +365,11 @@ contract ExecuteTest is Test, EntityRegistry {
         bytes32 chain1 = Entity.chainOperationHash(chain0, Entity.UPDATE, k1, h1);
         bytes32 chain2 = Entity.chainOperationHash(chain1, Entity.DELETE, k2, h2);
 
-        assertEq(changeSetHashAtBlock(current), chain2);
+        assertEq(changeSetHashAtBlock(headBlock()), chain2);
     }
 
     function test_changeSetHashAtTx_returnsLastOpHashOfEachTx() public {
         vm.roll(block.number + 10);
-        BlockNumber current = currentBlock();
 
         // tx0: 2 ops.
         _pushStubs(2);
@@ -394,10 +392,11 @@ contract ExecuteTest is Test, EntityRegistry {
 
         bytes32 chain0 = Entity.chainOperationHash(bytes32(0), Entity.CREATE, tx0k0, tx0h0);
         bytes32 chain1 = Entity.chainOperationHash(chain0, Entity.UPDATE, tx0k1, tx0h1);
-        assertEq(changeSetHashAtTx(current, 0), chain1);
+        BlockNumber head = headBlock();
+        assertEq(changeSetHashAtTx(head, 0), chain1);
 
         bytes32 chain2 = Entity.chainOperationHash(chain1, Entity.DELETE, tx1k0, tx1h0);
-        assertEq(changeSetHashAtTx(current, 1), chain2);
+        assertEq(changeSetHashAtTx(head, 1), chain2);
     }
 
     function test_changeSetHashAtBlock_uninitializedBlock_returnsZero() public view {
