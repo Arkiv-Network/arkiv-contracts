@@ -13,7 +13,7 @@ import {validateMime128} from "./types/Mime128.sol";
 contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     constructor() {
         BlockNumber genesis = BlockNumber.wrap(uint32(block.number));
-        _genesisBlock = genesis;
+        GENESIS_BLOCK = genesis;
         _headBlock = genesis;
     }
 
@@ -68,7 +68,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // State — block chain pointers
     // -------------------------------------------------------------------------
 
-    BlockNumber internal immutable _genesisBlock;
+    BlockNumber internal immutable GENESIS_BLOCK;
     BlockNumber internal _headBlock;
 
     // -------------------------------------------------------------------------
@@ -144,7 +144,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     }
 
     function genesisBlock() public view returns (BlockNumber) {
-        return _genesisBlock;
+        return GENESIS_BLOCK;
     }
 
     function headBlock() public view returns (BlockNumber) {
