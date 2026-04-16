@@ -131,13 +131,13 @@ contract EntityLifecycleTest is Test {
         // Block 1: create.
         _exec(alice, Lib.createOp("hello", textPlain, attrs, expiresAt));
         bytes32 key = registry.entityKey(alice, 0);
-        BlockNumber block1 = currentBlock();
+        BlockNumber block1 = registry.headBlock();
         bytes32 hashBlock1 = registry.changeSetHash();
 
         // Block 2: update.
         vm.roll(block.number + 5);
         _exec(alice, Lib.updateOp(key, "updated", textPlain, attrs));
-        BlockNumber block2 = currentBlock();
+        BlockNumber block2 = registry.headBlock();
         bytes32 hashBlock2 = registry.changeSetHash();
 
         // Chain advanced.

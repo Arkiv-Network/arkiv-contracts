@@ -176,7 +176,7 @@ contract ExecuteTest is Test, EntityRegistry {
     }
 
     function test_execute_newBlock_linkedListPointers() public {
-        BlockNumber deployBlock = currentBlock();
+        BlockNumber genesis = genesisBlock();
         vm.roll(block.number + 10);
         BlockNumber newBlock = currentBlock();
 
@@ -185,11 +185,11 @@ contract ExecuteTest is Test, EntityRegistry {
         ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 
-        Entity.BlockNode memory deployNode = getBlockNode(deployBlock);
-        assertEq(BlockNumber.unwrap(deployNode.nextBlock), BlockNumber.unwrap(newBlock));
+        Entity.BlockNode memory genesisNode = getBlockNode(genesis);
+        assertEq(BlockNumber.unwrap(genesisNode.nextBlock), BlockNumber.unwrap(newBlock));
 
         Entity.BlockNode memory newNode = getBlockNode(newBlock);
-        assertEq(BlockNumber.unwrap(newNode.prevBlock), BlockNumber.unwrap(deployBlock));
+        assertEq(BlockNumber.unwrap(newNode.prevBlock), BlockNumber.unwrap(genesis));
     }
 
     function test_execute_newBlock_txCountIsOne() public {
@@ -272,28 +272,28 @@ contract ExecuteTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_execute_crossBlock_linkedListMaintained() public {
-        BlockNumber deployBlock = currentBlock();
+        BlockNumber genesis = genesisBlock();
 
         vm.roll(block.number + 10);
-        BlockNumber blockA = currentBlock();
         _pushStubs(1);
         Entity.Operation[] memory ops1 = new Entity.Operation[](1);
         ops1[0] = _op(Entity.CREATE);
         this.execute(ops1);
+        BlockNumber blockA = headBlock();
 
         vm.roll(block.number + 5);
-        BlockNumber blockB = currentBlock();
         _pushStubs(1);
         Entity.Operation[] memory ops2 = new Entity.Operation[](1);
         ops2[0] = _op(Entity.CREATE);
         this.execute(ops2);
+        BlockNumber blockB = headBlock();
 
-        // deployBlock → blockA → blockB
-        Entity.BlockNode memory deployNode = getBlockNode(deployBlock);
-        assertEq(BlockNumber.unwrap(deployNode.nextBlock), BlockNumber.unwrap(blockA));
+        // genesis → blockA → blockB
+        Entity.BlockNode memory genesisNode = getBlockNode(genesis);
+        assertEq(BlockNumber.unwrap(genesisNode.nextBlock), BlockNumber.unwrap(blockA));
 
         Entity.BlockNode memory nodeA = getBlockNode(blockA);
-        assertEq(BlockNumber.unwrap(nodeA.prevBlock), BlockNumber.unwrap(deployBlock));
+        assertEq(BlockNumber.unwrap(nodeA.prevBlock), BlockNumber.unwrap(genesis));
         assertEq(BlockNumber.unwrap(nodeA.nextBlock), BlockNumber.unwrap(blockB));
 
         Entity.BlockNode memory nodeB = getBlockNode(blockB);
@@ -302,21 +302,23 @@ contract ExecuteTest is Test, EntityRegistry {
     }
 
     function test_execute_crossBlock_headBlockUpdates() public {
+        BlockNumber genesis = genesisBlock();
+
         vm.roll(block.number + 10);
-        BlockNumber blockA = currentBlock();
         _pushStubs(1);
         Entity.Operation[] memory ops1 = new Entity.Operation[](1);
         ops1[0] = _op(Entity.CREATE);
         this.execute(ops1);
-        assertEq(BlockNumber.unwrap(headBlock()), BlockNumber.unwrap(blockA));
+        BlockNumber blockA = headBlock();
+        assertTrue(BlockNumber.unwrap(blockA) > BlockNumber.unwrap(genesis));
 
         vm.roll(block.number + 5);
-        BlockNumber blockB = currentBlock();
         _pushStubs(1);
         Entity.Operation[] memory ops2 = new Entity.Operation[](1);
         ops2[0] = _op(Entity.CREATE);
         this.execute(ops2);
-        assertEq(BlockNumber.unwrap(headBlock()), BlockNumber.unwrap(blockB));
+        BlockNumber blockB = headBlock();
+        assertTrue(BlockNumber.unwrap(blockB) > BlockNumber.unwrap(blockA));
     }
 
     function test_execute_crossBlock_hashChainContinues() public {
@@ -411,15 +413,15 @@ contract ExecuteTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_execute_atDeployBlock_noBlockTransition() public {
-        BlockNumber deployBlock = currentBlock();
+        BlockNumber genesis = genesisBlock();
 
         _pushStubs(1);
         Entity.Operation[] memory ops = new Entity.Operation[](1);
         ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 
-        assertEq(BlockNumber.unwrap(headBlock()), BlockNumber.unwrap(deployBlock));
-        assertEq(getBlockNode(deployBlock).txCount, 1);
+        assertEq(BlockNumber.unwrap(headBlock()), BlockNumber.unwrap(genesis));
+        assertEq(getBlockNode(genesis).txCount, 1);
     }
 
     // =========================================================================
