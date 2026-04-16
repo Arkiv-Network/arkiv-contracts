@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.28;
 
 /// @dev 128-byte MIME type descriptor. Fits types with parameters like
 /// "text/plain; charset=utf-8". Wraps bytes32[4] for compile-time type safety.

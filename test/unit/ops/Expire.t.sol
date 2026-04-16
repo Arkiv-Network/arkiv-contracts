@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.28;
 
 import {BlockNumber, currentBlock} from "../../../src/types/BlockNumber.sol";
 import {Test, Vm} from "forge-std/Test.sol";
