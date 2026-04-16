@@ -52,7 +52,8 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](1);
         attrs[0] = Lib.uintAttr("count", 42);
-        Entity.Operation memory op = Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000));
+        Entity.Operation memory op =
+            Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000));
 
         (bytes32 coreHash_,) = this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
         bytes32 expected = this.doCoreHash(key, alice, current, textPlain, "hello", attrs);
@@ -69,7 +70,8 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         BlockNumber current = BlockNumber.wrap(100);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory op = Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000));
+        Entity.Operation memory op =
+            Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000));
 
         (bytes32 coreHash_, bytes32 entityHash_) =
             this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
@@ -89,7 +91,8 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         BlockNumber current = BlockNumber.wrap(100);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory op = Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000));
+        Entity.Operation memory op =
+            Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000));
 
         (bytes32 coreA, bytes32 entityA) =
             this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);

@@ -55,10 +55,17 @@ contract CreateTest is Test, EntityRegistry {
 
     function test_create_expiryEqualToCurrentBlock_reverts() public {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, BlockNumber.wrap(uint32(block.number)));
+        Entity.Operation memory op =
+            Lib.createOp("hello", encodeMime128("text/plain"), attrs, BlockNumber.wrap(uint32(block.number)));
 
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(Entity.ExpiryInPast.selector, BlockNumber.wrap(uint32(block.number)), BlockNumber.wrap(uint32(block.number))));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Entity.ExpiryInPast.selector,
+                BlockNumber.wrap(uint32(block.number)),
+                BlockNumber.wrap(uint32(block.number))
+            )
+        );
         this.doCreate(op);
     }
 
@@ -70,14 +77,17 @@ contract CreateTest is Test, EntityRegistry {
         Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, pastBlock);
 
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(Entity.ExpiryInPast.selector, pastBlock, BlockNumber.wrap(uint32(block.number))));
+        vm.expectRevert(
+            abi.encodeWithSelector(Entity.ExpiryInPast.selector, pastBlock, BlockNumber.wrap(uint32(block.number)))
+        );
         this.doCreate(op);
     }
 
     function test_create_expiryOneBlockAhead_succeeds() public {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory op =
-            Lib.createOp("hello", encodeMime128("text/plain"), attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1));
+        Entity.Operation memory op = Lib.createOp(
+            "hello", encodeMime128("text/plain"), attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1)
+        );
 
         vm.prank(alice);
         (bytes32 key,) = this.doCreate(op);
