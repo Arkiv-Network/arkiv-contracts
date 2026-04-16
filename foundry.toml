@@ -1,13 +1,43 @@
+# ──────────────────────────────────────────────────────────────
+# Default — everyday local development. Fast compile, basic fuzz.
+# ──────────────────────────────────────────────────────────────
 [profile.default]
 src = "src"
 out = "out"
 libs = ["lib"]
 test = "test"
 solc_version = "0.8.28"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+via_ir = false
 
-gas_reports = [
-    "EntityRegistry",
-]
+fuzz = { runs = 256 }
+invariant = { runs = 256, depth = 128 }
 
+gas_reports = ["EntityRegistry"]
+
+# ──────────────────────────────────────────────────────────────
+# CI — thorough testing on every push / PR. More fuzz runs,
+# deeper invariant exploration, full optimisation pipeline.
+# Activated via FOUNDRY_PROFILE=ci in GitHub Actions.
+# ──────────────────────────────────────────────────────────────
 [profile.ci]
-fuzz = { runs = 1000 }
+optimizer_runs = 10_000
+via_ir = true
+
+fuzz = { runs = 5_000, max_test_rejects = 150_000 }
+invariant = { runs = 500, depth = 512 }
+
+gas_reports = ["EntityRegistry"]
+
+# ──────────────────────────────────────────────────────────────
+# Production — deployment builds. Maximum optimisation, matches
+# the bytecode that will be verified on-chain.
+# Activated via FOUNDRY_PROFILE=prod (e.g. forge script --profile prod).
+# ──────────────────────────────────────────────────────────────
+[profile.prod]
+optimizer_runs = 10_000
+via_ir = true
+
+gas_reports = ["*"]

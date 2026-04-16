@@ -26,6 +26,7 @@
             solc
             python3
             vscode-solidity-server
+            just
           ];
         };
       };
