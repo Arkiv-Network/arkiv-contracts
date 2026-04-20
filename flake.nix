@@ -27,6 +27,15 @@
             python3
             vscode-solidity-server
             just
+
+            # Rust
+            cargo
+            rustc
+            rust-analyzer
+            clippy
+            rustfmt
+            pkg-config
+            openssl
           ];
         };
       };
