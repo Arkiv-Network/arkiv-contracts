@@ -14,6 +14,9 @@ __pycache__/
 # Dotenv file
 .env
 
+# Rust
+target/
+
 # Mac
 .DS_Store
 
