@@ -21,6 +21,16 @@
       imports = [inputs.devshell.flakeModule];
       perSystem = {pkgs, ...}: {
         devshells.default = {
+          env = [
+            {
+              name = "LIBCLANG_PATH";
+              value = "${pkgs.llvmPackages.libclang.lib}/lib";
+            }
+            {
+              name = "BINDGEN_EXTRA_CLANG_ARGS";
+              value = "-isystem ${pkgs.glibc.dev}/include";
+            }
+          ];
           packages = with pkgs; [
             foundry
             solc
@@ -28,15 +38,18 @@
             vscode-solidity-server
             just
 
-            # Rust
+            # Rust + native build deps
             cargo
             rustc
             rust-analyzer
             clippy
             rustfmt
             gcc
+            gnumake
             pkg-config
             openssl
+            llvmPackages.libclang
+            glibc.dev
           ];
         };
       };
