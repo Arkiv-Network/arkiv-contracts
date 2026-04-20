@@ -1,0 +1,11 @@
+[package]
+name = "arkiv-store"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+alloy-primitives.workspace = true
+eyre.workspace = true
+tracing.workspace = true
