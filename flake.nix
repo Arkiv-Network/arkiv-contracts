@@ -49,6 +49,7 @@
             pkg-config
             openssl
             llvmPackages.libclang
+            mold
             glibc.dev
           ];
         };

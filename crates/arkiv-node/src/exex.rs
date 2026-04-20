@@ -14,7 +14,7 @@ pub async fn arkiv_exex<Node: FullNodeComponents>(
     mut ctx: ExExContext<Node>,
     _store: Arc<dyn Storage>,
 ) -> Result<()> {
-    info!("arkiv-exex starting");
+    info!("arkiv-exex starting - 123");
 
     while let Some(notification) = ctx.notifications.try_next().await? {
         // Process committed chain if present
