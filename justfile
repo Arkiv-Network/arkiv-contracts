@@ -76,12 +76,20 @@ ci: fmt-check lint build-sizes test-ci coverage
 
 # ── Rust / Node ──────────────────────────────────────────────
 
+# Generate genesis.json with EntityRegistry predeployed
+gen-genesis:
+    ./script/gen-genesis.sh genesis.json
+
 # Run arkiv-node in dev mode with datadir in a temporary directory
 node-dev:
     #!/usr/bin/env bash
     set -e
     TMPDIR=$(mktemp -d)
+    CHAIN_FLAG=""
+    if [ -f genesis.json ]; then
+        CHAIN_FLAG="--chain genesis.json"
+    fi
     echo "Starting arkiv-node in dev mode with datadir: $TMPDIR"
-    cargo run -p arkiv-node -- node --dev --datadir "$TMPDIR" --dev.block-time 2s --http -vvv --log.file.directory "$TMPDIR/logs"
+    cargo run -p arkiv-node -- node --dev $CHAIN_FLAG --datadir "$TMPDIR" --dev.block-time 2s --http -vvv --log.file.directory "$TMPDIR/logs"
     echo "Cleaning up $TMPDIR"
     rm -rf "$TMPDIR"
