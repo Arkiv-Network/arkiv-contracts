@@ -17,7 +17,7 @@ fn main() -> eyre::Result<()> {
                 let store = store.clone();
                 future::ok(exex::arkiv_exex(ctx, store))
             })
-            .launch()
+            .launch_with_debug_capabilities()
             .await?;
 
         handle.wait_for_node_exit().await

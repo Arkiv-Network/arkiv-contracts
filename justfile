@@ -73,3 +73,15 @@ gas-ci:
 
 # Run the full CI pipeline locally
 ci: fmt-check lint build-sizes test-ci coverage
+
+# ── Rust / Node ──────────────────────────────────────────────
+
+# Run arkiv-node in dev mode with datadir in a temporary directory
+node-dev:
+    #!/usr/bin/env bash
+    set -e
+    TMPDIR=$(mktemp -d)
+    echo "Starting arkiv-node in dev mode with datadir: $TMPDIR"
+    cargo run -p arkiv-node -- node --dev --datadir "$TMPDIR" --dev.block-time 2s --http -vvv --log.file.directory "$TMPDIR/logs"
+    echo "Cleaning up $TMPDIR"
+    rm -rf "$TMPDIR"
