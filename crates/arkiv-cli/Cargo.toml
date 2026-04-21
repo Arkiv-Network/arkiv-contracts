@@ -25,3 +25,4 @@ eyre.workspace = true
 tokio.workspace = true
 rand = "0.9"
 hex.workspace = true
+humantime = "2"

@@ -8,6 +8,7 @@ use arkiv_bindings::*;
 use clap::{Parser, Subcommand};
 use eyre::Result;
 use rand::Rng;
+use std::time::Duration;
 
 /// CLI for submitting EntityRegistry operations.
 #[derive(Parser)]
@@ -26,6 +27,10 @@ struct Cli {
     #[arg(long, default_value = "0x4200000000000000000000000000000000000042")]
     registry: Address,
 
+    /// Assumed block time for duration-to-block conversion (e.g. "2s").
+    #[arg(long, default_value = "2s", value_parser = humantime::parse_duration)]
+    block_time: Duration,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -42,9 +47,9 @@ enum Command {
         #[arg(long, default_value = "256")]
         size: usize,
 
-        /// Block number at which the entity expires (must be in the future).
-        #[arg(long, default_value = "1000000")]
-        expires_at: u32,
+        /// How long until the entity expires (e.g. "1h", "30m", "7d").
+        #[arg(long, default_value = "1h", value_parser = humantime::parse_duration)]
+        expires_in: Duration,
     },
 
     /// Update an existing entity with a new random payload.
@@ -68,9 +73,9 @@ enum Command {
         #[arg(long)]
         key: B256,
 
-        /// New expiration block number.
-        #[arg(long)]
-        expires_at: u32,
+        /// How long from now until expiry (e.g. "2h", "1d").
+        #[arg(long, value_parser = humantime::parse_duration)]
+        expires_in: Duration,
     },
 
     /// Transfer entity ownership.
@@ -137,6 +142,13 @@ fn random_payload(size: usize) -> Bytes {
     Bytes::from(buf)
 }
 
+/// Convert a duration from now into an absolute block number.
+async fn expiry_block(provider: &impl Provider, duration: Duration, block_time: Duration) -> Result<u32> {
+    let current = provider.get_block_number().await?;
+    let blocks = duration.as_secs() / block_time.as_secs().max(1);
+    Ok((current + blocks) as u32)
+}
+
 fn build_operation(op_type: u8, key: B256) -> Operation {
     Operation {
         operationType: op_type,
@@ -183,8 +195,9 @@ async fn main() -> Result<()> {
         Command::Create {
             content_type,
             size,
-            expires_at,
+            expires_in,
         } => {
+            let expires_at = expiry_block(&provider, expires_in, cli.block_time).await?;
             let op = Operation {
                 operationType: OP_CREATE,
                 entityKey: B256::ZERO,
@@ -219,7 +232,8 @@ async fn main() -> Result<()> {
             print_events(receipt.inner.logs());
         }
 
-        Command::Extend { key, expires_at } => {
+        Command::Extend { key, expires_in } => {
+            let expires_at = expiry_block(&provider, expires_in, cli.block_time).await?;
             let mut op = build_operation(OP_EXTEND, key);
             op.expiresAt = expires_at;
 
