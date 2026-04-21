@@ -113,6 +113,13 @@ enum Command {
     /// Read the current changeset hash.
     Hash,
 
+    /// Walk the changeset hash chain from head to genesis.
+    History {
+        /// Maximum number of operations to display (default: all).
+        #[arg(long)]
+        depth: Option<u32>,
+    },
+
     /// Check an account's ETH balance.
     Balance {
         /// Address to check. Defaults to the signer's address.
@@ -279,8 +286,57 @@ async fn main() -> Result<()> {
         }
 
         Command::Hash => {
-            let result = registry.changeSetHash().call().await?;
-            println!("{}", B256::from(result.0));
+            let hash = registry.changeSetHash().call().await?;
+            println!("{hash}");
+        }
+
+        Command::History { depth } => {
+            let head = registry.headBlock().call().await?;
+            let genesis = registry.genesisBlock().call().await?;
+
+            if head == genesis {
+                let node = registry.getBlockNode(head).call().await?;
+                if node.txCount == 0 {
+                    println!("No operations recorded.");
+                    return Ok(());
+                }
+            }
+
+            // Collect blocks from head back to genesis
+            let mut block_num = head;
+            let mut blocks = Vec::new();
+            loop {
+                let node = registry.getBlockNode(block_num).call().await?;
+                let prev = node.prevBlock;
+                if node.txCount > 0 {
+                    blocks.push((block_num, node));
+                }
+                if block_num == genesis || prev == 0 {
+                    break;
+                }
+                block_num = prev;
+            }
+
+            // Print chronologically, respecting depth limit on ops
+            blocks.reverse();
+            let max_ops = depth.unwrap_or(u32::MAX);
+            let mut op_count_total: u32 = 0;
+
+            'outer: for (block_num, node) in &blocks {
+                println!("block {}", block_num);
+                for tx_seq in 0..node.txCount {
+                    let op_count = registry.txOpCount(*block_num, tx_seq).call().await?;
+                    println!("  tx {}", tx_seq);
+                    for op_seq in 0..op_count {
+                        if op_count_total >= max_ops {
+                            break 'outer;
+                        }
+                        let hash = registry.changeSetHashAtOp(*block_num, tx_seq, op_seq).call().await?;
+                        println!("    op {} -> {}", op_seq, hash);
+                        op_count_total += 1;
+                    }
+                }
+            }
         }
 
         Command::Balance { address } => {
