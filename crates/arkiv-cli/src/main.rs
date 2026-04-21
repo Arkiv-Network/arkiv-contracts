@@ -1,6 +1,6 @@
 use alloy_network::EthereumWallet;
-use alloy_primitives::{Address, Bytes, FixedBytes, B256};
-use alloy_provider::ProviderBuilder;
+use alloy_primitives::{Address, Bytes, FixedBytes, B256, U256};
+use alloy_provider::{Provider, ProviderBuilder};
 use alloy_rpc_types::Log as RpcLog;
 use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_types::SolEvent;
@@ -19,7 +19,7 @@ struct Cli {
 
     /// Private key for signing transactions (hex, with or without 0x prefix).
     /// Defaults to the first test mnemonic account.
-    #[arg(long, default_value = "ac0974bec39a17e36ba4a6b4d238ff944bacb478c6b8d6c1f02960247590a993")]
+    #[arg(long, default_value = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")]
     private_key: String,
 
     /// EntityRegistry contract address.
@@ -107,6 +107,13 @@ enum Command {
 
     /// Read the current changeset hash.
     Hash,
+
+    /// Check an account's ETH balance.
+    Balance {
+        /// Address to check. Defaults to the signer's address.
+        #[arg(long)]
+        address: Option<Address>,
+    },
 }
 
 fn encode_mime128(mime: &str) -> Mime128 {
@@ -163,6 +170,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let signer: PrivateKeySigner = cli.private_key.parse()?;
+    let signer_address = signer.address();
     let wallet = EthereumWallet::from(signer);
 
     let provider = ProviderBuilder::new()
@@ -258,7 +266,16 @@ async fn main() -> Result<()> {
 
         Command::Hash => {
             let result = registry.changeSetHash().call().await?;
-            println!("{:?}", result.0);
+            println!("{}", B256::from(result.0));
+        }
+
+        Command::Balance { address } => {
+            let addr = address.unwrap_or(signer_address);
+            let balance = provider.get_balance(addr).await?;
+            let eth = balance / U256::from(10u64).pow(U256::from(18));
+            let remainder = balance % U256::from(10u64).pow(U256::from(18));
+            println!("{addr}");
+            println!("{eth}.{remainder:018} ETH");
         }
     }
 
