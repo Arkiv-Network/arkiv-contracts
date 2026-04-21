@@ -1315,6 +1315,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "arkiv-bindings",
+ "arkiv-genesis",
  "arkiv-store",
  "eyre",
  "futures",

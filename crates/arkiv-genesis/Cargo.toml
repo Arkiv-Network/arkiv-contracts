@@ -6,8 +6,8 @@ rust-version.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "gen-genesis"
-path = "src/bin/gen_genesis.rs"
+name = "print-genesis"
+path = "src/bin/print_genesis.rs"
 
 [dependencies]
 alloy-primitives.workspace = true

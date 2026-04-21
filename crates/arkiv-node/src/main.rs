@@ -1,14 +1,23 @@
 mod decode;
 mod exex;
 
+use arkiv_genesis::{generate_genesis, GenesisConfig};
 use arkiv_store::LoggingStore;
 use futures::future;
+use reth::chainspec::ChainSpec;
 use reth::cli::Cli;
 use reth_node_ethereum::EthereumNode;
 use std::sync::Arc;
 
 fn main() -> eyre::Result<()> {
-    Cli::parse_args().run(|builder, _| async move {
+    Cli::parse_args().run(|mut builder, _| async move {
+        // Generate chain spec from arkiv-genesis with EntityRegistry predeployed.
+        // This overrides whatever --chain was passed on the CLI.
+        let config = GenesisConfig::default();
+        let genesis = generate_genesis(&config)?;
+        let chain_spec = Arc::new(ChainSpec::from(genesis));
+        builder.config_mut().chain = chain_spec;
+
         let store = Arc::new(LoggingStore::new());
 
         let handle = builder

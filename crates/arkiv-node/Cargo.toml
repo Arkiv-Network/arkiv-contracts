@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 arkiv-bindings.workspace = true
+arkiv-genesis.workspace = true
 arkiv-store.workspace = true
 
 reth.workspace = true
