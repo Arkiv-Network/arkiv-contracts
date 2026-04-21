@@ -1297,6 +1297,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "arkiv-genesis"
+version = "0.1.0"
+dependencies = [
+ "alloy-genesis",
+ "alloy-primitives",
+ "eyre",
+ "hex",
+ "revm",
+ "serde_json",
+]
+
+[[package]]
 name = "arkiv-node"
 version = "0.1.0"
 dependencies = [

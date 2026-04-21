@@ -78,7 +78,7 @@ ci: fmt-check lint build-sizes test-ci coverage
 
 # Generate genesis.json with EntityRegistry predeployed
 gen-genesis:
-    ./script/gen-genesis.sh genesis.json
+    cargo run -p arkiv-genesis --bin gen-genesis
 
 # Run arkiv-node in dev mode with datadir in a temporary directory
 node-dev:

@@ -10,6 +10,7 @@ license = "MIT"
 [workspace.dependencies]
 # Internal
 arkiv-bindings = { path = "crates/arkiv-bindings" }
+arkiv-genesis = { path = "crates/arkiv-genesis" }
 arkiv-store = { path = "crates/arkiv-store" }
 
 # Reth
@@ -36,6 +37,7 @@ alloy-genesis = "1.8"
 
 # General
 eyre = "0.6"
+hex = "0.4"
 futures = "0.3"
 futures-util = "0.3"
 tokio = { version = "1", features = ["full"] }
