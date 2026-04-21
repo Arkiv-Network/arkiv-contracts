@@ -1297,6 +1297,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "arkiv-cli"
+version = "0.1.0"
+dependencies = [
+ "alloy-contract",
+ "alloy-network",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-rpc-types",
+ "alloy-signer-local",
+ "alloy-sol-types",
+ "arkiv-bindings",
+ "clap",
+ "eyre",
+ "hex",
+ "rand 0.9.4",
+ "tokio",
+]
+
+[[package]]
 name = "arkiv-genesis"
 version = "0.1.0"
 dependencies = [

@@ -89,3 +89,7 @@ node-dev:
     cargo run -p arkiv-node -- node --dev --datadir "$TMPDIR" --dev.block-time 2s --http -vvv --log.file.directory "$TMPDIR/logs"
     echo "Cleaning up $TMPDIR"
     rm -rf "$TMPDIR"
+
+# Run arkiv-cli commands against the local node
+cli *args:
+    cargo run -p arkiv-cli -- {{ args }}
