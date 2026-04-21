@@ -1,4 +1,3 @@
-mod decode;
 mod exex;
 
 use alloy_primitives::{Address, U256};

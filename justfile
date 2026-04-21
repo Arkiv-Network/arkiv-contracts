@@ -93,3 +93,9 @@ node-dev:
 # Run arkiv-cli commands against the local node
 cli *args:
     cargo run -p arkiv-cli -- {{ args }}
+
+# Loop entity creates (default: 10)
+spam count="10":
+    #!/usr/bin/env bash
+    cargo build -p arkiv-cli
+    for i in $(seq 1 {{count}}); do echo "--- $i/{{count}}"; ./target/debug/arkiv-cli create; done

@@ -5,7 +5,7 @@ use arkiv_bindings::{
     IEntityRegistry::EntityOperation as AbiEntityOperation, ENTITY_REGISTRY_ADDRESS,
     OP_CREATE, OP_UPDATE,
 };
-use arkiv_store::types::{DecodedAttribute, DecodedOperation, EntityRecord};
+use crate::types::{DecodedAttribute, DecodedOperation, EntityRecord};
 use eyre::{bail, Result};
 
 /// Decode calldata + event logs from a transaction.
@@ -17,7 +17,7 @@ pub fn decode_registry_transaction(
     tx_input: &[u8],
     tx_hash: B256,
     receipt_success: bool,
-    receipt_logs: &[reth::primitives::Log],
+    receipt_logs: &[alloy_primitives::Log],
     block_number: u64,
 ) -> Result<Vec<DecodedOperation>> {
     // Only interested in calls to the EntityRegistry
