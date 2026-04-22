@@ -74,26 +74,16 @@ gas-ci:
 # Run the full CI pipeline locally
 ci: fmt-check lint build-sizes test-ci coverage
 
-# ── Rust / Node ──────────────────────────────────────────────
+# ── Rust ─────────────────────────────────────────────────────
 
-# Print the genesis configuration to stdout
-print-genesis:
-    cargo run -p arkiv-genesis --bin print-genesis
+# Build arkiv-bindings
+build-rs:
+    cargo build
 
-# Run arkiv-node in dev mode with datadir in a temporary directory
-node-dev:
-    #!/usr/bin/env bash
-    set -e
-    TMPDIR=$(mktemp -d)
-    echo "Starting arkiv-node in dev mode with datadir: $TMPDIR"
-    cargo run -p arkiv-node -- node --dev --datadir "$TMPDIR" --dev.block-time 2s --http -vvv --log.file.directory "$TMPDIR/logs"
-    echo "Cleaning up $TMPDIR"
-    rm -rf "$TMPDIR"
+# Check arkiv-bindings
+check-rs:
+    cargo check
 
-# Run arkiv-cli commands against the local node
-cli *args:
-    cargo run -p arkiv-cli -- {{ args }}
-
-# Fire off multiple entity creates
-spam count="10":
-    cargo run -p arkiv-cli -- spam --count {{ count }}
+# Run arkiv-bindings tests
+test-rs:
+    cargo test

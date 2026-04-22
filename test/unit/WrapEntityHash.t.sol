@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../src/types/BlockNumber.sol";
+import {BlockNumber} from "../../contracts/types/BlockNumber.sol";
 import {Test} from "forge-std/Test.sol";
-import {Entity} from "../../src/Entity.sol";
-import {EntityRegistry} from "../../src/EntityRegistry.sol";
+import {Entity} from "../../contracts/Entity.sol";
+import {EntityRegistry} from "../../contracts/EntityRegistry.sol";
 
 /// @dev Tests _wrapEntityHash in isolation — verifies domain-wrapped
 /// EIP-712 entity struct hash matches manual computation.

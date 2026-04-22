@@ -2,9 +2,9 @@ use std::{env, fs, path::Path, process::Command};
 
 fn main() {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let project_root = Path::new(&manifest_dir).parent().unwrap().parent().unwrap();
+    let project_root = Path::new(&manifest_dir);
 
-    let src_dir = project_root.join("src");
+    let src_dir = project_root.join("contracts");
     let registry_artifact = project_root.join("out/EntityRegistry.sol/EntityRegistry.json");
     let interface_artifact = project_root.join("out/IEntityRegistry.sol/IEntityRegistry.json");
 

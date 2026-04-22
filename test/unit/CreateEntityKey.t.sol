@@ -2,8 +2,8 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {Entity} from "../../src/Entity.sol";
-import {EntityRegistry} from "../../src/EntityRegistry.sol";
+import {Entity} from "../../contracts/Entity.sol";
+import {EntityRegistry} from "../../contracts/EntityRegistry.sol";
 
 contract CreateEntityKeyTest is Test, EntityRegistry {
     address alice = makeAddr("alice");

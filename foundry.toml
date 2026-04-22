@@ -2,7 +2,7 @@
 # Default — everyday local development. Fast compile, basic fuzz.
 # ──────────────────────────────────────────────────────────────
 [profile.default]
-src = "src"
+src = "contracts"
 out = "out"
 libs = ["lib"]
 test = "test"

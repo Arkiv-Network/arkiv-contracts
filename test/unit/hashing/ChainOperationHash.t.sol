@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {Entity} from "../../../src/Entity.sol";
+import {Entity} from "../../../contracts/Entity.sol";
 
 contract ChainOperationHashTest is Test {
     // -------------------------------------------------------------------------

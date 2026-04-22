@@ -3,9 +3,9 @@ pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
-import {Entity} from "../../../src/Entity.sol";
-import {EntityRegistry} from "../../../src/EntityRegistry.sol";
-import {Ident32, IDENT_CHARSET, IDENT_LEADING} from "../../../src/types/Ident32.sol";
+import {Entity} from "../../../contracts/Entity.sol";
+import {EntityRegistry} from "../../../contracts/EntityRegistry.sol";
+import {Ident32, IDENT_CHARSET, IDENT_LEADING} from "../../../contracts/types/Ident32.sol";
 
 contract AttributeHashTest is Test, EntityRegistry {
     function doAttributeHash(Ident32 prevName, bytes32 chain, Entity.Attribute calldata attr)

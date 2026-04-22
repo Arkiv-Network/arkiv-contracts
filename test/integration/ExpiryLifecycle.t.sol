@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../src/types/BlockNumber.sol";
+import {BlockNumber} from "../../contracts/types/BlockNumber.sol";
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../utils/Lib.sol";
-import {Entity} from "../../src/Entity.sol";
-import {EntityRegistry} from "../../src/EntityRegistry.sol";
-import {encodeMime128} from "../../src/types/Mime128.sol";
+import {Entity} from "../../contracts/Entity.sol";
+import {EntityRegistry} from "../../contracts/EntityRegistry.sol";
+import {encodeMime128} from "../../contracts/types/Mime128.sol";
 
 /// @dev Tests the full expiry lifecycle: extend multiple times, operations
 /// fail once expired, anyone can call expire, entity is removed.

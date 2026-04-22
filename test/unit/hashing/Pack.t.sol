@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../../src/types/BlockNumber.sol";
+import {BlockNumber} from "../../../contracts/types/BlockNumber.sol";
 import {Test} from "forge-std/Test.sol";
-import {Entity, OperationKey, TransactionKey} from "../../../src/Entity.sol";
+import {Entity, OperationKey, TransactionKey} from "../../../contracts/Entity.sol";
 
 contract PackTest is Test {
     // =========================================================================
