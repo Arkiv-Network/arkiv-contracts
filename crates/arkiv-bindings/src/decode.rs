@@ -1,30 +1,32 @@
+//! Decoding of EntityRegistry transactions from calldata and event logs.
+
 use alloy_primitives::{Address, B256};
 use alloy_sol_types::{SolCall, SolEvent};
-use arkiv_bindings::{
-    executeCall, Attribute as AbiAttribute, Mime128, Operation as AbiOperation,
-    IEntityRegistry::EntityOperation as AbiEntityOperation, ENTITY_REGISTRY_ADDRESS,
-    OP_CREATE, OP_UPDATE,
+use crate::{
+    Attribute as AbiAttribute, Mime128, Operation as AbiOperation,
+};
+use crate::IEntityRegistry::{
+    executeCall, EntityOperation as AbiEntityOperation,
 };
 use crate::types::{DecodedAttribute, DecodedOperation, EntityRecord};
+use crate::{OP_CREATE, OP_UPDATE};
 use eyre::{bail, Result};
 
 /// Decode calldata + event logs from a transaction.
 ///
+/// The caller is responsible for filtering to the correct contract address
+/// before calling this function. Pass the registry address to filter logs.
+///
 /// For CREATE/UPDATE operations, decodes both calldata (for payload/attributes)
 /// and logs (for entityKey/entityHash). For other operations, logs alone suffice.
 pub fn decode_registry_transaction(
-    tx_to: Option<Address>,
+    registry_address: Address,
     tx_input: &[u8],
     tx_hash: B256,
     receipt_success: bool,
     receipt_logs: &[alloy_primitives::Log],
     block_number: u64,
 ) -> Result<Vec<DecodedOperation>> {
-    // Only interested in calls to the EntityRegistry
-    if tx_to != Some(ENTITY_REGISTRY_ADDRESS) {
-        return Ok(Vec::new());
-    }
-
     // Skip failed transactions
     if !receipt_success {
         return Ok(Vec::new());
@@ -40,15 +42,12 @@ pub fn decode_registry_transaction(
     // Extract EntityOperation events from logs
     let mut events = Vec::new();
     for log in receipt_logs {
-        if log.address != ENTITY_REGISTRY_ADDRESS {
+        if log.address != registry_address {
             continue;
         }
         match AbiEntityOperation::decode_log_data(&log.data) {
             Ok(evt) => events.push(evt),
-            Err(_) => {
-                // Log doesn't match EntityOperation signature, skip
-                continue;
-            }
+            Err(_) => continue,
         }
     }
 
@@ -95,13 +94,13 @@ fn decode_entity_from_operation(op: &AbiOperation) -> Result<EntityRecord> {
 
     Ok(EntityRecord {
         entity_key: op.entityKey,
-        creator: Address::ZERO, // Set by ExEx from event
-        owner: Address::ZERO,   // Set by ExEx from event
-        created_at: 0,          // Set by ExEx from event
-        updated_at: 0,          // Set by ExEx from event
+        creator: Address::ZERO,
+        owner: Address::ZERO,
+        created_at: 0,
+        updated_at: 0,
         expires_at: op.expiresAt,
-        core_hash: B256::ZERO,  // Computed by ExEx
-        entity_hash: B256::ZERO, // Set by ExEx from event
+        core_hash: B256::ZERO,
+        entity_hash: B256::ZERO,
         payload: Some(op.payload.clone()),
         content_type,
         attributes,
@@ -109,14 +108,13 @@ fn decode_entity_from_operation(op: &AbiOperation) -> Result<EntityRecord> {
 }
 
 /// Decode a Mime128 (4 x bytes32) to a string.
-fn decode_mime128(mime: &Mime128) -> Option<String> {
-    // Concatenate the 4 bytes32 values and find the first null byte
+pub fn decode_mime128(mime: &Mime128) -> Option<String> {
     let mut bytes = Vec::with_capacity(128);
     for b32 in &mime.data {
-        bytes.extend_from_slice(b32.as_ref());
+        let slice = &b32[..];
+        bytes.extend_from_slice(slice);
     }
 
-    // Find null terminator
     if let Some(null_pos) = bytes.iter().position(|b| *b == 0) {
         bytes.truncate(null_pos);
     }
@@ -125,8 +123,7 @@ fn decode_mime128(mime: &Mime128) -> Option<String> {
 }
 
 /// Decode an Attribute from calldata.
-fn decode_attribute(attr: &AbiAttribute) -> Result<DecodedAttribute> {
-    // Decode the name (Ident32 = bytes32)
+pub fn decode_attribute(attr: &AbiAttribute) -> Result<DecodedAttribute> {
     let name = decode_ident32(attr.name)?;
 
     Ok(DecodedAttribute {
@@ -137,9 +134,8 @@ fn decode_attribute(attr: &AbiAttribute) -> Result<DecodedAttribute> {
 }
 
 /// Decode an Ident32 (bytes32 with left-aligned ASCII) to a string.
-fn decode_ident32(ident: B256) -> Result<String> {
+pub fn decode_ident32(ident: B256) -> Result<String> {
     let bytes: &[u8] = ident.as_ref();
-    // Find the first null byte (padding)
     let end = bytes.iter().position(|b| *b == 0).unwrap_or(32);
     String::from_utf8(bytes[..end].to_vec())
         .map_err(|e| eyre::eyre!("invalid UTF-8 in Ident32: {}", e))
@@ -174,7 +170,7 @@ mod tests {
 
     #[test]
     fn decode_ident32_full_length() {
-        let mut bytes = [b'a'; 32];
+        let bytes = [b'a'; 32];
         let ident = B256::from_slice(&bytes);
         let decoded = decode_ident32(ident).unwrap();
         assert_eq!(decoded.len(), 32);

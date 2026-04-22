@@ -1,16 +1,19 @@
 //! Logging storage backend for development debugging.
 
 use alloy_consensus::Transaction;
-use crate::decode::decode_registry_transaction;
-use crate::types;
+use alloy_primitives::Address;
+use arkiv_bindings::decode::decode_registry_transaction;
+use arkiv_bindings::types;
 use crate::{RegistryBlock, RegistryBlockRef, Storage};
 use eyre::Result;
 
-pub struct LoggingStore;
+pub struct LoggingStore {
+    pub registry_address: Address,
+}
 
 impl LoggingStore {
-    pub fn new() -> Self {
-        Self
+    pub fn new(registry_address: Address) -> Self {
+        Self { registry_address }
     }
 }
 
@@ -30,7 +33,7 @@ impl Storage for LoggingStore {
 
             for tx in &block.transactions {
                 match decode_registry_transaction(
-                    tx.transaction.to(),
+                    self.registry_address,
                     tx.transaction.input(),
                     *tx.transaction.tx_hash(),
                     tx.receipt.success,

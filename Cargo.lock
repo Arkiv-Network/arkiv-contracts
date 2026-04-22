@@ -1294,6 +1294,8 @@ dependencies = [
  "alloy-contract",
  "alloy-primitives",
  "alloy-sol-types",
+ "eyre",
+ "serde_json",
 ]
 
 [[package]]
@@ -1322,6 +1324,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-genesis",
  "alloy-primitives",
+ "arkiv-bindings",
  "eyre",
  "hex",
  "revm",

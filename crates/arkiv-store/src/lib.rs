@@ -1,7 +1,5 @@
-pub mod decode;
 pub mod jsonrpc;
 pub mod logging;
-pub mod types;
 
 use alloy_consensus::{EthereumReceipt, EthereumTxEnvelope, TxEip4844};
 use alloy_primitives::{Log, B256};

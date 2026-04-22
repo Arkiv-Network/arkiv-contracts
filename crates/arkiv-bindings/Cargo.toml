@@ -9,6 +9,10 @@ license.workspace = true
 alloy-primitives.workspace = true
 alloy-sol-types.workspace = true
 alloy-contract.workspace = true
+eyre.workspace = true
+
+[build-dependencies]
+serde_json.workspace = true
 
 [dev-dependencies]
 alloy-primitives = { workspace = true, features = ["arbitrary"] }

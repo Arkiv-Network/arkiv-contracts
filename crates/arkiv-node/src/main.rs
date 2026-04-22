@@ -30,7 +30,7 @@ fn main() -> eyre::Result<()> {
         let chain_spec = Arc::new(ChainSpec::from(genesis));
         builder.config_mut().chain = chain_spec;
 
-        let store = Arc::new(LoggingStore::new());
+        let store = Arc::new(LoggingStore::new(arkiv_genesis::ENTITY_REGISTRY_ADDRESS));
 
         let handle = builder
             .node(EthereumNode::default())

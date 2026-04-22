@@ -10,12 +10,10 @@ name = "print-genesis"
 path = "src/bin/print_genesis.rs"
 
 [dependencies]
+arkiv-bindings.workspace = true
 alloy-primitives.workspace = true
 alloy-genesis.workspace = true
 eyre.workspace = true
 hex.workspace = true
 serde_json.workspace = true
 revm = { version = "36.0.0", default-features = false, features = ["std"] }
-
-[build-dependencies]
-serde_json.workspace = true

@@ -1,5 +1,5 @@
 use alloy_consensus::{BlockHeader, EthereumReceipt, Transaction};
-use arkiv_bindings::ENTITY_REGISTRY_ADDRESS;
+use arkiv_genesis::ENTITY_REGISTRY_ADDRESS;
 use arkiv_store::{RegistryBlock, RegistryBlockRef, RegistryTransaction, Storage};
 use eyre::Result;
 use futures_util::TryStreamExt;

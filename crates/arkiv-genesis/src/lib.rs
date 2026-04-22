@@ -1,21 +1,17 @@
 //! Genesis generation for the Arkiv chain.
 //!
-//! Bridges Foundry-compiled contracts and the reth node by:
-//! 1. Embedding EntityRegistry creation bytecode at build time (via build.rs + forge build)
-//! 2. Deploying in revm to produce runtime bytecode with populated immutables
-//! 3. Assembling a complete genesis configuration
+//! Uses creation bytecode from arkiv-bindings (embedded at build time via forge build)
+//! and deploys in revm to produce runtime bytecode with populated immutables.
 
 mod deploy;
 
 use alloy_genesis::{ChainConfig, Genesis, GenesisAccount};
 use alloy_primitives::{Address, U256};
+use arkiv_bindings::ENTITY_REGISTRY_CREATION_CODE;
 use eyre::Result;
 use std::collections::BTreeMap;
 
 use deploy::deploy;
-
-// Embedded at build time by build.rs from the Foundry artifact.
-include!(concat!(env!("OUT_DIR"), "/bytecode.rs"));
 
 /// Default predeploy address for EntityRegistry.
 pub const ENTITY_REGISTRY_ADDRESS: Address =

@@ -4,8 +4,8 @@
 //! Internally decodes raw ExEx data into the typed wire format before sending.
 
 use alloy_consensus::Transaction;
-use crate::decode::decode_registry_transaction;
-use crate::types::DecodedOperation;
+use arkiv_bindings::decode::decode_registry_transaction;
+use arkiv_bindings::types::DecodedOperation;
 use crate::{RegistryBlock, RegistryBlockRef, Storage};
 use alloy_primitives::{Address, Bytes, B256};
 use arkiv_bindings::{
@@ -171,7 +171,7 @@ fn to_wire_operation(op: &DecodedOperation) -> Option<WireOperation> {
     }
 }
 
-fn to_wire_annotations(entity: &crate::types::EntityRecord) -> Vec<WireAnnotation> {
+fn to_wire_annotations(entity: &arkiv_bindings::types::EntityRecord) -> Vec<WireAnnotation> {
     entity
         .attributes
         .iter()
