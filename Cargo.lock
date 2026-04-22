@@ -1342,6 +1342,7 @@ dependencies = [
  "futures-util",
  "reth",
  "reth-ethereum-primitives",
+ "reth-execution-types",
  "reth-exex",
  "reth-node-api",
  "reth-node-ethereum",
@@ -1353,10 +1354,14 @@ dependencies = [
 name = "arkiv-store"
 version = "0.1.0"
 dependencies = [
+ "alloy-consensus",
  "alloy-primitives",
  "alloy-sol-types",
  "arkiv-bindings",
  "eyre",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
  "tracing",
 ]
 
@@ -3891,6 +3896,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tower-service",
+ "webpki-roots 1.0.7",
 ]
 
 [[package]]
@@ -6283,16 +6289,21 @@ dependencies = [
  "http-body",
  "http-body-util",
  "hyper",
+ "hyper-rustls",
  "hyper-util",
  "js-sys",
  "log",
  "percent-encoding",
  "pin-project-lite",
+ "quinn",
+ "rustls",
+ "rustls-pki-types",
  "serde",
  "serde_json",
  "serde_urlencoded",
  "sync_wrapper",
  "tokio",
+ "tokio-rustls",
  "tower",
  "tower-http",
  "tower-service",
@@ -6300,6 +6311,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+ "webpki-roots 1.0.7",
 ]
 
 [[package]]

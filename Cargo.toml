@@ -31,7 +31,7 @@ alloy-signer = "1.8"
 alloy-signer-local = "1.8"
 alloy-network = "1.8"
 alloy-rpc-types = "1.8"
-alloy-consensus = "1.8"
+alloy-consensus = { version = "1.8", features = ["serde"] }
 alloy-contract = "1.8"
 alloy-genesis = "1.8"
 
@@ -46,6 +46,7 @@ serde_json = "1"
 clap = { version = "4", features = ["derive"] }
 tracing = "0.1"
 rand = "0.9"
+reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "rustls-tls"] }
 
 [profile.dev]
 opt-level = 0

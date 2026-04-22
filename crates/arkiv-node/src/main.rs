@@ -2,7 +2,7 @@ mod exex;
 
 use alloy_primitives::{Address, U256};
 use arkiv_genesis::{generate_genesis, GenesisConfig};
-use arkiv_store::LoggingStore;
+use arkiv_store::logging::LoggingStore;
 use futures::future;
 use reth::chainspec::ChainSpec;
 use reth::cli::Cli;
