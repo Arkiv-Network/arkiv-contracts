@@ -126,6 +126,21 @@ enum Command {
         #[arg(long)]
         address: Option<Address>,
     },
+
+    /// Fire off multiple entity creates.
+    Spam {
+        /// Number of entities to create.
+        #[arg(long, default_value = "10")]
+        count: u32,
+
+        /// Payload size in bytes per entity.
+        #[arg(long, default_value = "256")]
+        size: usize,
+
+        /// How long until entities expire (e.g. "1h", "7d").
+        #[arg(long, default_value = "1h", value_parser = humantime::parse_duration)]
+        expires_in: Duration,
+    },
 }
 
 fn encode_mime128(mime: &str) -> Mime128 {
@@ -337,6 +352,59 @@ async fn main() -> Result<()> {
                     }
                 }
             }
+        }
+
+        Command::Spam { count, size, expires_in } => {
+            let expires_at = expiry_block(&provider, expires_in, cli.block_time).await?;
+            let nonce_start = provider.get_transaction_count(signer_address).await?;
+
+            // Fire all transactions, retrying on pool-full errors
+            let mut pending = Vec::new();
+            for i in 0..count {
+                let nonce = nonce_start + i as u64;
+                loop {
+                    let op = Operation {
+                        operationType: OP_CREATE,
+                        entityKey: B256::ZERO,
+                        payload: random_payload(size),
+                        contentType: encode_mime128("application/octet-stream"),
+                        attributes: vec![],
+                        expiresAt: expires_at,
+                        newOwner: Address::ZERO,
+                    };
+
+                    match registry.execute(vec![op]).nonce(nonce).send().await {
+                        Ok(p) => {
+                            pending.push(p);
+                            eprint!("\rsent {}/{}", i + 1, count);
+                            break;
+                        }
+                        Err(e) if e.to_string().contains("txpool is full") => {
+                            // Pool is full — wait for a block to drain it
+                            tokio::time::sleep(cli.block_time).await;
+                        }
+                        Err(e) => {
+                            eprintln!("\rsend failed at {}/{}: {}", i + 1, count, e);
+                            break;
+                        }
+                    }
+                }
+            }
+            eprintln!();
+
+            // Wait for all receipts
+            let mut success = 0u32;
+            let mut failed = 0u32;
+            let total = pending.len();
+            for (i, p) in pending.into_iter().enumerate() {
+                match p.get_receipt().await {
+                    Ok(_) => success += 1,
+                    Err(_) => failed += 1,
+                }
+                eprint!("\rconfirmed {}/{}", i + 1, total);
+            }
+            eprintln!();
+            println!("{} ok, {} failed", success, failed);
         }
 
         Command::Balance { address } => {
