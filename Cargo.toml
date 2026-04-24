@@ -8,7 +8,7 @@ license = "MIT"
 [dependencies]
 alloy-primitives = "1.5"
 alloy-sol-types = "1.5"
-alloy-contract = "1.8"
+alloy-contract = "2.0"
 eyre = "0.6"
 
 [build-dependencies]
