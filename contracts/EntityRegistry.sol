@@ -64,6 +64,8 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         bytes32 entityHash
     );
 
+    event ChangeSetHashUpdate(bytes32 indexed entityKey, OperationKey indexed operationKey, bytes32 changeSetHash);
+
     // -------------------------------------------------------------------------
     // State — block chain pointers
     // -------------------------------------------------------------------------
@@ -112,7 +114,9 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         for (uint32 opSeq = 0; opSeq < ops.length; opSeq++) {
             (bytes32 key, bytes32 entityHash_) = _dispatch(ops[opSeq], current);
             hash = Entity.chainOperationHash(hash, ops[opSeq].operationType, key, entityHash_);
-            _hashAt[Entity.operationKey(current, txSeq, opSeq)] = hash;
+            OperationKey opKey = Entity.operationKey(current, txSeq, opSeq);
+            _hashAt[opKey] = hash;
+            emit ChangeSetHashUpdate(key, opKey, hash);
         }
 
         _txOpCount[Entity.transactionKey(current, txSeq)] = uint32(ops.length);

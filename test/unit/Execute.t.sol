@@ -2,8 +2,8 @@
 pragma solidity ^0.8.28;
 
 import {BlockNumber} from "../../contracts/types/BlockNumber.sol";
-import {Test} from "forge-std/Test.sol";
-import {Entity} from "../../contracts/Entity.sol";
+import {Test, Vm} from "forge-std/Test.sol";
+import {Entity, OperationKey} from "../../contracts/Entity.sol";
 import {EntityRegistry} from "../../contracts/EntityRegistry.sol";
 import {encodeMime128} from "../../contracts/types/Mime128.sol";
 
@@ -441,5 +441,112 @@ contract ExecuteTest is Test, EntityRegistry {
 
     function test_headBlock_initiallyEqualsGenesisBlock() public view {
         assertEq(BlockNumber.unwrap(headBlock()), BlockNumber.unwrap(genesisBlock()));
+    }
+
+    // =========================================================================
+    // ChangeSetHashUpdate event — single op
+    // =========================================================================
+
+    function test_execute_emitsChangeSetHashUpdate_singleOp() public {
+        _pushStubs(1);
+        bytes32 k = _stubKeys[0];
+        bytes32 h = _stubHashes[0];
+
+        Entity.Operation[] memory ops = new Entity.Operation[](1);
+        ops[0] = _op(Entity.CREATE);
+
+        vm.recordLogs();
+        this.execute(ops);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        // ChangeSetHashUpdate should be the second log (after EntityOperation from _dispatch stub... but _dispatch is stubbed and doesn't emit).
+        // Since _dispatch is stubbed, only ChangeSetHashUpdate events are emitted.
+        assertEq(logs.length, 1);
+        assertEq(logs[0].topics[0], ChangeSetHashUpdate.selector);
+        assertEq(logs[0].topics[1], k); // entityKey
+        assertEq(logs[0].topics[2], bytes32(OperationKey.unwrap(Entity.operationKey(headBlock(), 0, 0)))); // operationKey
+
+        bytes32 expectedHash = Entity.chainOperationHash(bytes32(0), Entity.CREATE, k, h);
+        bytes32 emittedHash = abi.decode(logs[0].data, (bytes32));
+        assertEq(emittedHash, expectedHash);
+    }
+
+    // =========================================================================
+    // ChangeSetHashUpdate event — multi-op batch
+    // =========================================================================
+
+    function test_execute_emitsChangeSetHashUpdate_multiOp() public {
+        _pushStubs(3);
+        bytes32 k0 = _stubKeys[0];
+        bytes32 h0 = _stubHashes[0];
+        bytes32 k1 = _stubKeys[1];
+        bytes32 h1 = _stubHashes[1];
+        bytes32 k2 = _stubKeys[2];
+        bytes32 h2 = _stubHashes[2];
+
+        Entity.Operation[] memory ops = new Entity.Operation[](3);
+        ops[0] = _op(Entity.CREATE);
+        ops[1] = _op(Entity.UPDATE);
+        ops[2] = _op(Entity.DELETE);
+
+        vm.recordLogs();
+        this.execute(ops);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        assertEq(logs.length, 3);
+
+        BlockNumber head = headBlock();
+        bytes32 chain0 = Entity.chainOperationHash(bytes32(0), Entity.CREATE, k0, h0);
+        bytes32 chain1 = Entity.chainOperationHash(chain0, Entity.UPDATE, k1, h1);
+        bytes32 chain2 = Entity.chainOperationHash(chain1, Entity.DELETE, k2, h2);
+
+        // Op 0
+        assertEq(logs[0].topics[0], ChangeSetHashUpdate.selector);
+        assertEq(logs[0].topics[1], k0);
+        assertEq(logs[0].topics[2], bytes32(OperationKey.unwrap(Entity.operationKey(head, 0, 0))));
+        assertEq(abi.decode(logs[0].data, (bytes32)), chain0);
+
+        // Op 1
+        assertEq(logs[1].topics[0], ChangeSetHashUpdate.selector);
+        assertEq(logs[1].topics[1], k1);
+        assertEq(logs[1].topics[2], bytes32(OperationKey.unwrap(Entity.operationKey(head, 0, 1))));
+        assertEq(abi.decode(logs[1].data, (bytes32)), chain1);
+
+        // Op 2
+        assertEq(logs[2].topics[0], ChangeSetHashUpdate.selector);
+        assertEq(logs[2].topics[1], k2);
+        assertEq(logs[2].topics[2], bytes32(OperationKey.unwrap(Entity.operationKey(head, 0, 2))));
+        assertEq(abi.decode(logs[2].data, (bytes32)), chain2);
+    }
+
+    // =========================================================================
+    // ChangeSetHashUpdate event — cross-block continuity
+    // =========================================================================
+
+    function test_execute_emitsChangeSetHashUpdate_crossBlock() public {
+        _pushStubs(1);
+
+        Entity.Operation[] memory ops1 = new Entity.Operation[](1);
+        ops1[0] = _op(Entity.CREATE);
+        this.execute(ops1);
+        bytes32 hashAfterBlock1 = changeSetHash();
+
+        vm.roll(block.number + 1);
+        _pushStubs(1);
+        bytes32 k1 = _stubKeys[0];
+        bytes32 h1 = _stubHashes[0];
+
+        Entity.Operation[] memory ops2 = new Entity.Operation[](1);
+        ops2[0] = _op(Entity.UPDATE);
+
+        vm.recordLogs();
+        this.execute(ops2);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        assertEq(logs.length, 1);
+        assertEq(logs[0].topics[1], k1);
+
+        bytes32 expected = Entity.chainOperationHash(hashAfterBlock1, Entity.UPDATE, k1, h1);
+        assertEq(abi.decode(logs[0].data, (bytes32)), expected);
     }
 }

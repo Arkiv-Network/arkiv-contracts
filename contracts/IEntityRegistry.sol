@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import {BlockNumber} from "./types/BlockNumber.sol";
 import {Ident32} from "./types/Ident32.sol";
-import {Entity} from "./Entity.sol";
+import {Entity, OperationKey} from "./Entity.sol";
 
 /// @title IEntityRegistry
 /// @notice External interface for the Arkiv EntityRegistry contract.
@@ -19,6 +19,8 @@ interface IEntityRegistry {
         BlockNumber expiresAt,
         bytes32 entityHash
     );
+
+    event ChangeSetHashUpdate(bytes32 indexed entityKey, OperationKey indexed operationKey, bytes32 changeSetHash);
 
     // ── Errors ──────────────────────────────────────────────────
 

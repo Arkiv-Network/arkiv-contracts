@@ -104,6 +104,24 @@ mod tests {
     }
 
     #[test]
+    fn changeset_hash_update_event_roundtrip() {
+        let event = IEntityRegistry::ChangeSetHashUpdate {
+            entityKey: B256::repeat_byte(0x01),
+            operationKey: U256::from(0xAABBCCu64),
+            changeSetHash: B256::repeat_byte(0x02),
+        };
+
+        let log = event.encode_log_data();
+        assert_eq!(log.topics().len(), 3); // selector + 2 indexed
+
+        let decoded = IEntityRegistry::ChangeSetHashUpdate::decode_log_data(&log)
+            .expect("decode failed");
+        assert_eq!(decoded.entityKey, B256::repeat_byte(0x01));
+        assert_eq!(decoded.operationKey, U256::from(0xAABBCCu64));
+        assert_eq!(decoded.changeSetHash, B256::repeat_byte(0x02));
+    }
+
+    #[test]
     fn commitment_roundtrip() {
         let c = Commitment {
             creator: Address::repeat_byte(0x01),

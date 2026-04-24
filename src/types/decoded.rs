@@ -42,6 +42,8 @@ pub struct DecodedOperation {
     pub owner: Address,
     pub expires_at: u32,
     pub entity_hash: B256,
+    /// Changeset hash after this operation.
+    pub changeset_hash: B256,
     /// Full entity data from calldata. Present for CREATE/UPDATE.
     pub entity: Option<EntityRecord>,
 }

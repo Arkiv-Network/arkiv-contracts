@@ -7,6 +7,7 @@ use crate::{
 };
 use crate::IEntityRegistry::{
     executeCall, EntityOperation as AbiEntityOperation,
+    ChangeSetHashUpdate as AbiChangeSetHashUpdate,
 };
 use crate::types::{DecodedAttribute, DecodedOperation, EntityRecord};
 use crate::{OP_CREATE, OP_UPDATE};
@@ -39,29 +40,38 @@ pub fn decode_registry_transaction(
 
     let operations = &call.ops;
 
-    // Extract EntityOperation events from logs
-    let mut events = Vec::new();
+    // Extract EntityOperation and ChangeSetHashUpdate events from logs
+    let mut entity_events = Vec::new();
+    let mut hash_events = Vec::new();
     for log in receipt_logs {
         if log.address != registry_address {
             continue;
         }
-        match AbiEntityOperation::decode_log_data(&log.data) {
-            Ok(evt) => events.push(evt),
-            Err(_) => continue,
+        if let Ok(evt) = AbiEntityOperation::decode_log_data(&log.data) {
+            entity_events.push(evt);
+        } else if let Ok(evt) = AbiChangeSetHashUpdate::decode_log_data(&log.data) {
+            hash_events.push(evt);
         }
     }
 
     // Correlate: operations[i] in calldata matches events[i]
-    if operations.len() != events.len() {
+    if operations.len() != entity_events.len() {
         bail!(
-            "operation/event count mismatch: {} ops but {} events",
+            "operation/event count mismatch: {} ops but {} EntityOperation events",
             operations.len(),
-            events.len()
+            entity_events.len()
+        );
+    }
+    if operations.len() != hash_events.len() {
+        bail!(
+            "operation/event count mismatch: {} ops but {} ChangeSetHashUpdate events",
+            operations.len(),
+            hash_events.len()
         );
     }
 
     let mut decoded = Vec::new();
-    for (op, event) in operations.iter().zip(events.iter()) {
+    for ((op, event), hash_event) in operations.iter().zip(entity_events.iter()).zip(hash_events.iter()) {
         let entity = match op.operationType {
             OP_CREATE | OP_UPDATE => Some(decode_entity_from_operation(op)?),
             _ => None,
@@ -75,6 +85,7 @@ pub fn decode_registry_transaction(
             owner: event.owner,
             expires_at: op.expiresAt,
             entity_hash: event.entityHash,
+            changeset_hash: hash_event.changeSetHash,
             entity,
         });
     }
