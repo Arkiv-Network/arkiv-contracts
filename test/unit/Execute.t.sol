@@ -403,6 +403,90 @@ contract ExecuteTest is Test, EntityRegistry {
         assertEq(changeSetHashAtBlock(BlockNumber.wrap(999999)), bytes32(0));
     }
 
+    // =========================================================================
+    // changeSetHashAtBlock — carry-forward semantics
+    // =========================================================================
+
+    function test_changeSetHashAtBlock_pastHead_matchesChangeSetHash() public {
+        vm.roll(block.number + 5);
+        _pushStubs(1);
+        Entity.Operation[] memory ops = new Entity.Operation[](1);
+        ops[0] = _op(Entity.CREATE);
+        this.execute(ops);
+
+        bytes32 current = changeSetHash();
+        BlockNumber head = headBlock();
+
+        // Querying head returns the current rolling hash.
+        assertEq(changeSetHashAtBlock(head), current);
+        // Any block past head returns the same.
+        BlockNumber future = BlockNumber.wrap(BlockNumber.unwrap(head) + 100);
+        assertEq(changeSetHashAtBlock(future), current);
+    }
+
+    function test_changeSetHashAtBlock_emptyBetweenMutations_returnsEarlierHash() public {
+        // Mutate at blockA.
+        vm.roll(block.number + 5);
+        _pushStubs(1);
+        Entity.Operation[] memory opsA = new Entity.Operation[](1);
+        opsA[0] = _op(Entity.CREATE);
+        this.execute(opsA);
+        BlockNumber blockA = headBlock();
+        bytes32 hashAtA = changeSetHash();
+
+        // Skip empty blocks, then mutate at blockB.
+        vm.roll(block.number + 5);
+        _pushStubs(1);
+        Entity.Operation[] memory opsB = new Entity.Operation[](1);
+        opsB[0] = _op(Entity.UPDATE);
+        this.execute(opsB);
+        BlockNumber blockB = headBlock();
+
+        // Sanity: there is at least one empty block between A and B.
+        assertGt(BlockNumber.unwrap(blockB), BlockNumber.unwrap(blockA) + 1);
+
+        // Any empty block in (A, B) reads back as A's hash.
+        BlockNumber justAfterA = BlockNumber.wrap(BlockNumber.unwrap(blockA) + 1);
+        assertEq(changeSetHashAtBlock(justAfterA), hashAtA);
+
+        BlockNumber justBeforeB = BlockNumber.wrap(BlockNumber.unwrap(blockB) - 1);
+        assertEq(changeSetHashAtBlock(justBeforeB), hashAtA);
+    }
+
+    function test_changeSetHashAtBlock_beforeFirstMutation_returnsZero() public {
+        // Roll past genesis so the first mutation is strictly after deploy.
+        BlockNumber genesis = genesisBlock();
+        vm.roll(block.number + 10);
+        _pushStubs(1);
+        Entity.Operation[] memory ops = new Entity.Operation[](1);
+        ops[0] = _op(Entity.CREATE);
+        this.execute(ops);
+        BlockNumber blockA = headBlock();
+
+        // Genesis is in the linked list but unmutated; querying any block
+        // in [genesis, blockA) returns zero.
+        BlockNumber between = BlockNumber.wrap(BlockNumber.unwrap(genesis) + 1);
+        assertLt(BlockNumber.unwrap(between), BlockNumber.unwrap(blockA));
+        assertEq(changeSetHashAtBlock(between), bytes32(0));
+        assertEq(changeSetHashAtBlock(genesis), bytes32(0));
+    }
+
+    function test_changeSetHashAtBlock_genesisWithNoMutations_returnsZero() public view {
+        // No executes — head == genesis, txCount == 0.
+        assertEq(changeSetHashAtBlock(genesisBlock()), bytes32(0));
+    }
+
+    function test_changeSetHashAtBlock_priorToGenesis_returnsZero() public {
+        // Walk falls off the start of the chain (cursor reaches BlockNumber 0).
+        vm.roll(block.number + 5);
+        _pushStubs(1);
+        Entity.Operation[] memory ops = new Entity.Operation[](1);
+        ops[0] = _op(Entity.CREATE);
+        this.execute(ops);
+
+        assertEq(changeSetHashAtBlock(BlockNumber.wrap(0)), bytes32(0));
+    }
+
     function test_changeSetHashAtTx_uninitializedTx_returnsZero() public view {
         assertEq(changeSetHashAtTx(BlockNumber.wrap(999999), 0), bytes32(0));
     }

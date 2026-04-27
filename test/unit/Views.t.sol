@@ -54,8 +54,10 @@ contract ViewsTest is Test {
         assertEq(hash, registry.changeSetHashAtOp(deployBlock, 0, 0));
     }
 
-    function test_changeSetHashAtBlock_uninitializedReturnsZero() public view {
-        assertEq(registry.changeSetHashAtBlock(BlockNumber.wrap(999999)), bytes32(0));
+    function test_changeSetHashAtBlock_pastHead_returnsCurrentHash() public view {
+        // Carry-forward semantics: any block >= headBlock returns the current
+        // rolling hash, not bytes32(0).
+        assertEq(registry.changeSetHashAtBlock(BlockNumber.wrap(999999)), registry.changeSetHash());
     }
 
     function test_changeSetHashAtTx_uninitializedReturnsZero() public view {

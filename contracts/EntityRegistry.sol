@@ -126,13 +126,25 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // Public view functions — changeset hash lookups
     // -------------------------------------------------------------------------
 
-    /// @notice Changeset hash after the last operation in the given block.
+    /// @notice Changeset hash as of `blockNumber` — carries forward across
+    /// blocks with no mutations.
+    ///
+    /// Returns:
+    ///   - `changeSetHash()` when `blockNumber >= headBlock()` (O(1) fast path).
+    ///   - The last-operation hash at the largest mutated block
+    ///     `<= blockNumber`, otherwise.
+    ///   - `bytes32(0)` if no mutation has ever occurred at or before
+    ///     `blockNumber`.
+    ///
+    /// @dev Intended for off-chain `eth_call`. Gas in the slow path is linear
+    /// in the number of mutated blocks between `blockNumber` and `_headBlock`
+    /// (the linked list skips empty blocks O(1) per hop). The `>= headBlock`
+    /// fast path is O(1), so on-chain callers (e.g. `changeSetHash()`) are
+    /// unaffected.
     function changeSetHashAtBlock(BlockNumber blockNumber) public view returns (bytes32) {
-        uint32 txCount = _blocks[blockNumber].txCount;
-        if (txCount == 0) return bytes32(0);
-        uint32 lastTx = txCount - 1;
-        uint32 opCount = _txOpCount[Entity.transactionKey(blockNumber, lastTx)];
-        return _hashAt[Entity.operationKey(blockNumber, lastTx, opCount - 1)];
+        BlockNumber head = _headBlock;
+        BlockNumber cursor = blockNumber >= head ? head : _findMutatedBlockAtOrBefore(blockNumber);
+        return _hashAtMutatedBlock(cursor);
     }
 
     /// @notice Changeset hash after the last operation in the given transaction.
@@ -169,6 +181,37 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
     function nonces(address owner) public view returns (uint32) {
         return _nonces[owner];
+    }
+
+    // -------------------------------------------------------------------------
+    // Internal functions — block walk
+    // -------------------------------------------------------------------------
+
+    /// @dev Walk the mutated-blocks linked list backwards from `_headBlock`
+    /// to the largest stored block `<= target`. Returns `BlockNumber.wrap(0)`
+    /// if `target` predates every stored block (including genesis).
+    ///
+    /// The chain is strictly ascending: `genesis < first mutation < ... < head`.
+    /// `genesis` may itself be unmutated (when the first `execute` happened
+    /// after the deploy block); in that case the walk still lands on it for
+    /// any `target >= genesis`, and `_hashAtMutatedBlock` returns `bytes32(0)`.
+    function _findMutatedBlockAtOrBefore(BlockNumber target) internal view returns (BlockNumber) {
+        BlockNumber cursor = _headBlock;
+        while (cursor > target) {
+            cursor = _blocks[cursor].prevBlock;
+        }
+        return cursor;
+    }
+
+    /// @dev Last-operation hash recorded in `blockNumber`, or `bytes32(0)`
+    /// if the block has no mutations. Safe to call with the zero sentinel
+    /// or an unmutated genesis — both yield `bytes32(0)`.
+    function _hashAtMutatedBlock(BlockNumber blockNumber) internal view returns (bytes32) {
+        uint32 txCount = _blocks[blockNumber].txCount;
+        if (txCount == 0) return bytes32(0);
+        uint32 lastTx = txCount - 1;
+        uint32 opCount = _txOpCount[Entity.transactionKey(blockNumber, lastTx)];
+        return _hashAt[Entity.operationKey(blockNumber, lastTx, opCount - 1)];
     }
 
     // -------------------------------------------------------------------------
