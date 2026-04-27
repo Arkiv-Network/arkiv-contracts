@@ -12,6 +12,11 @@ optimizer = true
 optimizer_runs = 200
 via_ir = false
 
+# Always emit storage layout into the artifact so `arkiv-bindings`'s
+# storage_layout drift test can verify slot/offset packing without an
+# extra `forge inspect` step.
+extra_output = ["storageLayout"]
+
 fuzz = { runs = 256 }
 invariant = { runs = 256, depth = 128 }
 

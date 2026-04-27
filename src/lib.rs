@@ -1,4 +1,5 @@
 pub mod decode;
+pub mod storage_layout;
 pub mod types;
 
 // Generated from IEntityRegistry.sol ABI by build.rs.
