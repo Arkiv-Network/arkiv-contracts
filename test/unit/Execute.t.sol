@@ -425,8 +425,14 @@ contract ExecuteTest is Test, EntityRegistry {
     }
 
     function test_changeSetHashAtBlock_emptyBetweenMutations_returnsEarlierHash() public {
+        // Capture block.number once: with via_ir + CSE, two identical
+        // `block.number + N` expressions can be hoisted into a single
+        // pre-roll evaluation, collapsing both vm.roll calls onto the same
+        // block. Reading once and offsetting locally avoids that.
+        uint256 start = block.number;
+
         // Mutate at blockA.
-        vm.roll(block.number + 5);
+        vm.roll(start + 5);
         _pushStubs(1);
         Entity.Operation[] memory opsA = new Entity.Operation[](1);
         opsA[0] = _op(Entity.CREATE);
@@ -435,7 +441,7 @@ contract ExecuteTest is Test, EntityRegistry {
         bytes32 hashAtA = changeSetHash();
 
         // Skip empty blocks, then mutate at blockB.
-        vm.roll(block.number + 5);
+        vm.roll(start + 10);
         _pushStubs(1);
         Entity.Operation[] memory opsB = new Entity.Operation[](1);
         opsB[0] = _op(Entity.UPDATE);
