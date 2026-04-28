@@ -1,6 +1,6 @@
-pub mod decode;
 pub mod storage_layout;
 pub mod types;
+pub mod wire;
 
 // Generated from IEntityRegistry.sol ABI by build.rs.
 // Contains struct definitions (Operation, Attribute, Mime128, Commitment, BlockNode)
@@ -27,6 +27,20 @@ pub const ATTR_ENTITY_KEY: u8 = 3;
 /// internal `MAX_ATTRIBUTES`). The contract reverts `TooManyAttributes` past
 /// this count; SDKs can validate locally before sending a transaction.
 pub const MAX_ATTRIBUTES: usize = 32;
+
+/// Human-readable label for an operation type, mirroring the `OP_*`
+/// constants. Returns `"UNKNOWN"` for any unrecognised discriminator.
+pub fn op_type_name(op_type: u8) -> &'static str {
+    match op_type {
+        OP_CREATE => "CREATE",
+        OP_UPDATE => "UPDATE",
+        OP_EXTEND => "EXTEND",
+        OP_TRANSFER => "TRANSFER",
+        OP_DELETE => "DELETE",
+        OP_EXPIRE => "EXPIRE",
+        _ => "UNKNOWN",
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -178,10 +192,10 @@ mod tests {
         let decoded = types::Mime128Str::decode(&raw).unwrap();
         assert_eq!(decoded, "application/json");
 
-        // Also works with the sol!-generated Mime128 type
+        // Also works with the sol!-generated Mime128 type via TryFrom
         let mime = Mime128 { data: raw };
-        let decoded2 = decode::decode_mime128(&mime).unwrap();
-        assert_eq!(decoded2, "application/json");
+        let recovered = types::Mime128Str::try_from(&mime).unwrap();
+        assert_eq!(recovered.as_str(), "application/json");
     }
 
     #[test]
@@ -191,9 +205,9 @@ mod tests {
 
     #[test]
     fn op_type_names() {
-        assert_eq!(types::op_type_name(OP_CREATE), "CREATE");
-        assert_eq!(types::op_type_name(OP_EXPIRE), "EXPIRE");
-        assert_eq!(types::op_type_name(0), "UNKNOWN");
+        assert_eq!(op_type_name(OP_CREATE), "CREATE");
+        assert_eq!(op_type_name(OP_EXPIRE), "EXPIRE");
+        assert_eq!(op_type_name(0), "UNKNOWN");
     }
 
     #[test]

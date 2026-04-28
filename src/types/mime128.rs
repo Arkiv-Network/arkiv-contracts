@@ -113,6 +113,13 @@ impl std::fmt::Display for Mime128Str {
     }
 }
 
+#[cfg(feature = "serde-wire")]
+impl serde::Serialize for Mime128Str {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
 /// Validate MIME structure per RFC 2045 state machine (mirrors Mime128.sol).
 fn validate_mime(bytes: &[u8]) -> Result<()> {
     let mut state = S_TYPE;

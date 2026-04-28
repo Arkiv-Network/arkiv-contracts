@@ -750,6 +750,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "eyre",
+ "serde",
  "serde_json",
 ]
 

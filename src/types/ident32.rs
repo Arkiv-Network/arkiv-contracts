@@ -99,6 +99,17 @@ impl std::fmt::Display for Ident32 {
     }
 }
 
+#[cfg(feature = "serde-wire")]
+impl serde::Serialize for Ident32 {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        // Always Ok by construction — `Ident32::encode` and the
+        // `TryFrom<B256>` impl both validate UTF-8 + charset before
+        // building the value, so `to_string` cannot fail here.
+        let s = self.to_string().map_err(serde::ser::Error::custom)?;
+        serializer.serialize_str(&s)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
