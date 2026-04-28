@@ -1,5 +1,5 @@
 use alloy_primitives::FixedBytes;
-use eyre::{bail, Result};
+use eyre::{Result, bail};
 
 /// Valid MIME token characters (RFC 2045, lowercase only).
 /// Mirrors MIME_TOKEN in Mime128.sol.
@@ -22,8 +22,7 @@ const MIME_TOKEN: u128 = LOWER_PRINTABLE_ASCII
         | (1 << 0x5D)); // ]
 
 /// Printable ASCII excluding uppercase.
-const LOWER_PRINTABLE_ASCII: u128 =
-    (((1u128 << 33) - 1) << 32) | (((1u128 << 36) - 1) << 91);
+const LOWER_PRINTABLE_ASCII: u128 = (((1u128 << 33) - 1) << 32) | (((1u128 << 36) - 1) << 91);
 
 const S_TYPE: u8 = 0;
 const S_SUBTYPE: u8 = 1;
@@ -93,6 +92,18 @@ impl TryFrom<&str> for Mime128Str {
     type Error = eyre::Error;
     fn try_from(s: &str) -> Result<Self> {
         Self::encode(s)
+    }
+}
+
+/// Decode + validate the sol!-generated `Mime128` struct in one step.
+///
+/// Symmetric counterpart of [`Mime128Str::to_bytes32x4`] composed into the
+/// `Mime128 { data }` wrapper: bytes → string → validated MIME.
+impl TryFrom<&crate::Mime128> for Mime128Str {
+    type Error = eyre::Error;
+    fn try_from(mime: &crate::Mime128) -> Result<Self> {
+        let s = Self::decode(&mime.data).ok_or_else(|| eyre::eyre!("invalid UTF-8 in Mime128"))?;
+        Self::encode(&s)
     }
 }
 
@@ -219,5 +230,46 @@ mod tests {
     fn rejects_too_long() {
         let s = format!("{}/{}", "a".repeat(64), "b".repeat(64));
         assert!(Mime128Str::encode(&s).is_err());
+    }
+
+    #[test]
+    fn try_from_mime128_roundtrip() {
+        let m = Mime128Str::encode("text/plain; charset=utf-8").unwrap();
+        let mime = crate::Mime128 {
+            data: m.to_bytes32x4(),
+        };
+        let recovered = Mime128Str::try_from(&mime).unwrap();
+        assert_eq!(recovered, m);
+    }
+
+    #[test]
+    fn try_from_mime128_rejects_invalid_utf8() {
+        let mut w0 = [0u8; 32];
+        w0[0] = 0xFF; // invalid UTF-8 leading byte
+        let mime = crate::Mime128 {
+            data: [
+                FixedBytes::from(w0),
+                FixedBytes::ZERO,
+                FixedBytes::ZERO,
+                FixedBytes::ZERO,
+            ],
+        };
+        assert!(Mime128Str::try_from(&mime).is_err());
+    }
+
+    #[test]
+    fn try_from_mime128_rejects_invalid_mime_structure() {
+        // Valid UTF-8 bytes that fail MIME validation (uppercase, lowercase-only rule).
+        let mut w0 = [0u8; 32];
+        w0[..16].copy_from_slice(b"Application/JSON");
+        let mime = crate::Mime128 {
+            data: [
+                FixedBytes::from(w0),
+                FixedBytes::ZERO,
+                FixedBytes::ZERO,
+                FixedBytes::ZERO,
+            ],
+        };
+        assert!(Mime128Str::try_from(&mime).is_err());
     }
 }

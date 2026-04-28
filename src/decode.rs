@@ -1,17 +1,15 @@
 //! Decoding of EntityRegistry transactions from calldata and event logs.
 
-use alloy_primitives::{Address, B256};
-use alloy_sol_types::{SolCall, SolEvent};
-use crate::{
-    Attribute as AbiAttribute, Mime128, Operation as AbiOperation,
-};
 use crate::IEntityRegistry::{
-    executeCall, EntityOperation as AbiEntityOperation,
-    ChangeSetHashUpdate as AbiChangeSetHashUpdate,
+    ChangeSetHashUpdate as AbiChangeSetHashUpdate, EntityOperation as AbiEntityOperation,
+    executeCall,
 };
 use crate::types::{DecodedAttribute, DecodedOperation, EntityRecord};
+use crate::{Attribute as AbiAttribute, Mime128, Operation as AbiOperation};
 use crate::{OP_CREATE, OP_UPDATE};
-use eyre::{bail, Result};
+use alloy_primitives::{Address, B256};
+use alloy_sol_types::{SolCall, SolEvent};
+use eyre::{Result, bail};
 
 /// Decode calldata + event logs from a transaction.
 ///
@@ -34,9 +32,8 @@ pub fn decode_registry_transaction(
     }
 
     // Decode calldata to get operations
-    let call = executeCall::abi_decode(tx_input).map_err(|e| {
-        eyre::eyre!("failed to decode execute() calldata: {}", e)
-    })?;
+    let call = executeCall::abi_decode(tx_input)
+        .map_err(|e| eyre::eyre!("failed to decode execute() calldata: {}", e))?;
 
     let operations = &call.ops;
 
@@ -71,7 +68,11 @@ pub fn decode_registry_transaction(
     }
 
     let mut decoded = Vec::new();
-    for ((op, event), hash_event) in operations.iter().zip(entity_events.iter()).zip(hash_events.iter()) {
+    for ((op, event), hash_event) in operations
+        .iter()
+        .zip(entity_events.iter())
+        .zip(hash_events.iter())
+    {
         let entity = match op.operationType {
             OP_CREATE | OP_UPDATE => Some(decode_entity_from_operation(op)?),
             _ => None,

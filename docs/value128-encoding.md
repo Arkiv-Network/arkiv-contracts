@@ -2,36 +2,47 @@
 
 | Property | Value |
 |----------|-------|
-| **Status** | Ideation |
+| **Status** | Implementation |
+| **Source** | `contracts/Entity.sol` (`Attribute.value`) |
 | **Depends on** | [ADR-API-004](ADR-API-004.md) (String Field Encoding), `src/Ident32.sol`, `src/Mime128.sol` |
 | **Created** | April 2026 |
 
 ## Problem
 
-The `Attribute` struct currently uses `bytes value` — a dynamic byte array with no fixed size:
+Entity attributes carry typed values that must:
+
+1. Hash deterministically into the entity's EIP-712 core hash — the same logical value must always produce the same on-chain hash
+2. Avoid the dynamic-ABI overhead (length prefix, pointer indirection) that variable-length values impose on calldata and gas
+3. Support multiple value types under a single `valueType` discriminator: numeric, opaque byte string, and entity reference
+
+A dynamic `bytes value` field would fail on the second count and complicate the third — each type would need its own length-validation path, and dynamic encoding makes batch operations gas-unpredictable. Per ADR-API-004, string attribute values are also capped at **128 bytes** and treated as **opaque byte arrays** with byte-level ordering for predicates and sorting; that cap is structural, not a runtime check.
+
+## Design
+
+The `Attribute` struct uses a unified fixed-size container:
 
 ```solidity
 struct Attribute {
-    Ident32 name;
-    uint8 valueType;
-    bytes value;      // ← dynamic, variable length
+    Ident32 name;       // 1 word
+    uint8 valueType;    // 1 byte (padded to 1 word)
+    bytes32[4] value;   // 4 words, inline
 }
 ```
 
-Three value types are supported:
-- `ATTR_UINT` (0): 32 bytes (abi-encoded uint256)
-- `ATTR_STRING` (1): up to 1024 bytes
-- `ATTR_ENTITY_KEY` (2): 32 bytes (abi-encoded bytes32)
+The `bytes32[4] value` field is 128 bytes total — the same shape pattern as `Mime128`. Three value types share this container, each with a natural size:
 
-Per ADR-API-004, string attribute values should be capped at **128 bytes** (not 1024), and the protocol treats them as **opaque byte arrays** with byte-level ordering for predicates and sorting.
+- `ATTR_UINT` (1): 32 bytes — uint256 in `data[0]`, `data[1..=3]` zero
+- `ATTR_STRING` (2): up to 128 bytes — opaque bytes left-aligned across all four slots
+- `ATTR_ENTITY_KEY` (3): 32 bytes — entity key in `data[0]`, `data[1..=3]` zero
 
-Replacing `bytes value` with `bytes32[4]` (128 bytes, fixed) would:
-1. Unify all three value types into a single fixed-size representation
-2. Eliminate dynamic ABI encoding overhead (length prefix, padding, pointer indirection)
-3. Make the `Attribute` struct fully fixed-size — simpler calldata layout, predictable gas
-4. Align with the `Mime128` / `Ident32` pattern of fixed-size validated types
+The `valueType` discriminator selects the encoding. Decoders enforce the natural size: UINT and ENTITY_KEY reject non-zero `data[1..=3]`; ATTR_STRING uses the full container.
 
-The challenge is that `bytes32[4]` must encode three semantically different value types, each with different encoding rules.
+Benefits of the unified fixed shape:
+
+1. All three value types share one representation in calldata and storage
+2. No dynamic ABI encoding overhead — no length prefix, no pointer indirection
+3. The `Attribute` struct is fully fixed-size: predictable gas, simpler calldata layout
+4. Aligns with the `Mime128` / `Ident32` pattern of fixed-size validated types
 
 ## The three encodings
 
@@ -52,7 +63,7 @@ data[3]: 0x0000000000000000000000000000000000000000000000000000000000000000
 
 ### 2. ATTR_STRING — opaque byte arrays (NFC UTF-8 by convention)
 
-**In `bytes32[4]`:** Left-aligned, zero-padded — identical to `Mime128` and `Ident32` packing.
+**In `bytes32[4]`:** Left-aligned, zero-padded across all four words. The protocol treats the bytes as opaque — UTF-8 is convention, not enforcement — and uses the first NUL byte (or the end of the 128-byte buffer) as the implicit terminator.
 
 ```
 "hello world" (11 bytes):
@@ -60,7 +71,7 @@ data[0]: 0x68656c6c6f20776f726c640000000000000000000000000000000000000000
 data[1..3]: 0x00...
 ```
 
-**Encoding rule:** Left-aligned, zero-padded. Same as `encodeMime128` byte packing.
+**Encoding rule:** Left-aligned, zero-padded; consumers stop at the first NUL byte to recover the value's length. No charset validation is performed on-chain or by the bindings; producers are expected to send NFC UTF-8 by convention.
 
 **Sorting:** Byte-level comparison across all 4 words matches lexicographic string ordering. Shorter strings sort before longer strings that share the same prefix (`"abc" < "abcd"`).
 
@@ -143,15 +154,9 @@ Could be represented as a scaled integer (`ATTR_UINT` with an implicit decimal p
 
 ## EIP-712 hash encoding
 
-**Current:** `keccak256(attr.value)` — hashes the dynamic bytes.
+Attribute values are hashed as `keccak256(abi.encode(value[0], value[1], value[2], value[3]))` — the four words inline. Same pattern as `Mime128` content type hashing.
 
-**With `bytes32[4]`:** `keccak256(abi.encode(value[0], value[1], value[2], value[3]))` — hashes the four words. Same pattern as `Mime128` content type hashing.
-
-The `ATTRIBUTE_TYPEHASH` changes from:
-```
-"Attribute(bytes32 name,uint8 valueType,bytes value)"
-```
-to:
+The `ATTRIBUTE_TYPEHASH` is:
 ```
 "Attribute(bytes32 name,uint8 valueType,bytes32[4] value)"
 ```
@@ -166,41 +171,19 @@ keccak256(abi.encode(ATTRIBUTE_TYPEHASH, name, valueType, keccak256(abi.encode(v
 
 This prevents cross-type collisions: a uint256 whose bytes happen to match a left-aligned string encoding will produce a different hash because `valueType` differs. Adding new types (ATTR_BOOL, ATTR_ADDRESS, etc.) automatically gets collision resistance from the existing discriminator — no changes to the hash structure needed.
 
-## Struct layout change
+## Why bare `bytes32[4]`, not a wrapper struct
 
-```solidity
-// Before — dynamic
-struct Attribute {
-    Ident32 name;       // 1 word
-    uint8 valueType;    // 1 byte (padded to 1 word)
-    bytes value;        // dynamic — pointer + length + data
-}
+Unlike `Mime128` (single encoding, structural validation) or `Ident32` (single encoding, charset validation), attribute values have multiple encodings selected by `valueType`. A wrapper struct would add ceremony without preventing misuse — callers would still need to construct the `bytes32[4]` differently per type. The `valueType` field already provides the semantic tag.
 
-// After — fully fixed
-struct Attribute {
-    Ident32 name;       // 1 word
-    uint8 valueType;    // 1 byte (padded to 1 word)
-    bytes32[4] value;   // 4 words, inline
-}
-```
+## Gas characteristics
 
-The struct becomes fully fixed-size: 6 words in calldata. No pointer indirection, no length prefix, no dynamic ABI encoding.
+| Operation | Cost |
+|---|---|
+| ABI decode per attribute | Fixed (4 words inline) — no offset / length / pointer indirection |
+| Hash computation | `keccak256(abi.encode(v[0], v[1], v[2], v[3]))` — always 128 bytes, constant cost |
+| On-chain validation | None (opaque blob) |
 
-## Whether to wrap in a struct
-
-**Recommendation: bare `bytes32[4]`.** Unlike `Mime128` (single encoding, structural validation) or `Ident32` (single encoding, charset validation), attribute values have multiple encodings selected by `valueType`. A wrapper struct adds ceremony without preventing misuse — you'd still need to construct the `bytes32[4]` differently per type. The `valueType` field already provides the semantic tag.
-
-## Gas impact
-
-| Operation | Current (`bytes`) | Proposed (`bytes32[4]`) |
-|---|---|---|
-| ABI decode per attribute | Variable (offset + length + data) | Fixed (4 words inline) |
-| Hash computation | `keccak256(attr.value)` — variable length | `keccak256(abi.encode(v[0],v[1],v[2],v[3]))` — always 128 bytes |
-| Validation | Length checks per type | None (opaque) |
-
-The hash computation becomes **constant cost** regardless of value content — always hashing 128 bytes. Slightly more expensive for 32-byte values (currently hashing 32 bytes), but eliminates variable gas and makes batch operations predictable.
-
-`MAX_STRING_ATTR_SIZE` (currently 1024) becomes redundant — the fixed `bytes32[4]` enforces the 128-byte cap structurally. The constant and its length check can be deleted.
+The hash computation is **constant cost** regardless of value content — always hashing 128 bytes. Slightly more expensive than hashing a 32-byte UINT in isolation, but eliminates variable gas and makes batch operations predictable. The 128-byte cap on string values is enforced structurally by the container size, not by a runtime length check.
 
 ## Decisions
 
@@ -208,6 +191,5 @@ The hash computation becomes **constant cost** regardless of value content — a
 |---|---|---|
 | Allow empty values? | **Yes** | All-zero `bytes32[4]` is valid. Attribute presence in the array is the signal; the value can be a zero/empty sentinel. |
 | Allow zero uint? | **Yes** | Zero is a valid numeric value. |
-| Remove `MAX_STRING_ATTR_SIZE`? | **Yes** | Redundant — 128-byte cap is structural. |
 | On-chain charset validation for strings? | **No** | Opaque bytes per ADR-API-004. Would need performant 128-byte UTF-8 validation to reconsider — not justified today. |
-| On-chain value validation? | **No** | Encoding correctness is the caller/SDK's responsibility. The contract hashes deterministically regardless of content. |
+| On-chain value validation? | **No** | Encoding correctness is the caller/SDK's responsibility. The contract hashes deterministically regardless of content. Bindings enforce natural-size invariants (UINT/ENTITY_KEY reject non-zero higher slots). |

@@ -12,7 +12,7 @@
 //! (`_nameFallback`, `_versionFallback`); `EntityRegistry`'s own state
 //! starts at slot `2`.
 
-use alloy_primitives::{keccak256, Address, B256, U256};
+use alloy_primitives::{Address, B256, U256, keccak256};
 
 use crate::{BlockNode, Commitment};
 
@@ -261,7 +261,11 @@ mod tests {
             .iter()
             .map(|m| {
                 let label = m["label"].as_str().expect("label").to_string();
-                let slot: u64 = m["slot"].as_str().expect("slot").parse().expect("slot parse");
+                let slot: u64 = m["slot"]
+                    .as_str()
+                    .expect("slot")
+                    .parse()
+                    .expect("slot parse");
                 let offset: u64 = m["offset"].as_u64().expect("offset");
                 (label, slot, offset)
             })
@@ -269,7 +273,10 @@ mod tests {
     }
 
     fn expected_to_tuples(expected: &[(&str, u64, u64)]) -> Vec<(String, u64, u64)> {
-        expected.iter().map(|(l, s, o)| ((*l).to_string(), *s, *o)).collect()
+        expected
+            .iter()
+            .map(|(l, s, o)| ((*l).to_string(), *s, *o))
+            .collect()
     }
 
     /// Re-parse the Foundry artifact and assert that the on-disk storage
@@ -346,10 +353,7 @@ mod tests {
             transaction_key(0x0a0b0c0d, 0x01020304),
             U256::from(0x0a0b_0c0d_0102_0304u64)
         );
-        assert_eq!(
-            transaction_key(u32::MAX, u32::MAX),
-            U256::from(u64::MAX)
-        );
+        assert_eq!(transaction_key(u32::MAX, u32::MAX), U256::from(u64::MAX));
     }
 
     #[test]
@@ -360,9 +364,8 @@ mod tests {
         assert_eq!(operation_key(9, 0, 0), U256::from(9u64) << 64);
 
         // Composite: block=0xAA, tx=0xBB, op=0xCC
-        let expected = (U256::from(0xAAu64) << 64)
-            | (U256::from(0xBBu64) << 32)
-            | U256::from(0xCCu64);
+        let expected =
+            (U256::from(0xAAu64) << 64) | (U256::from(0xBBu64) << 32) | U256::from(0xCCu64);
         assert_eq!(operation_key(0xAA, 0xBB, 0xCC), expected);
     }
 
@@ -430,7 +433,10 @@ mod tests {
         let b = 0xdead_beefu32;
         let mut key = [0u8; 32];
         key[28..32].copy_from_slice(&b.to_be_bytes());
-        assert_eq!(block_node_slot(b), mapping_slot(BLOCKS_SLOT, B256::from(key)));
+        assert_eq!(
+            block_node_slot(b),
+            mapping_slot(BLOCKS_SLOT, B256::from(key))
+        );
     }
 
     #[test]

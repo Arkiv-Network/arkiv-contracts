@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, Bytes, B256};
+use alloy_primitives::{Address, B256, Bytes};
 
 /// A fully decoded entity record combining on-chain commitment data
 /// with off-chain content from calldata.

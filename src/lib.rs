@@ -23,16 +23,24 @@ pub const ATTR_UINT: u8 = 1;
 pub const ATTR_STRING: u8 = 2;
 pub const ATTR_ENTITY_KEY: u8 = 3;
 
+/// Maximum number of attributes per entity operation (mirrors Entity.sol's
+/// internal `MAX_ATTRIBUTES`). The contract reverts `TooManyAttributes` past
+/// this count; SDKs can validate locally before sending a transaction.
+pub const MAX_ATTRIBUTES: usize = 32;
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::{Address, Bytes, FixedBytes, B256, U256};
+    use alloy_primitives::{Address, B256, Bytes, FixedBytes, U256};
     use alloy_sol_types::{SolCall, SolEvent, SolValue};
 
     #[test]
     fn execute_selector_matches() {
         // Verified from Foundry output: 0xba8ccf92
-        assert_eq!(IEntityRegistry::executeCall::SELECTOR, [0xba, 0x8c, 0xcf, 0x92]);
+        assert_eq!(
+            IEntityRegistry::executeCall::SELECTOR,
+            [0xba, 0x8c, 0xcf, 0x92]
+        );
     }
 
     #[test]
@@ -49,7 +57,10 @@ mod tests {
             newOwner: Address::ZERO,
         };
 
-        let encoded = IEntityRegistry::executeCall { ops: vec![op.clone()] }.abi_encode();
+        let encoded = IEntityRegistry::executeCall {
+            ops: vec![op.clone()],
+        }
+        .abi_encode();
         let decoded = IEntityRegistry::executeCall::abi_decode(&encoded).expect("decode failed");
         assert_eq!(decoded.ops.len(), 1);
         assert_eq!(decoded.ops[0], op);
@@ -71,13 +82,18 @@ mod tests {
             operationType: OP_CREATE,
             entityKey: B256::ZERO,
             payload: Bytes::from_static(b"hello"),
-            contentType: Mime128 { data: [FixedBytes::ZERO; 4] },
+            contentType: Mime128 {
+                data: [FixedBytes::ZERO; 4],
+            },
             attributes: vec![attr.clone()],
             expiresAt: 500,
             newOwner: Address::ZERO,
         };
 
-        let encoded = IEntityRegistry::executeCall { ops: vec![op.clone()] }.abi_encode();
+        let encoded = IEntityRegistry::executeCall {
+            ops: vec![op.clone()],
+        }
+        .abi_encode();
         let decoded = IEntityRegistry::executeCall::abi_decode(&encoded).expect("decode failed");
         assert_eq!(decoded.ops[0].attributes.len(), 1);
         assert_eq!(decoded.ops[0].attributes[0], attr);
@@ -96,8 +112,8 @@ mod tests {
         let log = event.encode_log_data();
         assert_eq!(log.topics().len(), 4);
 
-        let decoded = IEntityRegistry::EntityOperation::decode_log_data(&log)
-            .expect("decode failed");
+        let decoded =
+            IEntityRegistry::EntityOperation::decode_log_data(&log).expect("decode failed");
         assert_eq!(decoded.entityKey, B256::repeat_byte(0x01));
         assert_eq!(decoded.operationType, OP_CREATE);
         assert_eq!(decoded.owner, Address::repeat_byte(0xAA));
@@ -115,8 +131,8 @@ mod tests {
         let log = event.encode_log_data();
         assert_eq!(log.topics().len(), 3); // selector + 2 indexed
 
-        let decoded = IEntityRegistry::ChangeSetHashUpdate::decode_log_data(&log)
-            .expect("decode failed");
+        let decoded =
+            IEntityRegistry::ChangeSetHashUpdate::decode_log_data(&log).expect("decode failed");
         assert_eq!(decoded.entityKey, B256::repeat_byte(0x01));
         assert_eq!(decoded.operationKey, U256::from(0xAABBCCu64));
         assert_eq!(decoded.changeSetHash, B256::repeat_byte(0x02));

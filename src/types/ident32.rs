@@ -1,12 +1,12 @@
 use alloy_primitives::B256;
-use eyre::{bail, Result};
+use eyre::{Result, bail};
 
 /// Valid character bitmap: a-z, 0-9, '.', '-', '_'.
 /// Mirrors IDENT_CHARSET in Ident32.sol.
 const IDENT_CHARSET: u128 = (1 << 0x2D) | (1 << 0x2E)         // hyphen, dot
     | (((1 << 10) - 1) << 0x30)                                 // digits
     | (1 << 0x5F)                                                // underscore
-    | (((1u128 << 26) - 1) << 0x61);                            // lowercase a-z
+    | (((1u128 << 26) - 1) << 0x61); // lowercase a-z
 
 /// Leading byte bitmap: a-z only.
 const IDENT_LEADING: u128 = ((1u128 << 26) - 1) << 0x61;
@@ -40,10 +40,7 @@ impl Ident32 {
         // Remaining bytes must be in IDENT_CHARSET
         for (i, &b) in bytes.iter().enumerate().skip(1) {
             if (IDENT_CHARSET >> b) & 1 == 0 {
-                bail!(
-                    "Ident32 invalid byte at position {}: 0x{:02x}",
-                    i, b
-                );
+                bail!("Ident32 invalid byte at position {}: 0x{:02x}", i, b);
             }
         }
 

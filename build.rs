@@ -50,8 +50,8 @@ fn main() {
     // --- Extract creation bytecode from EntityRegistry artifact ---
     let registry_json = fs::read_to_string(&registry_artifact)
         .unwrap_or_else(|e| panic!("failed to read {}: {}", registry_artifact.display(), e));
-    let registry: serde_json::Value = serde_json::from_str(&registry_json)
-        .expect("failed to parse EntityRegistry artifact JSON");
+    let registry: serde_json::Value =
+        serde_json::from_str(&registry_json).expect("failed to parse EntityRegistry artifact JSON");
 
     let bytecode_hex = registry["bytecode"]["object"]
         .as_str()
@@ -163,7 +163,9 @@ fn collect_structs(
     for key in &["inputs", "outputs", "components"] {
         if let Some(params) = value.get(key).and_then(|v| v.as_array()) {
             for param in params {
-                if param["type"].as_str() == Some("tuple") || param["type"].as_str() == Some("tuple[]") {
+                if param["type"].as_str() == Some("tuple")
+                    || param["type"].as_str() == Some("tuple[]")
+                {
                     if let Some(internal) = param["internalType"].as_str() {
                         let struct_name = extract_struct_name(internal);
                         if !struct_name.is_empty() && seen.insert(struct_name.clone()) {
