@@ -163,32 +163,32 @@ fn collect_structs(
     for key in &["inputs", "outputs", "components"] {
         if let Some(params) = value.get(key).and_then(|v| v.as_array()) {
             for param in params {
-                if param["type"].as_str() == Some("tuple")
-                    || param["type"].as_str() == Some("tuple[]")
+                if (param["type"].as_str() == Some("tuple")
+                    || param["type"].as_str() == Some("tuple[]"))
+                    && let Some(internal) = param["internalType"].as_str()
                 {
-                    if let Some(internal) = param["internalType"].as_str() {
-                        let struct_name = extract_struct_name(internal);
-                        if !struct_name.is_empty() && seen.insert(struct_name.clone()) {
-                            if let Some(components) = param["components"].as_array() {
-                                // Recurse into nested structs first
-                                for comp in components {
-                                    collect_structs(comp, structs, seen);
-                                }
-
-                                let fields: Vec<SolField> = components
-                                    .iter()
-                                    .map(|c| SolField {
-                                        name: c["name"].as_str().unwrap_or("_").to_string(),
-                                        sol_type: param_to_sol_type(c),
-                                    })
-                                    .collect();
-
-                                structs.push(SolStruct {
-                                    name: struct_name,
-                                    fields,
-                                });
-                            }
+                    let struct_name = extract_struct_name(internal);
+                    if !struct_name.is_empty()
+                        && seen.insert(struct_name.clone())
+                        && let Some(components) = param["components"].as_array()
+                    {
+                        // Recurse into nested structs first
+                        for comp in components {
+                            collect_structs(comp, structs, seen);
                         }
+
+                        let fields: Vec<SolField> = components
+                            .iter()
+                            .map(|c| SolField {
+                                name: c["name"].as_str().unwrap_or("_").to_string(),
+                                sol_type: param_to_sol_type(c),
+                            })
+                            .collect();
+
+                        structs.push(SolStruct {
+                            name: struct_name,
+                            fields,
+                        });
                     }
                 }
                 // Recurse
