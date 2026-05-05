@@ -365,7 +365,7 @@ verify all entity state from on-chain data.
 
 ### Event-Driven Indexing
 
-Every operation emits an `EntityOperation` event:
+Every operation emits **two** events, indexed and consumed together:
 
 ```
 event EntityOperation(
@@ -375,7 +375,20 @@ event EntityOperation(
     BlockNumber     expiresAt,
     bytes32         entityHash
 )
+
+event ChangeSetHashUpdate(
+    bytes32     indexed entityKey,
+    OperationKey indexed operationKey,
+    bytes32             changeSetHash
+)
 ```
+
+`EntityOperation` carries the per-op state needed by indexers; the
+resulting changeset hash and the packed `(block, tx, op)` operation key
+are emitted alongside it as `ChangeSetHashUpdate`. Off-chain decoders
+pair the two events to reconstruct each operation without an extra RPC
+round-trip — the changeset hash arrives in-band with the operation
+logs.
 
 ```mermaid
 flowchart LR
@@ -425,6 +438,73 @@ transaction and operation level.
 | Content hash            | Commitment.coreHash            | Recomputed + verified  |
 | Changeset hash          | Per-op snapshots               | Recomputed + compared  |
 | Block traversal         | Linked list + counts           | Event log scanning     |
+
+---
+
+## Rust Bindings (`arkiv-bindings`)
+
+This repository ships a Rust crate alongside the Solidity sources that
+gives off-chain consumers (notably the `arkiv-op-reth` ExEx and
+EntityDB) a typed, code-generated interface to the registry. The crate
+lives at the repo root (`Cargo.toml` → `arkiv-bindings`) with sources
+under `src/`.
+
+```mermaid
+flowchart LR
+    Sol["contracts/IEntityRegistry.sol<br/>contracts/EntityRegistry.sol"]
+    Forge["forge build"]
+    Artifacts["out/*.json<br/>(ABI + bytecode +<br/>storage layout)"]
+    Build["build.rs"]
+    Gen["OUT_DIR/sol.rs<br/>OUT_DIR/bytecode.rs"]
+    Crate["arkiv-bindings"]
+    Consumer["arkiv-op-reth /<br/>EntityDB / Rust SDKs"]
+
+    Sol --> Forge --> Artifacts --> Build --> Gen --> Crate --> Consumer
+```
+
+`build.rs` invokes `forge build` if the artifacts are stale, parses the
+Foundry output, and emits generated Rust into `OUT_DIR` which `lib.rs`
+`include!`s. The crate exposes four layers:
+
+1. **Auto-generated ABI types** — an `alloy_sol_types::sol!` block
+   derived from the `IEntityRegistry` ABI covers every function, event,
+   error, and struct (`Operation`, `Attribute`, `Mime128`, `Commitment`,
+   `BlockNode`). The `EntityRegistry` creation bytecode is embedded as
+   a string constant (`ENTITY_REGISTRY_CREATION_CODE`) for deployment
+   from Rust. Op-type and attribute-type discriminators are re-exported
+   as `OP_*` / `ATTR_*` constants pinned to the contract.
+
+2. **Validating identifier types** — `types::Ident32` and
+   `types::Mime128Str` mirror the on-chain validation rules (lowercase
+   `a-z 0-9 . - _`, leading-letter requirement, max length, RFC 2045
+   MIME grammar) so Rust SDKs reject bad input *before* submitting a
+   transaction. Encoders and decoders round-trip through the
+   `bytes32 / bytes32[4]` containers the contract uses.
+
+3. **Storage layout helpers** — `storage_layout` exposes slot indices
+   (accounting for OpenZeppelin's `EIP712` base occupying slots 0–1)
+   and key-packing functions (`operation_key`, `transaction_key`,
+   `mapping_slot`) that mirror `Entity.sol` exactly. This lets the ExEx
+   recompute the rolling changeset hash by reading slots directly at
+   historical block state, without spinning up an EVM. A test asserts
+   the constants match the Foundry `storageLayout` artifact, so
+   contract drift is caught at build time.
+
+4. **Wire decoder** — `wire::decode_operation` pairs a decoded
+   calldata `Operation` with its two emitted events (`EntityOperation`
+   + `ChangeSetHashUpdate`) into a tagged `Operation` enum (`Create`,
+   `Update`, `Extend`, `Transfer`, `Delete`, `Expire`) and decodes
+   attributes into a typed `Attribute` enum (`Uint` → `U256`, `String`
+   → opaque `FixedBytes<128>`, `EntityKey` → `B256`). When the
+   `serde-wire` cargo feature is enabled (default on), the types
+   serialize to the JSON shape the EntityDB consumes over its v2
+   ExEx → EntityDB JSON-RPC interface (block numbers and expiries as
+   `0x…` hex strings, attribute values tagged by `valueType`).
+
+The crate is the contract's primary off-chain consumer surface — every
+type, event, error, and storage layout that a Rust client needs is
+generated from or pinned against the same Foundry artifacts the
+contracts compile to.
 
 ---
 
