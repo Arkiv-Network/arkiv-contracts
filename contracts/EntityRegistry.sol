@@ -283,7 +283,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     ///
     /// Validation:
     ///   1. contentType must be valid MIME
-    ///   2. expiresAt must be strictly in the future
+    ///   2. btl must be non-zero
     ///   3. Attributes validated inside coreHash (count, sorting, value type/length)
     function _create(Entity.Operation calldata op, BlockNumber current)
         internal
@@ -291,23 +291,24 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         returns (bytes32 key, bytes32 entityHash_)
     {
         validateMime128(op.contentType);
-        Entity.requireFutureExpiry(op.expiresAt, current);
+        Entity.requirePositiveBtl(op.btl);
 
+        BlockNumber expiresAt = current + op.btl;
         key = _createEntityKey(msg.sender);
 
         bytes32 coreHash_;
-        (coreHash_, entityHash_) = _computeEntityHash(key, msg.sender, current, msg.sender, current, op.expiresAt, op);
+        (coreHash_, entityHash_) = _computeEntityHash(key, msg.sender, current, msg.sender, current, expiresAt, op);
 
         _commitments[key] = Entity.Commitment({
             creator: msg.sender,
             createdAt: current,
             updatedAt: current,
-            expiresAt: op.expiresAt,
+            expiresAt: expiresAt,
             owner: msg.sender,
             coreHash: coreHash_
         });
 
-        emit EntityOperation(key, Entity.CREATE, msg.sender, op.expiresAt, entityHash_);
+        emit EntityOperation(key, Entity.CREATE, msg.sender, expiresAt, entityHash_);
     }
 
     /// @dev Update an existing entity's payload, contentType, and attributes.
@@ -345,7 +346,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// Validation:
     ///   1. Entity must exist and be active
     ///   2. Caller must be the owner
-    ///   3. New expiresAt must be strictly greater than current expiresAt
+    ///   3. New expiresAt (current + btl) must be strictly greater than stored expiresAt
     function _extend(Entity.Operation calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         Entity.Commitment storage c = _commitments[key];
@@ -353,14 +354,16 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         Entity.requireExists(key, c);
         Entity.requireActive(key, c, current);
         Entity.requireOwner(key, c);
-        Entity.requireExpiryIncreased(key, op.expiresAt, c.expiresAt);
 
-        c.expiresAt = op.expiresAt;
+        BlockNumber newExpiresAt = current + op.btl;
+        Entity.requireExpiryIncreased(key, newExpiresAt, c.expiresAt);
+
+        c.expiresAt = newExpiresAt;
         c.updatedAt = current;
 
-        bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, current, op.expiresAt);
+        bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, current, newExpiresAt);
 
-        emit EntityOperation(key, Entity.EXTEND, c.owner, op.expiresAt, entityHash_);
+        emit EntityOperation(key, Entity.EXTEND, c.owner, newExpiresAt, entityHash_);
         return (key, entityHash_);
     }
 

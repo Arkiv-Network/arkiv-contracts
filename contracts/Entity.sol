@@ -40,19 +40,22 @@ library Entity {
 
     /// @dev Batch element: describes a single entity operation within an
     /// `execute()` call. Fields are interpreted according to `operationType`:
-    ///   - CREATE:   payload, contentType, attributes, expiresAt
+    ///   - CREATE:   payload, contentType, attributes, btl
     ///   - UPDATE:   entityKey, payload, contentType, attributes
-    ///   - EXTEND:   entityKey, expiresAt
+    ///   - EXTEND:   entityKey, btl
     ///   - TRANSFER: entityKey, newOwner
     ///   - DELETE:   entityKey
     ///   - EXPIRE:   entityKey
+    ///
+    /// `btl` (blocks-to-live) is a relative duration: `expiresAt = currentBlock + btl`.
+    /// Must be non-zero for CREATE and EXTEND.
     struct Operation {
         uint8 operationType;
         bytes32 entityKey;
         bytes payload;
         Mime128 contentType;
         Attribute[] attributes;
-        BlockNumber expiresAt;
+        BlockNumber btl;
         address newOwner;
     }
 
@@ -112,8 +115,8 @@ library Entity {
     error InvalidValueType(Ident32 name, uint8 valueType);
     /// @dev Reverted when operationType is unrecognized (including 0 / uninitialized).
     error InvalidOpType(uint8 operationType);
-    /// @dev Reverted when expiresAt is not strictly after the current block.
-    error ExpiryInPast(BlockNumber expiresAt, BlockNumber currentBlock);
+    /// @dev Reverted when btl is zero (entity would expire at the creation block).
+    error ZeroBtl();
     /// @dev Reverted when the attribute count exceeds MAX_ATTRIBUTES.
     error TooManyAttributes(uint256 count, uint256 maxCount);
     /// @dev Reverted when an entity key does not exist in storage.
@@ -193,9 +196,9 @@ library Entity {
         if (newExpiresAt <= currentExpiresAt) revert ExpiryNotExtended(key, newExpiresAt, currentExpiresAt);
     }
 
-    /// @dev Require that the expiry is strictly in the future.
-    function requireFutureExpiry(BlockNumber expiresAt, BlockNumber current) internal pure {
-        if (expiresAt <= current) revert ExpiryInPast(expiresAt, current);
+    /// @dev Require that btl is non-zero (entity must live for at least one block).
+    function requirePositiveBtl(BlockNumber btl) internal pure {
+        if (btl == BlockNumber.wrap(0)) revert ZeroBtl();
     }
 
     // -------------------------------------------------------------------------
