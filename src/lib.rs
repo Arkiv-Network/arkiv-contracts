@@ -1,3 +1,4 @@
+pub mod encode;
 pub mod storage_layout;
 pub mod types;
 pub mod wire;

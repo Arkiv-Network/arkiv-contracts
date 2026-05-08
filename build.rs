@@ -113,7 +113,14 @@ fn generate_sol_from_abi(abi: &serde_json::Value) -> String {
 
     // 2. Structs
     for (name, components) in &structs {
-        out.push_str("    #[derive(Debug, PartialEq, Eq)]\n");
+        let derives = if name == "Attribute" {
+            // Default for Attribute would give valueType=0 (UNINITIALIZED),
+            // which the contract rejects. Omit it intentionally.
+            "    #[derive(Debug, PartialEq, Eq)]\n"
+        } else {
+            "    #[derive(Debug, Default, PartialEq, Eq)]\n"
+        };
+        out.push_str(derives);
         out.push_str(&format!("    struct {} {{\n", name));
         for comp in components {
             let sol_type = param_sol_type(comp);
