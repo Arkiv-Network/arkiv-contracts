@@ -15,6 +15,7 @@ contract OwnershipLifecycleTest is Test, EntityRegistry {
     address bob = makeAddr("bob");
     address charlie = makeAddr("charlie");
 
+    BlockNumber btl;
     BlockNumber expiresAt;
     bytes32 testKey;
 
@@ -39,10 +40,11 @@ contract OwnershipLifecycleTest is Test, EntityRegistry {
     }
 
     function setUp() public {
-        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
+        btl = BlockNumber.wrap(1000);
+        expiresAt = BlockNumber.wrap(uint32(block.number)) + btl;
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
+        Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, btl);
         vm.prank(alice);
         (testKey,) = this.doCreate(createOp);
     }
@@ -84,7 +86,7 @@ contract OwnershipLifecycleTest is Test, EntityRegistry {
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.NotOwner.selector, testKey, alice, bob));
-        this.doExtend(Lib.extendOp(testKey, expiresAt + BlockNumber.wrap(500)));
+        this.doExtend(Lib.extendOp(testKey, expiresAt + BlockNumber.wrap(500) - BlockNumber.wrap(uint32(block.number))));
     }
 
     function test_previousOwnerCannotDelete() public {
@@ -126,7 +128,7 @@ contract OwnershipLifecycleTest is Test, EntityRegistry {
 
         BlockNumber newExpiry = expiresAt + BlockNumber.wrap(500);
         vm.prank(bob);
-        this.doExtend(Lib.extendOp(testKey, newExpiry));
+        this.doExtend(Lib.extendOp(testKey, newExpiry - BlockNumber.wrap(uint32(block.number))));
         assertEq(BlockNumber.unwrap(commitment(testKey).expiresAt), BlockNumber.unwrap(newExpiry));
     }
 
