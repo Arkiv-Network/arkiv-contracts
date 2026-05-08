@@ -12,6 +12,7 @@ contract DeleteTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
 
+    BlockNumber btl;
     BlockNumber expiresAt;
     bytes32 testKey;
 
@@ -24,10 +25,11 @@ contract DeleteTest is Test, EntityRegistry {
     }
 
     function setUp() public {
-        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
+        btl = BlockNumber.wrap(1000);
+        expiresAt = BlockNumber.wrap(uint32(block.number)) + btl;
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
+        Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, btl);
         vm.prank(alice);
         (testKey,) = this.doCreate(createOp);
     }
