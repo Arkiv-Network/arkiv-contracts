@@ -67,7 +67,7 @@ mod tests {
                 data: [FixedBytes::ZERO; 4],
             },
             attributes: vec![],
-            expiresAt: 1000,
+            btl: 1000,
             newOwner: Address::ZERO,
         };
 
@@ -100,7 +100,7 @@ mod tests {
                 data: [FixedBytes::ZERO; 4],
             },
             attributes: vec![attr.clone()],
-            expiresAt: 500,
+            btl: 500,
             newOwner: Address::ZERO,
         };
 

@@ -175,6 +175,11 @@ pub enum Attribute {
 /// - `entity_event`: the `EntityOperation` event emitted for this op
 /// - `hash_event`: the `ChangeSetHashUpdate` event emitted for this op
 ///
+/// The `expires_at` field on `CreateOp` and `ExtendOp` is sourced from
+/// `entity_event.expiresAt` — the absolute block number computed by the
+/// contract as `currentBlock + op.btl` and emitted on-chain. The raw `btl`
+/// from calldata is not exposed in the wire format.
+///
 /// Errors:
 /// - `entity_event.operationType` doesn't match `calldata.operationType`
 /// - Unknown operation type
@@ -198,7 +203,7 @@ pub fn decode_operation(
     let owner = entity_event.owner;
     let entity_hash = entity_event.entityHash;
     let changeset_hash = hash_event.changeSetHash;
-    let expires_at = u64::from(calldata.expiresAt);
+    let expires_at = u64::from(entity_event.expiresAt);
 
     Ok(match calldata.operationType {
         OP_CREATE => Operation::Create(CreateOp {
@@ -394,7 +399,7 @@ mod tests {
             payload: Bytes::from_static(b"hello"),
             contentType: mime128("text/plain"),
             attributes: vec![],
-            expiresAt: 1234,
+            btl: 1234,
             newOwner: Address::ZERO,
         }
     }
