@@ -37,13 +37,14 @@
 //!
 //! Serde annotations are gated behind the `serde-wire` feature (default on).
 
-use alloy_primitives::{Address, B256, Bytes, FixedBytes, U256};
+use alloy_primitives::{Address, B256, Bytes, FixedBytes, Log, U256};
+use alloy_sol_types::{SolCall, SolEvent};
 use eyre::{Result, bail};
 
 #[cfg(feature = "serde-wire")]
 use serde::Serialize;
 
-use crate::IEntityRegistry::{ChangeSetHashUpdate, EntityOperation};
+use crate::IEntityRegistry::{ChangeSetHashUpdate, EntityOperation, executeCall};
 use crate::{
     ATTR_ENTITY_KEY, ATTR_STRING, ATTR_UINT, Attribute, Ident32, Mime128, OP_CREATE, OP_DELETE,
     OP_EXPIRE, OP_EXTEND, OP_TRANSFER, OP_UPDATE, Operation,
@@ -355,6 +356,139 @@ fn require_single_word(value: &[FixedBytes<32>; 4], value_type: u8) -> Result<()
         }
     }
     Ok(())
+}
+
+// -----------------------------------------------------------------------------
+// ParsedRegistryTx — intermediate between raw on-chain data and ArkivOperation
+// -----------------------------------------------------------------------------
+
+/// A decoded EntityRegistry `execute()` call with calldata ops paired 1:1
+/// with their emitted events, validated for count and entityKey correspondence.
+///
+/// # Usage
+///
+/// ```text
+/// ParsedRegistryTx::parse(calldata, logs)          // decode + pair + validate
+///     .decode(tx_hash, tx_index, sender)            // validate content, produce ArkivTransaction
+/// ```
+///
+/// `logs` must be pre-filtered to only those emitted by the EntityRegistry
+/// address for the transaction being decoded. The caller owns the address
+/// filter; this type is deployment-agnostic.
+pub struct ParsedRegistryTx {
+    ops: Vec<PairedOp>,
+}
+
+struct PairedOp {
+    calldata: Operation,
+    entity_event: EntityOperation,
+    hash_event: ChangeSetHashUpdate,
+}
+
+impl ParsedRegistryTx {
+    /// Decode raw calldata and pre-filtered registry logs, pairing and
+    /// validating each calldata op against its two emitted events.
+    ///
+    /// Pairing contract (mirrors `EntityRegistry.sol::execute`):
+    /// each calldata op causes `_dispatch` to emit one `EntityOperation`
+    /// followed by one `ChangeSetHashUpdate`. The three sequences are
+    /// therefore 1:1 in emission order. Anything else is contract drift.
+    ///
+    /// Fails if:
+    /// - calldata is not a valid `execute()` call
+    /// - any log is not `EntityOperation` or `ChangeSetHashUpdate`
+    /// - the three sequences are not the same length
+    /// - any `(EntityOperation, ChangeSetHashUpdate)` pair has mismatched `entityKey`
+    pub fn parse(input: &[u8], logs: &[Log]) -> Result<Self> {
+        let call = executeCall::abi_decode(input)?;
+
+        let mut entity_events: Vec<EntityOperation> = Vec::new();
+        let mut hash_events: Vec<ChangeSetHashUpdate> = Vec::new();
+
+        for log in logs {
+            match log.topics().first() {
+                Some(t) if *t == EntityOperation::SIGNATURE_HASH => {
+                    entity_events.push(EntityOperation::decode_log_data(&log.data)?);
+                }
+                Some(t) if *t == ChangeSetHashUpdate::SIGNATURE_HASH => {
+                    hash_events.push(ChangeSetHashUpdate::decode_log_data(&log.data)?);
+                }
+                other => bail!("unexpected log from EntityRegistry: topic0={:?}", other),
+            }
+        }
+
+        if call.ops.len() != entity_events.len() || call.ops.len() != hash_events.len() {
+            bail!(
+                "event/calldata length mismatch: ops={}, entity_events={}, hash_events={}",
+                call.ops.len(),
+                entity_events.len(),
+                hash_events.len(),
+            );
+        }
+
+        let mut ops = Vec::with_capacity(call.ops.len());
+        for (i, ((calldata, entity_event), hash_event)) in call
+            .ops
+            .into_iter()
+            .zip(entity_events)
+            .zip(hash_events)
+            .enumerate()
+        {
+            if entity_event.entityKey != hash_event.entityKey {
+                bail!(
+                    "entityKey mismatch at op_index={}: EntityOperation={}, ChangeSetHashUpdate={}",
+                    i,
+                    entity_event.entityKey,
+                    hash_event.entityKey,
+                );
+            }
+            ops.push(PairedOp { calldata, entity_event, hash_event });
+        }
+
+        Ok(Self { ops })
+    }
+
+    /// Decode paired ops into a complete [`ArkivTransaction`].
+    ///
+    /// Takes the transaction-level fields that only the caller can provide
+    /// (`hash`, `index`, `sender`) and returns the fully assembled transaction
+    /// alongside the changeset hash after the last op (`None` if no ops).
+    /// The caller threads that hash through the block-level rolling value.
+    ///
+    /// Fails if any op's `Mime128` content type or `Ident32` attribute name
+    /// is invalid.
+    pub fn decode(
+        self,
+        hash: B256,
+        index: u32,
+        sender: Address,
+    ) -> Result<(ArkivTransaction, Option<B256>)> {
+        let mut operations = Vec::with_capacity(self.ops.len());
+        let mut last_hash: Option<B256> = None;
+
+        for (i, paired) in self.ops.into_iter().enumerate() {
+            let op = decode_operation(
+                i as u32,
+                &paired.calldata,
+                &paired.entity_event,
+                &paired.hash_event,
+            )?;
+            last_hash = Some(paired.hash_event.changeSetHash);
+            operations.push(op);
+        }
+
+        Ok((ArkivTransaction { hash, index, sender, operations }, last_hash))
+    }
+
+    /// Returns `true` if there are no operations in this transaction.
+    pub fn is_empty(&self) -> bool {
+        self.ops.is_empty()
+    }
+
+    /// Number of operations in this transaction.
+    pub fn len(&self) -> usize {
+        self.ops.len()
+    }
 }
 
 // -----------------------------------------------------------------------------
