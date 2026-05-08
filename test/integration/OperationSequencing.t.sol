@@ -13,6 +13,7 @@ import {encodeMime128} from "../../contracts/types/Mime128.sol";
 contract OperationSequencingTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
 
+    BlockNumber btl;
     BlockNumber expiresAt;
     bytes32 testKey;
 
@@ -41,10 +42,11 @@ contract OperationSequencingTest is Test, EntityRegistry {
     }
 
     function setUp() public {
-        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
+        btl = BlockNumber.wrap(1000);
+        expiresAt = BlockNumber.wrap(uint32(block.number)) + btl;
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
+        Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, btl);
         vm.prank(alice);
         (testKey,) = this.doCreate(createOp);
     }
@@ -59,7 +61,7 @@ contract OperationSequencingTest is Test, EntityRegistry {
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityNotFound.selector, testKey));
-        this.doExtend(Lib.extendOp(testKey, expiresAt + BlockNumber.wrap(500)));
+        this.doExtend(Lib.extendOp(testKey, expiresAt + BlockNumber.wrap(500) - BlockNumber.wrap(uint32(block.number))));
     }
 
     function test_deleteThenUpdate_reverts() public {
@@ -113,7 +115,7 @@ contract OperationSequencingTest is Test, EntityRegistry {
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityNotFound.selector, testKey));
-        this.doExtend(Lib.extendOp(testKey, expiresAt + BlockNumber.wrap(500)));
+        this.doExtend(Lib.extendOp(testKey, expiresAt + BlockNumber.wrap(500) - BlockNumber.wrap(uint32(block.number))));
     }
 
     function test_expireThenExpire_reverts() public {
@@ -131,7 +133,7 @@ contract OperationSequencingTest is Test, EntityRegistry {
     function test_deleteInSameBlockAsCreate_succeeds() public {
         // Create a fresh entity (same block as setUp's create).
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory createOp = Lib.createOp("ephemeral", encodeMime128("text/plain"), attrs, expiresAt);
+        Entity.Operation memory createOp = Lib.createOp("ephemeral", encodeMime128("text/plain"), attrs, btl);
         vm.prank(alice);
         (bytes32 key,) = this.doCreate(createOp);
 
