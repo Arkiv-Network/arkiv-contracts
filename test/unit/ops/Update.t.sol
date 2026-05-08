@@ -12,6 +12,7 @@ contract UpdateTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
 
+    BlockNumber btl;
     BlockNumber expiresAt;
     bytes32 testKey;
 
@@ -42,11 +43,12 @@ contract UpdateTest is Test, EntityRegistry {
         textPlain = encodeMime128("text/plain");
         appJson = encodeMime128("application/json");
 
-        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
+        btl = BlockNumber.wrap(1000);
+        expiresAt = BlockNumber.wrap(uint32(block.number)) + btl;
 
         // Create an entity owned by alice.
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory createOp = Lib.createOp("hello", textPlain, attrs, expiresAt);
+        Entity.Operation memory createOp = Lib.createOp("hello", textPlain, attrs, btl);
         vm.prank(alice);
         (testKey,) = this.doCreate(createOp);
     }
