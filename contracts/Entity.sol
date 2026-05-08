@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "./types/BlockNumber.sol";
+import {BlockNumber32} from "./types/BlockNumber32.sol";
 import {Ident32, validateIdent32} from "./types/Ident32.sol";
 import {Mime128} from "./types/Mime128.sol";
 
@@ -40,19 +40,22 @@ library Entity {
 
     /// @dev Batch element: describes a single entity operation within an
     /// `execute()` call. Fields are interpreted according to `operationType`:
-    ///   - CREATE:   payload, contentType, attributes, expiresAt
+    ///   - CREATE:   payload, contentType, attributes, btl
     ///   - UPDATE:   entityKey, payload, contentType, attributes
-    ///   - EXTEND:   entityKey, expiresAt
+    ///   - EXTEND:   entityKey, btl
     ///   - TRANSFER: entityKey, newOwner
     ///   - DELETE:   entityKey
     ///   - EXPIRE:   entityKey
+    ///
+    /// `btl` (blocks-to-live) is a relative duration: `expiresAt = currentBlock + btl`.
+    /// Must be non-zero for CREATE and EXTEND.
     struct Operation {
         uint8 operationType;
         bytes32 entityKey;
         bytes payload;
         Mime128 contentType;
         Attribute[] attributes;
-        BlockNumber expiresAt;
+        BlockNumber32 btl;
         address newOwner;
     }
 
@@ -84,9 +87,9 @@ library Entity {
     ///   slot 2: coreHash (32)
     struct Commitment {
         address creator;
-        BlockNumber createdAt;
-        BlockNumber updatedAt;
-        BlockNumber expiresAt;
+        BlockNumber32 createdAt;
+        BlockNumber32 updatedAt;
+        BlockNumber32 expiresAt;
         address owner;
         bytes32 coreHash;
     }
@@ -95,8 +98,8 @@ library Entity {
     /// Only blocks containing at least one mutation have an entry.
     /// All fields pack into a single slot (12 bytes).
     struct BlockNode {
-        BlockNumber prevBlock;
-        BlockNumber nextBlock;
+        BlockNumber32 prevBlock;
+        BlockNumber32 nextBlock;
         uint32 txCount;
     }
 
@@ -112,8 +115,8 @@ library Entity {
     error InvalidValueType(Ident32 name, uint8 valueType);
     /// @dev Reverted when operationType is unrecognized (including 0 / uninitialized).
     error InvalidOpType(uint8 operationType);
-    /// @dev Reverted when expiresAt is not strictly after the current block.
-    error ExpiryInPast(BlockNumber expiresAt, BlockNumber currentBlock);
+    /// @dev Reverted when btl is zero (entity would expire at the creation block).
+    error ZeroBtl();
     /// @dev Reverted when the attribute count exceeds MAX_ATTRIBUTES.
     error TooManyAttributes(uint256 count, uint256 maxCount);
     /// @dev Reverted when an entity key does not exist in storage.
@@ -121,15 +124,15 @@ library Entity {
     /// @dev Reverted when the caller is not the entity owner.
     error NotOwner(bytes32 entityKey, address caller, address owner);
     /// @dev Reverted when an operation targets an expired entity.
-    error EntityExpired(bytes32 entityKey, BlockNumber expiresAt);
+    error EntityExpired(bytes32 entityKey, BlockNumber32 expiresAt);
     /// @dev Reverted when new expiresAt is not strictly greater than current.
-    error ExpiryNotExtended(bytes32 entityKey, BlockNumber newExpiresAt, BlockNumber currentExpiresAt);
+    error ExpiryNotExtended(bytes32 entityKey, BlockNumber32 newExpiresAt, BlockNumber32 currentExpiresAt);
     /// @dev Reverted when transfer target is the zero address.
     error TransferToZeroAddress(bytes32 entityKey);
     /// @dev Reverted when transfer target is the current owner (no-op).
     error TransferToSelf(bytes32 entityKey);
     /// @dev Reverted when expire is called on an entity that hasn't expired yet.
-    error EntityNotExpired(bytes32 entityKey, BlockNumber expiresAt);
+    error EntityNotExpired(bytes32 entityKey, BlockNumber32 expiresAt);
 
     // -------------------------------------------------------------------------
     // Constants
@@ -164,12 +167,12 @@ library Entity {
     }
 
     /// @dev Require that the entity has not expired (expiresAt > current).
-    function requireActive(bytes32 key, Commitment storage c, BlockNumber current) internal view {
+    function requireActive(bytes32 key, Commitment storage c, BlockNumber32 current) internal view {
         if (c.expiresAt <= current) revert EntityExpired(key, c.expiresAt);
     }
 
     /// @dev Require that the entity has expired (expiresAt <= current).
-    function requireExpired(bytes32 key, Commitment storage c, BlockNumber current) internal view {
+    function requireExpired(bytes32 key, Commitment storage c, BlockNumber32 current) internal view {
         if (c.expiresAt > current) revert EntityNotExpired(key, c.expiresAt);
     }
 
@@ -189,13 +192,16 @@ library Entity {
     }
 
     /// @dev Require that the new expiry is strictly greater than the current one.
-    function requireExpiryIncreased(bytes32 key, BlockNumber newExpiresAt, BlockNumber currentExpiresAt) internal pure {
+    function requireExpiryIncreased(bytes32 key, BlockNumber32 newExpiresAt, BlockNumber32 currentExpiresAt)
+        internal
+        pure
+    {
         if (newExpiresAt <= currentExpiresAt) revert ExpiryNotExtended(key, newExpiresAt, currentExpiresAt);
     }
 
-    /// @dev Require that the expiry is strictly in the future.
-    function requireFutureExpiry(BlockNumber expiresAt, BlockNumber current) internal pure {
-        if (expiresAt <= current) revert ExpiryInPast(expiresAt, current);
+    /// @dev Require that btl is non-zero (entity must live for at least one block).
+    function requirePositiveBtl(BlockNumber32 btl) internal pure {
+        if (btl == BlockNumber32.wrap(0)) revert ZeroBtl();
     }
 
     // -------------------------------------------------------------------------
@@ -231,7 +237,7 @@ library Entity {
     function coreHash(
         bytes32 key,
         address creator,
-        BlockNumber createdAt,
+        BlockNumber32 createdAt,
         Mime128 calldata contentType,
         bytes calldata payload,
         Attribute[] calldata attributes
@@ -267,7 +273,7 @@ library Entity {
     /// @param updatedAt Block number of last update.
     /// @param expiresAt Expiry block number.
     /// @return The keccak256 EIP-712 struct hash (unwrapped).
-    function entityStructHash(bytes32 coreHash_, address owner, BlockNumber updatedAt, BlockNumber expiresAt)
+    function entityStructHash(bytes32 coreHash_, address owner, BlockNumber32 updatedAt, BlockNumber32 expiresAt)
         internal
         pure
         returns (bytes32)
@@ -300,14 +306,14 @@ library Entity {
 
     /// @notice Pack a (block, tx) pair into a TransactionKey for the `_txOpCount`
     /// mapping. Layout: block in bits [32..95], tx in bits [0..31].
-    function transactionKey(BlockNumber blockNumber, uint32 txSeq) internal pure returns (TransactionKey) {
-        return TransactionKey.wrap((uint256(BlockNumber.unwrap(blockNumber)) << 32) | txSeq);
+    function transactionKey(BlockNumber32 blockNumber, uint32 txSeq) internal pure returns (TransactionKey) {
+        return TransactionKey.wrap((uint256(BlockNumber32.unwrap(blockNumber)) << 32) | txSeq);
     }
 
     /// @notice Pack a (block, tx, op) triple into an OperationKey for the `_hashAt`
     /// mapping. Layout: block in bits [64..127], tx in bits [32..63], op in
     /// bits [0..31]. Extends transactionKey with the op dimension.
-    function operationKey(BlockNumber blockNumber, uint32 txSeq, uint32 opSeq) internal pure returns (OperationKey) {
+    function operationKey(BlockNumber32 blockNumber, uint32 txSeq, uint32 opSeq) internal pure returns (OperationKey) {
         return OperationKey.wrap((TransactionKey.unwrap(transactionKey(blockNumber, txSeq)) << 32) | opSeq);
     }
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../contracts/types/BlockNumber.sol";
+import {BlockNumber32} from "../../contracts/types/BlockNumber32.sol";
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../utils/Lib.sol";
 import {Entity} from "../../contracts/Entity.sol";
@@ -15,13 +15,13 @@ contract ViewsTest is Test {
 
     address alice = makeAddr("alice");
     bytes32 testKey;
-    BlockNumber deployBlock;
-    BlockNumber expiresAt;
+    BlockNumber32 deployBlock;
+    BlockNumber32 btl;
 
     function setUp() public {
         registry = new EntityRegistry();
         deployBlock = registry.genesisBlock();
-        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
+        btl = BlockNumber32.wrap(1000);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         Entity.Operation[] memory ops = new Entity.Operation[](1);
@@ -31,7 +31,7 @@ contract ViewsTest is Test {
             payload: "hello",
             contentType: encodeMime128("text/plain"),
             attributes: attrs,
-            expiresAt: expiresAt,
+            btl: btl,
             newOwner: address(0)
         });
 
@@ -57,15 +57,15 @@ contract ViewsTest is Test {
     function test_changeSetHashAtBlock_pastHead_returnsCurrentHash() public view {
         // Carry-forward semantics: any block >= headBlock returns the current
         // rolling hash, not bytes32(0).
-        assertEq(registry.changeSetHashAtBlock(BlockNumber.wrap(999999)), registry.changeSetHash());
+        assertEq(registry.changeSetHashAtBlock(BlockNumber32.wrap(999999)), registry.changeSetHash());
     }
 
     function test_changeSetHashAtTx_uninitializedReturnsZero() public view {
-        assertEq(registry.changeSetHashAtTx(BlockNumber.wrap(999999), 0), bytes32(0));
+        assertEq(registry.changeSetHashAtTx(BlockNumber32.wrap(999999), 0), bytes32(0));
     }
 
     function test_changeSetHashAtOp_uninitializedReturnsZero() public view {
-        assertEq(registry.changeSetHashAtOp(BlockNumber.wrap(999999), 0, 0), bytes32(0));
+        assertEq(registry.changeSetHashAtOp(BlockNumber32.wrap(999999), 0, 0), bytes32(0));
     }
 
     // =========================================================================
@@ -84,26 +84,26 @@ contract ViewsTest is Test {
     // =========================================================================
 
     function test_genesisBlock() public view {
-        assertEq(BlockNumber.unwrap(registry.genesisBlock()), BlockNumber.unwrap(deployBlock));
+        assertEq(BlockNumber32.unwrap(registry.genesisBlock()), BlockNumber32.unwrap(deployBlock));
     }
 
     function test_headBlock() public view {
-        assertEq(BlockNumber.unwrap(registry.headBlock()), BlockNumber.unwrap(deployBlock));
+        assertEq(BlockNumber32.unwrap(registry.headBlock()), BlockNumber32.unwrap(deployBlock));
     }
 
     function test_getBlockNode() public view {
         Entity.BlockNode memory node = registry.getBlockNode(deployBlock);
         assertEq(node.txCount, 1);
         // Deploy block is both genesis and head — no neighbours.
-        assertEq(BlockNumber.unwrap(node.prevBlock), 0);
-        assertEq(BlockNumber.unwrap(node.nextBlock), 0);
+        assertEq(BlockNumber32.unwrap(node.prevBlock), 0);
+        assertEq(BlockNumber32.unwrap(node.nextBlock), 0);
     }
 
     function test_getBlockNode_uninitializedReturnsZero() public view {
-        Entity.BlockNode memory node = registry.getBlockNode(BlockNumber.wrap(999999));
+        Entity.BlockNode memory node = registry.getBlockNode(BlockNumber32.wrap(999999));
         assertEq(node.txCount, 0);
-        assertEq(BlockNumber.unwrap(node.prevBlock), 0);
-        assertEq(BlockNumber.unwrap(node.nextBlock), 0);
+        assertEq(BlockNumber32.unwrap(node.prevBlock), 0);
+        assertEq(BlockNumber32.unwrap(node.nextBlock), 0);
     }
 
     // =========================================================================
@@ -115,7 +115,7 @@ contract ViewsTest is Test {
     }
 
     function test_txOpCount_uninitializedReturnsZero() public view {
-        assertEq(registry.txOpCount(BlockNumber.wrap(999999), 0), 0);
+        assertEq(registry.txOpCount(BlockNumber32.wrap(999999), 0), 0);
     }
 
     // =========================================================================
@@ -126,9 +126,9 @@ contract ViewsTest is Test {
         Entity.Commitment memory c = registry.commitment(testKey);
         assertEq(c.owner, alice);
         assertEq(c.creator, alice);
-        assertEq(BlockNumber.unwrap(c.createdAt), BlockNumber.unwrap(deployBlock));
-        assertEq(BlockNumber.unwrap(c.updatedAt), BlockNumber.unwrap(deployBlock));
-        assertEq(BlockNumber.unwrap(c.expiresAt), BlockNumber.unwrap(expiresAt));
+        assertEq(BlockNumber32.unwrap(c.createdAt), BlockNumber32.unwrap(deployBlock));
+        assertEq(BlockNumber32.unwrap(c.updatedAt), BlockNumber32.unwrap(deployBlock));
+        assertEq(BlockNumber32.unwrap(c.expiresAt), BlockNumber32.unwrap(deployBlock + btl));
         assertTrue(c.coreHash != bytes32(0));
     }
 

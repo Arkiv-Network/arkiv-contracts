@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../contracts/types/BlockNumber.sol";
+import {BlockNumber32} from "../../contracts/types/BlockNumber32.sol";
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../utils/Lib.sol";
 import {Entity} from "../../contracts/Entity.sol";
@@ -13,38 +13,40 @@ import {encodeMime128} from "../../contracts/types/Mime128.sol";
 contract OperationSequencingTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
 
-    BlockNumber expiresAt;
+    BlockNumber32 btl;
+    BlockNumber32 expiresAt;
     bytes32 testKey;
 
     function doCreate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _create(op, BlockNumber.wrap(uint32(block.number)));
+        return _create(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function doDelete(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _delete(op, BlockNumber.wrap(uint32(block.number)));
+        return _delete(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function doExpire(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _expire(op, BlockNumber.wrap(uint32(block.number)));
+        return _expire(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function doExtend(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _extend(op, BlockNumber.wrap(uint32(block.number)));
+        return _extend(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function doUpdate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _update(op, BlockNumber.wrap(uint32(block.number)));
+        return _update(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function doTransfer(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _transfer(op, BlockNumber.wrap(uint32(block.number)));
+        return _transfer(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function setUp() public {
-        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
+        btl = BlockNumber32.wrap(1000);
+        expiresAt = BlockNumber32.wrap(uint32(block.number)) + btl;
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
+        Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, btl);
         vm.prank(alice);
         (testKey,) = this.doCreate(createOp);
     }
@@ -59,7 +61,9 @@ contract OperationSequencingTest is Test, EntityRegistry {
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityNotFound.selector, testKey));
-        this.doExtend(Lib.extendOp(testKey, expiresAt + BlockNumber.wrap(500)));
+        this.doExtend(
+            Lib.extendOp(testKey, expiresAt + BlockNumber32.wrap(500) - BlockNumber32.wrap(uint32(block.number)))
+        );
     }
 
     function test_deleteThenUpdate_reverts() public {
@@ -97,7 +101,7 @@ contract OperationSequencingTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_expireThenUpdate_reverts() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
+        vm.roll(BlockNumber32.unwrap(expiresAt));
         this.doExpire(Lib.expireOp(testKey));
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
@@ -108,16 +112,18 @@ contract OperationSequencingTest is Test, EntityRegistry {
     }
 
     function test_expireThenExtend_reverts() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
+        vm.roll(BlockNumber32.unwrap(expiresAt));
         this.doExpire(Lib.expireOp(testKey));
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityNotFound.selector, testKey));
-        this.doExtend(Lib.extendOp(testKey, expiresAt + BlockNumber.wrap(500)));
+        this.doExtend(
+            Lib.extendOp(testKey, expiresAt + BlockNumber32.wrap(500) - BlockNumber32.wrap(uint32(block.number)))
+        );
     }
 
     function test_expireThenExpire_reverts() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
+        vm.roll(BlockNumber32.unwrap(expiresAt));
         this.doExpire(Lib.expireOp(testKey));
 
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityNotFound.selector, testKey));
@@ -131,7 +137,7 @@ contract OperationSequencingTest is Test, EntityRegistry {
     function test_deleteInSameBlockAsCreate_succeeds() public {
         // Create a fresh entity (same block as setUp's create).
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory createOp = Lib.createOp("ephemeral", encodeMime128("text/plain"), attrs, expiresAt);
+        Entity.Operation memory createOp = Lib.createOp("ephemeral", encodeMime128("text/plain"), attrs, btl);
         vm.prank(alice);
         (bytes32 key,) = this.doCreate(createOp);
 

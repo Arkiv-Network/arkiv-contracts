@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../contracts/types/BlockNumber.sol";
+import {BlockNumber32} from "../../contracts/types/BlockNumber32.sol";
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../utils/Lib.sol";
 import {Entity} from "../../contracts/Entity.sol";
@@ -14,34 +14,36 @@ contract ExpiryLifecycleTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
 
-    BlockNumber expiresAt;
+    BlockNumber32 btl;
+    BlockNumber32 expiresAt;
     bytes32 testKey;
 
     function doCreate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _create(op, BlockNumber.wrap(uint32(block.number)));
+        return _create(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function doExtend(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _extend(op, BlockNumber.wrap(uint32(block.number)));
+        return _extend(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function doExpire(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _expire(op, BlockNumber.wrap(uint32(block.number)));
+        return _expire(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function doUpdate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _update(op, BlockNumber.wrap(uint32(block.number)));
+        return _update(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function doDelete(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _delete(op, BlockNumber.wrap(uint32(block.number)));
+        return _delete(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function setUp() public {
-        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(100);
+        btl = BlockNumber32.wrap(100);
+        expiresAt = BlockNumber32.wrap(uint32(block.number)) + btl;
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
+        Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, btl);
         vm.prank(alice);
         (testKey,) = this.doCreate(createOp);
     }
@@ -51,15 +53,15 @@ contract ExpiryLifecycleTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_extendMultipleTimes() public {
-        BlockNumber expiry1 = expiresAt + BlockNumber.wrap(100);
+        BlockNumber32 expiry1 = expiresAt + BlockNumber32.wrap(100);
         vm.prank(alice);
-        this.doExtend(Lib.extendOp(testKey, expiry1));
-        assertEq(BlockNumber.unwrap(commitment(testKey).expiresAt), BlockNumber.unwrap(expiry1));
+        this.doExtend(Lib.extendOp(testKey, expiry1 - BlockNumber32.wrap(uint32(block.number))));
+        assertEq(BlockNumber32.unwrap(commitment(testKey).expiresAt), BlockNumber32.unwrap(expiry1));
 
-        BlockNumber expiry2 = expiry1 + BlockNumber.wrap(100);
+        BlockNumber32 expiry2 = expiry1 + BlockNumber32.wrap(100);
         vm.prank(alice);
-        this.doExtend(Lib.extendOp(testKey, expiry2));
-        assertEq(BlockNumber.unwrap(commitment(testKey).expiresAt), BlockNumber.unwrap(expiry2));
+        this.doExtend(Lib.extendOp(testKey, expiry2 - BlockNumber32.wrap(uint32(block.number))));
+        assertEq(BlockNumber32.unwrap(commitment(testKey).expiresAt), BlockNumber32.unwrap(expiry2));
     }
 
     // =========================================================================
@@ -67,7 +69,7 @@ contract ExpiryLifecycleTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_expiredEntityCannotBeUpdated() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
+        vm.roll(BlockNumber32.unwrap(expiresAt));
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         Entity.Operation memory op = Lib.updateOp(testKey, "new", encodeMime128("text/plain"), attrs);
@@ -77,15 +79,16 @@ contract ExpiryLifecycleTest is Test, EntityRegistry {
     }
 
     function test_expiredEntityCannotBeExtended() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
+        vm.roll(BlockNumber32.unwrap(expiresAt));
 
+        BlockNumber32 newExpiry = expiresAt + BlockNumber32.wrap(500);
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityExpired.selector, testKey, expiresAt));
-        this.doExtend(Lib.extendOp(testKey, expiresAt + BlockNumber.wrap(500)));
+        this.doExtend(Lib.extendOp(testKey, newExpiry - BlockNumber32.wrap(uint32(block.number))));
     }
 
     function test_expiredEntityCannotBeDeleted() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
+        vm.roll(BlockNumber32.unwrap(expiresAt));
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityExpired.selector, testKey, expiresAt));
@@ -97,7 +100,7 @@ contract ExpiryLifecycleTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_nonOwnerCanExpire() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
+        vm.roll(BlockNumber32.unwrap(expiresAt));
 
         vm.prank(bob);
         this.doExpire(Lib.expireOp(testKey));
@@ -109,12 +112,12 @@ contract ExpiryLifecycleTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_extendThenOperateAfterOriginalExpiry() public {
-        BlockNumber newExpiry = expiresAt + BlockNumber.wrap(500);
+        BlockNumber32 newExpiry = expiresAt + BlockNumber32.wrap(500);
         vm.prank(alice);
-        this.doExtend(Lib.extendOp(testKey, newExpiry));
+        this.doExtend(Lib.extendOp(testKey, newExpiry - BlockNumber32.wrap(uint32(block.number))));
 
         // Roll past original expiry but before new expiry.
-        vm.roll(BlockNumber.unwrap(expiresAt) + 1);
+        vm.roll(BlockNumber32.unwrap(expiresAt) + 1);
 
         // Update should succeed — entity is still active.
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
@@ -130,12 +133,12 @@ contract ExpiryLifecycleTest is Test, EntityRegistry {
 
     function test_fullExpiryLifecycle() public {
         // Extend.
-        BlockNumber newExpiry = expiresAt + BlockNumber.wrap(200);
+        BlockNumber32 newExpiry = expiresAt + BlockNumber32.wrap(200);
         vm.prank(alice);
-        this.doExtend(Lib.extendOp(testKey, newExpiry));
+        this.doExtend(Lib.extendOp(testKey, newExpiry - BlockNumber32.wrap(uint32(block.number))));
 
         // Roll to new expiry.
-        vm.roll(BlockNumber.unwrap(newExpiry));
+        vm.roll(BlockNumber32.unwrap(newExpiry));
 
         // Expire (by non-owner).
         vm.prank(bob);

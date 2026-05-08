@@ -1,25 +1,33 @@
-use alloy_primitives::B256;
+//! Validation and string-conversion impls for the ABI-generated [`Ident32`] UDVT.
+//!
+//! [`Ident32`] is a left-aligned, null-padded 32-byte ASCII identifier.
+//! Valid characters: `a-z`, `0-9`, `.`, `-`, `_`. Must start with `a-z`.
+//!
+//! These impl blocks mirror the validation rules in `contracts/types/Ident32.sol`.
+
+use alloy_primitives::FixedBytes;
 use eyre::{Result, bail};
 
+use crate::Ident32;
+
 /// Valid character bitmap: a-z, 0-9, '.', '-', '_'.
-/// Mirrors IDENT_CHARSET in Ident32.sol.
-const IDENT_CHARSET: u128 = (1 << 0x2D) | (1 << 0x2E)         // hyphen, dot
-    | (((1 << 10) - 1) << 0x30)                                 // digits
-    | (1 << 0x5F)                                                // underscore
-    | (((1u128 << 26) - 1) << 0x61); // lowercase a-z
+/// Mirrors `IDENT_CHARSET` in Ident32.sol.
+const IDENT_CHARSET: u128 = (1 << 0x2D) | (1 << 0x2E)
+    | (((1 << 10) - 1) << 0x30)
+    | (1 << 0x5F)
+    | (((1u128 << 26) - 1) << 0x61);
 
 /// Leading byte bitmap: a-z only.
+/// Mirrors `IDENT_LEADING` in Ident32.sol.
 const IDENT_LEADING: u128 = ((1u128 << 26) - 1) << 0x61;
 
-/// A validated 32-byte left-aligned ASCII identifier, mirroring the Solidity `Ident32` UDVT.
-///
-/// Valid characters: `a-z`, `0-9`, `.`, `-`, `_`. Must start with `a-z`.
-/// Stored as left-aligned bytes in a `B256`, null-padded on the right.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Ident32(B256);
-
 impl Ident32 {
-    /// Encode a string into an Ident32, validating the charset.
+    /// Encode a string into an `Ident32`, validating the charset.
+    ///
+    /// Rules (mirrors `validateIdent32` in Ident32.sol):
+    /// - Non-empty, at most 32 bytes
+    /// - First byte must be `a-z`
+    /// - Remaining bytes must be in `a-z 0-9 . - _`
     pub fn encode(s: &str) -> Result<Self> {
         let bytes = s.as_bytes();
         if bytes.is_empty() {
@@ -28,43 +36,53 @@ impl Ident32 {
         if bytes.len() > 32 {
             bail!("Ident32 too long: {} bytes (max 32)", bytes.len());
         }
-
-        // Leading byte must be a-z
         if (IDENT_LEADING >> bytes[0]) & 1 == 0 {
-            bail!(
-                "Ident32 invalid leading byte at position 0: 0x{:02x}",
-                bytes[0]
-            );
+            bail!("Ident32 invalid leading byte at position 0: 0x{:02x}", bytes[0]);
         }
-
-        // Remaining bytes must be in IDENT_CHARSET
         for (i, &b) in bytes.iter().enumerate().skip(1) {
             if (IDENT_CHARSET >> b) & 1 == 0 {
                 bail!("Ident32 invalid byte at position {}: 0x{:02x}", i, b);
             }
         }
-
         let mut buf = [0u8; 32];
         buf[..bytes.len()].copy_from_slice(bytes);
-        Ok(Self(B256::from(buf)))
+        Ok(Self(FixedBytes::from(buf)))
     }
 
-    /// Decode an Ident32 back to a string, stripping null padding.
-    pub fn decode(raw: B256) -> Result<String> {
-        let bytes: &[u8] = raw.as_ref();
-        let end = bytes.iter().position(|b| *b == 0).unwrap_or(32);
+    /// Decode an `Ident32` to its string representation, stripping null padding.
+    pub fn decode(&self) -> Result<String> {
+        let bytes = self.0.as_slice();
+        let end = bytes.iter().position(|&b| b == 0).unwrap_or(32);
         String::from_utf8(bytes[..end].to_vec())
             .map_err(|e| eyre::eyre!("invalid UTF-8 in Ident32: {}", e))
     }
 
-    /// Get the raw B256 representation.
-    pub fn as_b256(&self) -> B256 {
-        self.0
-    }
-
-    /// Decode this Ident32 to a string.
-    pub fn to_string(&self) -> Result<String> {
-        Self::decode(self.0)
+    /// Validate raw bytes as an `Ident32`, returning `self` if valid.
+    ///
+    /// In addition to charset validation, enforces that once a null byte
+    /// appears all subsequent bytes must also be null (no embedded nulls).
+    /// This matches the stricter check in `validateIdent32` in Ident32.sol.
+    pub fn validate(self) -> Result<Self> {
+        let bytes = self.0.as_slice();
+        if bytes[0] == 0 {
+            bail!("Ident32 cannot be empty");
+        }
+        if (IDENT_LEADING >> bytes[0]) & 1 == 0 {
+            bail!("Ident32 invalid leading byte at position 0: 0x{:02x}", bytes[0]);
+        }
+        let mut found_null = false;
+        for (i, &b) in bytes.iter().enumerate().skip(1) {
+            if found_null {
+                if b != 0 {
+                    bail!("Ident32 embedded null: non-zero byte 0x{:02x} at position {}", b, i);
+                }
+            } else if b == 0 {
+                found_null = true;
+            } else if (IDENT_CHARSET >> b) & 1 == 0 {
+                bail!("Ident32 invalid byte at position {}: 0x{:02x}", i, b);
+            }
+        }
+        Ok(self)
     }
 }
 
@@ -75,24 +93,9 @@ impl TryFrom<&str> for Ident32 {
     }
 }
 
-impl TryFrom<B256> for Ident32 {
-    type Error = eyre::Error;
-    fn try_from(raw: B256) -> Result<Self> {
-        // Validate the raw bytes
-        let s = Self::decode(raw)?;
-        Self::encode(&s)
-    }
-}
-
-impl From<Ident32> for B256 {
-    fn from(id: Ident32) -> B256 {
-        id.0
-    }
-}
-
 impl std::fmt::Display for Ident32 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.to_string() {
+        match self.decode() {
             Ok(s) => write!(f, "{}", s),
             Err(_) => write!(f, "{}", self.0),
         }
@@ -101,12 +104,11 @@ impl std::fmt::Display for Ident32 {
 
 #[cfg(feature = "serde-wire")]
 impl serde::Serialize for Ident32 {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        // Always Ok by construction — `Ident32::encode` and the
-        // `TryFrom<B256>` impl both validate UTF-8 + charset before
-        // building the value, so `to_string` cannot fail here.
-        let s = self.to_string().map_err(serde::ser::Error::custom)?;
-        serializer.serialize_str(&s)
+    fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+        // Always Ok by construction — values in scope are either produced by
+        // `encode` (validated charset) or `validate` (same rules).
+        let string = self.decode().map_err(serde::ser::Error::custom)?;
+        s.serialize_str(&string)
     }
 }
 
@@ -117,8 +119,7 @@ mod tests {
     #[test]
     fn encode_decode_roundtrip() {
         let id = Ident32::encode("my.attribute").unwrap();
-        let decoded = id.to_string().unwrap();
-        assert_eq!(decoded, "my.attribute");
+        assert_eq!(id.decode().unwrap(), "my.attribute");
     }
 
     #[test]
@@ -148,9 +149,32 @@ mod tests {
     }
 
     #[test]
-    fn full_length() {
+    fn full_length_32_bytes() {
         let s = "a".repeat(32);
         let id = Ident32::encode(&s).unwrap();
-        assert_eq!(id.to_string().unwrap().len(), 32);
+        assert_eq!(id.decode().unwrap().len(), 32);
+    }
+
+    #[test]
+    fn validate_rejects_embedded_null() {
+        // TryFrom<FixedBytes<32>> is provided by alloy (non-validating From).
+        // Use Ident32(raw).validate() to enforce the contract's stricter check.
+        let mut buf = [0u8; 32];
+        buf[0] = b'a';
+        buf[1] = b'b';
+        buf[2] = 0;    // null terminator
+        buf[3] = b'c'; // non-null after null — contract rejects this
+        let raw = FixedBytes::<32>::from(buf);
+        assert!(Ident32(raw).validate().is_err());
+    }
+
+    #[test]
+    fn validate_accepts_null_terminated() {
+        let mut buf = [0u8; 32];
+        buf[0] = b'a';
+        buf[1] = b'b';
+        // remaining bytes are zero — valid
+        let raw = FixedBytes::<32>::from(buf);
+        assert!(Ident32(raw).validate().is_ok());
     }
 }

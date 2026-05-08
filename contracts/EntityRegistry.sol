@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "./types/BlockNumber.sol";
+import {BlockNumber32} from "./types/BlockNumber32.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {Entity, OperationKey, TransactionKey} from "./Entity.sol";
 import {validateMime128} from "./types/Mime128.sol";
@@ -12,7 +12,7 @@ import {validateMime128} from "./types/Mime128.sol";
 /// and the changeset hash chain.
 contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     constructor() {
-        BlockNumber genesis = BlockNumber.wrap(uint32(block.number));
+        BlockNumber32 genesis = BlockNumber32.wrap(uint32(block.number));
         GENESIS_BLOCK = genesis;
         _headBlock = genesis;
     }
@@ -50,7 +50,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
     // Block-level linked list: only blocks with mutations have entries.
     // Enables O(1) traversal across sparse blocks.
-    mapping(BlockNumber blockNumber => Entity.BlockNode node) internal _blocks;
+    mapping(BlockNumber32 blockNumber => Entity.BlockNode node) internal _blocks;
 
     // -------------------------------------------------------------------------
     // Events
@@ -60,7 +60,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         bytes32 indexed entityKey,
         uint8 indexed operationType,
         address indexed owner,
-        BlockNumber expiresAt,
+        BlockNumber32 expiresAt,
         bytes32 entityHash
     );
 
@@ -70,8 +70,8 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // State — block chain pointers
     // -------------------------------------------------------------------------
 
-    BlockNumber internal immutable GENESIS_BLOCK;
-    BlockNumber internal _headBlock;
+    BlockNumber32 internal immutable GENESIS_BLOCK;
+    BlockNumber32 internal _headBlock;
 
     // -------------------------------------------------------------------------
     // Public view functions
@@ -99,7 +99,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
         // Block bookkeeping: advance the linked list on a new block,
         // or continue the current block's tx sequence.
-        BlockNumber current = BlockNumber.wrap(uint32(block.number));
+        BlockNumber32 current = BlockNumber32.wrap(uint32(block.number));
         uint32 txSeq;
         if (current != _headBlock) {
             _blocks[_headBlock].nextBlock = current;
@@ -141,37 +141,37 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// (the linked list skips empty blocks O(1) per hop). The `>= headBlock`
     /// fast path is O(1), so on-chain callers (e.g. `changeSetHash()`) are
     /// unaffected.
-    function changeSetHashAtBlock(BlockNumber blockNumber) public view returns (bytes32) {
-        BlockNumber head = _headBlock;
-        BlockNumber cursor = blockNumber >= head ? head : _findMutatedBlockAtOrBefore(blockNumber);
+    function changeSetHashAtBlock(BlockNumber32 blockNumber) public view returns (bytes32) {
+        BlockNumber32 head = _headBlock;
+        BlockNumber32 cursor = blockNumber >= head ? head : _findMutatedBlockAtOrBefore(blockNumber);
         return _hashAtMutatedBlock(cursor);
     }
 
     /// @notice Changeset hash after the last operation in the given transaction.
-    function changeSetHashAtTx(BlockNumber blockNumber, uint32 txSeq) public view returns (bytes32) {
+    function changeSetHashAtTx(BlockNumber32 blockNumber, uint32 txSeq) public view returns (bytes32) {
         uint32 opCount = _txOpCount[Entity.transactionKey(blockNumber, txSeq)];
         if (opCount == 0) return bytes32(0);
         return _hashAt[Entity.operationKey(blockNumber, txSeq, opCount - 1)];
     }
 
     /// @notice Changeset hash after a specific operation.
-    function changeSetHashAtOp(BlockNumber blockNumber, uint32 txSeq, uint32 opSeq) public view returns (bytes32) {
+    function changeSetHashAtOp(BlockNumber32 blockNumber, uint32 txSeq, uint32 opSeq) public view returns (bytes32) {
         return _hashAt[Entity.operationKey(blockNumber, txSeq, opSeq)];
     }
 
-    function genesisBlock() public view returns (BlockNumber) {
+    function genesisBlock() public view returns (BlockNumber32) {
         return GENESIS_BLOCK;
     }
 
-    function headBlock() public view returns (BlockNumber) {
+    function headBlock() public view returns (BlockNumber32) {
         return _headBlock;
     }
 
-    function getBlockNode(BlockNumber blockNumber) public view returns (Entity.BlockNode memory) {
+    function getBlockNode(BlockNumber32 blockNumber) public view returns (Entity.BlockNode memory) {
         return _blocks[blockNumber];
     }
 
-    function txOpCount(BlockNumber blockNumber, uint32 txSeq) public view returns (uint32) {
+    function txOpCount(BlockNumber32 blockNumber, uint32 txSeq) public view returns (uint32) {
         return _txOpCount[Entity.transactionKey(blockNumber, txSeq)];
     }
 
@@ -188,15 +188,15 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     // -------------------------------------------------------------------------
 
     /// @dev Walk the mutated-blocks linked list backwards from `_headBlock`
-    /// to the largest stored block `<= target`. Returns `BlockNumber.wrap(0)`
+    /// to the largest stored block `<= target`. Returns `BlockNumber32.wrap(0)`
     /// if `target` predates every stored block (including genesis).
     ///
     /// The chain is strictly ascending: `genesis < first mutation < ... < head`.
     /// `genesis` may itself be unmutated (when the first `execute` happened
     /// after the deploy block); in that case the walk still lands on it for
     /// any `target >= genesis`, and `_hashAtMutatedBlock` returns `bytes32(0)`.
-    function _findMutatedBlockAtOrBefore(BlockNumber target) internal view returns (BlockNumber) {
-        BlockNumber cursor = _headBlock;
+    function _findMutatedBlockAtOrBefore(BlockNumber32 target) internal view returns (BlockNumber32) {
+        BlockNumber32 cursor = _headBlock;
         while (cursor > target) {
             cursor = _blocks[cursor].prevBlock;
         }
@@ -206,7 +206,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// @dev Last-operation hash recorded in `blockNumber`, or `bytes32(0)`
     /// if the block has no mutations. Safe to call with the zero sentinel
     /// or an unmutated genesis — both yield `bytes32(0)`.
-    function _hashAtMutatedBlock(BlockNumber blockNumber) internal view returns (bytes32) {
+    function _hashAtMutatedBlock(BlockNumber32 blockNumber) internal view returns (bytes32) {
         uint32 txCount = _blocks[blockNumber].txCount;
         if (txCount == 0) return bytes32(0);
         uint32 lastTx = txCount - 1;
@@ -220,7 +220,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
     /// @dev Domain-wrap an entity struct hash. Used by both _computeEntityHash
     /// and operations that recompute entityHash without changing coreHash (extend, transfer).
-    function _wrapEntityHash(bytes32 coreHash_, address owner, BlockNumber updatedAt, BlockNumber expiresAt)
+    function _wrapEntityHash(bytes32 coreHash_, address owner, BlockNumber32 updatedAt, BlockNumber32 expiresAt)
         internal
         view
         virtual
@@ -235,10 +235,10 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     function _computeEntityHash(
         bytes32 key,
         address creator,
-        BlockNumber createdAt,
+        BlockNumber32 createdAt,
         address owner,
-        BlockNumber updatedAt,
-        BlockNumber expiresAt,
+        BlockNumber32 updatedAt,
+        BlockNumber32 expiresAt,
         Entity.Operation calldata op
     ) internal view virtual returns (bytes32 coreHash_, bytes32 entityHash_) {
         coreHash_ = Entity.coreHash(key, creator, createdAt, op.contentType, op.payload, op.attributes);
@@ -258,7 +258,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
     /// @dev Route an op to the correct handler by operationType.
     /// Reverts with InvalidOpType for unrecognised values.
-    function _dispatch(Entity.Operation calldata op, BlockNumber current)
+    function _dispatch(Entity.Operation calldata op, BlockNumber32 current)
         internal
         virtual
         returns (bytes32 key, bytes32 entityHash_)
@@ -283,31 +283,32 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     ///
     /// Validation:
     ///   1. contentType must be valid MIME
-    ///   2. expiresAt must be strictly in the future
+    ///   2. btl must be non-zero
     ///   3. Attributes validated inside coreHash (count, sorting, value type/length)
-    function _create(Entity.Operation calldata op, BlockNumber current)
+    function _create(Entity.Operation calldata op, BlockNumber32 current)
         internal
         virtual
         returns (bytes32 key, bytes32 entityHash_)
     {
         validateMime128(op.contentType);
-        Entity.requireFutureExpiry(op.expiresAt, current);
+        Entity.requirePositiveBtl(op.btl);
 
+        BlockNumber32 expiresAt = current + op.btl;
         key = _createEntityKey(msg.sender);
 
         bytes32 coreHash_;
-        (coreHash_, entityHash_) = _computeEntityHash(key, msg.sender, current, msg.sender, current, op.expiresAt, op);
+        (coreHash_, entityHash_) = _computeEntityHash(key, msg.sender, current, msg.sender, current, expiresAt, op);
 
         _commitments[key] = Entity.Commitment({
             creator: msg.sender,
             createdAt: current,
             updatedAt: current,
-            expiresAt: op.expiresAt,
+            expiresAt: expiresAt,
             owner: msg.sender,
             coreHash: coreHash_
         });
 
-        emit EntityOperation(key, Entity.CREATE, msg.sender, op.expiresAt, entityHash_);
+        emit EntityOperation(key, Entity.CREATE, msg.sender, expiresAt, entityHash_);
     }
 
     /// @dev Update an existing entity's payload, contentType, and attributes.
@@ -319,7 +320,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     ///   2. Caller must be the owner
     ///   3. contentType must be valid MIME
     ///   4. Attributes validated inside coreHash (count, sorting, value type/length)
-    function _update(Entity.Operation calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
+    function _update(Entity.Operation calldata op, BlockNumber32 current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         Entity.Commitment storage c = _commitments[key];
 
@@ -345,22 +346,24 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// Validation:
     ///   1. Entity must exist and be active
     ///   2. Caller must be the owner
-    ///   3. New expiresAt must be strictly greater than current expiresAt
-    function _extend(Entity.Operation calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
+    ///   3. New expiresAt (current + btl) must be strictly greater than stored expiresAt
+    function _extend(Entity.Operation calldata op, BlockNumber32 current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         Entity.Commitment storage c = _commitments[key];
 
         Entity.requireExists(key, c);
         Entity.requireActive(key, c, current);
         Entity.requireOwner(key, c);
-        Entity.requireExpiryIncreased(key, op.expiresAt, c.expiresAt);
 
-        c.expiresAt = op.expiresAt;
+        BlockNumber32 newExpiresAt = current + op.btl;
+        Entity.requireExpiryIncreased(key, newExpiresAt, c.expiresAt);
+
+        c.expiresAt = newExpiresAt;
         c.updatedAt = current;
 
-        bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, current, op.expiresAt);
+        bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, current, newExpiresAt);
 
-        emit EntityOperation(key, Entity.EXTEND, c.owner, op.expiresAt, entityHash_);
+        emit EntityOperation(key, Entity.EXTEND, c.owner, newExpiresAt, entityHash_);
         return (key, entityHash_);
     }
 
@@ -371,7 +374,11 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     ///   1. Entity must exist and be active
     ///   2. Caller must be the current owner
     ///   3. New owner must not be the zero address or current owner
-    function _transfer(Entity.Operation calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
+    function _transfer(Entity.Operation calldata op, BlockNumber32 current)
+        internal
+        virtual
+        returns (bytes32, bytes32)
+    {
         bytes32 key = op.entityKey;
         Entity.Commitment storage c = _commitments[key];
 
@@ -396,7 +403,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// Validation:
     ///   1. Entity must exist and be active
     ///   2. Caller must be the owner
-    function _delete(Entity.Operation calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
+    function _delete(Entity.Operation calldata op, BlockNumber32 current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         Entity.Commitment storage c = _commitments[key];
 
@@ -407,7 +414,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
         // Snapshot before deletion.
         bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
         address owner = c.owner;
-        BlockNumber expiresAt = c.expiresAt;
+        BlockNumber32 expiresAt = c.expiresAt;
 
         delete _commitments[key];
 
@@ -421,7 +428,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
     /// Validation:
     ///   1. Entity must exist
     ///   2. Entity must have expired (expiresAt <= current)
-    function _expire(Entity.Operation calldata op, BlockNumber current) internal virtual returns (bytes32, bytes32) {
+    function _expire(Entity.Operation calldata op, BlockNumber32 current) internal virtual returns (bytes32, bytes32) {
         bytes32 key = op.entityKey;
         Entity.Commitment storage c = _commitments[key];
 
@@ -430,7 +437,7 @@ contract EntityRegistry is EIP712("Arkiv EntityRegistry", "1") {
 
         bytes32 entityHash_ = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
         address owner = c.owner;
-        BlockNumber expiresAt = c.expiresAt;
+        BlockNumber32 expiresAt = c.expiresAt;
 
         delete _commitments[key];
 

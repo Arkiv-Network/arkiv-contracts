@@ -144,18 +144,21 @@ point that accepts batches.
 ### Operations
 
 **CREATE** — Mint a new entity. The caller becomes both creator and owner.
-Requires a future expiry block, valid content type, and valid attributes.
-The entity key is derived deterministically from the caller's address and
-a monotonic nonce.
+Requires a non-zero `btl` (blocks-to-live), valid content type, and valid
+attributes. The entity key is derived deterministically from the caller's
+address and a monotonic nonce. The absolute expiry is computed on-chain as
+`currentBlock + btl`; callers supply a relative duration, never an absolute
+block number.
 
 **UPDATE** — Replace the entity's content (payload, content type,
 attributes). Only the owner can update. Does not change ownership or expiry.
 The content hash (`coreHash`) is fully recomputed from the new content.
 
 **EXTEND** — Push the expiry further into the future. Only the owner can
-extend. The new expiry must be strictly greater than the current one.
-Content and ownership are untouched — only `expiresAt` and `updatedAt`
-change.
+extend. Accepts a `btl` (blocks-to-live); the new absolute expiry is
+computed as `currentBlock + btl` and must be strictly greater than the
+currently stored `expiresAt`. Content and ownership are untouched — only
+`expiresAt` and `updatedAt` change.
 
 **TRANSFER** — Change the entity's owner. Only the current owner can
 transfer. The previous owner loses all access immediately — they cannot
@@ -369,26 +372,28 @@ Every operation emits **two** events, indexed and consumed together:
 
 ```
 event EntityOperation(
-    bytes32 indexed entityKey,
-    uint8   indexed operationType,
-    address indexed owner,
-    BlockNumber     expiresAt,
-    bytes32         entityHash
+    bytes32       indexed entityKey,
+    uint8         indexed operationType,
+    address       indexed owner,
+    BlockNumber32         expiresAt,   -- absolute: currentBlock + op.btl
+    bytes32               entityHash
 )
 
 event ChangeSetHashUpdate(
-    bytes32     indexed entityKey,
+    bytes32      indexed entityKey,
     OperationKey indexed operationKey,
-    bytes32             changeSetHash
+    bytes32              changeSetHash
 )
 ```
 
-`EntityOperation` carries the per-op state needed by indexers; the
-resulting changeset hash and the packed `(block, tx, op)` operation key
-are emitted alongside it as `ChangeSetHashUpdate`. Off-chain decoders
-pair the two events to reconstruct each operation without an extra RPC
-round-trip — the changeset hash arrives in-band with the operation
-logs.
+`EntityOperation` carries the per-op state needed by indexers. The
+`expiresAt` field is the **absolute** expiry block the contract computed
+as `currentBlock + op.btl` — the raw `btl` calldata field is not
+emitted. The resulting changeset hash and the packed `(block, tx, op)`
+operation key are emitted alongside it as `ChangeSetHashUpdate`.
+Off-chain decoders pair the two events to reconstruct each operation
+without an extra RPC round-trip — the changeset hash arrives in-band
+with the operation logs.
 
 ```mermaid
 flowchart LR
@@ -462,44 +467,124 @@ flowchart LR
     Sol --> Forge --> Artifacts --> Build --> Gen --> Crate --> Consumer
 ```
 
-`build.rs` invokes `forge build` if the artifacts are stale, parses the
-Foundry output, and emits generated Rust into `OUT_DIR` which `lib.rs`
-`include!`s. The crate exposes four layers:
+`build.rs` invokes `forge build` if the artifacts are stale, then emits
+an `alloy_sol_types::sol!` block as inline Solidity into `OUT_DIR/sol.rs`
+which `lib.rs` `include!`s. The generator resolves type declaration order
+correctly: UDVTs first, then structs that reference them, then the
+interface. The crate exposes five layers:
 
-1. **Auto-generated ABI types** — an `alloy_sol_types::sol!` block
-   derived from the `IEntityRegistry` ABI covers every function, event,
-   error, and struct (`Operation`, `Attribute`, `Mime128`, `Commitment`,
-   `BlockNode`). The `EntityRegistry` creation bytecode is embedded as
-   a string constant (`ENTITY_REGISTRY_CREATION_CODE`) for deployment
-   from Rust. Op-type and attribute-type discriminators are re-exported
-   as `OP_*` / `ATTR_*` constants pinned to the contract.
+### 1. Auto-generated ABI types
 
-2. **Validating identifier types** — `types::Ident32` and
-   `types::Mime128Str` mirror the on-chain validation rules (lowercase
-   `a-z 0-9 . - _`, leading-letter requirement, max length, RFC 2045
-   MIME grammar) so Rust SDKs reject bad input *before* submitting a
-   transaction. Encoders and decoders round-trip through the
-   `bytes32 / bytes32[4]` containers the contract uses.
+An `alloy_sol_types::sol!` block derived from `IEntityRegistry` covers
+every function, event, error, and data structure. At the crate root:
 
-3. **Storage layout helpers** — `storage_layout` exposes slot indices
-   (accounting for OpenZeppelin's `EIP712` base occupying slots 0–1)
-   and key-packing functions (`operation_key`, `transaction_key`,
-   `mapping_slot`) that mirror `Entity.sol` exactly. This lets the ExEx
-   recompute the rolling changeset hash by reading slots directly at
-   historical block state, without spinning up an EVM. A test asserts
-   the constants match the Foundry `storageLayout` artifact, so
-   contract drift is caught at build time.
+- **UDVTs**: `BlockNumber32` (`uint32`), `Ident32` (`bytes32`),
+  `OperationKey` (`uint256`) — Solidity user-defined value types,
+  generated as Rust newtypes.
+- **Structs**: `Operation`, `Attribute`, `Mime128`, `Commitment`,
+  `BlockNode` — ABI-decoded structs. Fields use the underlying primitive
+  RustType (`u32` for `BlockNumber32`, `FixedBytes<32>` for `Ident32`);
+  the UDVT wrapper types are used at the encoding boundary.
+- **Interface module**: `IEntityRegistry` contains typed call/event/error
+  types for every contract entry point.
 
-4. **Wire decoder** — `wire::decode_operation` pairs a decoded
-   calldata `Operation` with its two emitted events (`EntityOperation`
-   + `ChangeSetHashUpdate`) into a tagged `Operation` enum (`Create`,
-   `Update`, `Extend`, `Transfer`, `Delete`, `Expire`) and decodes
-   attributes into a typed `Attribute` enum (`Uint` → `U256`, `String`
-   → opaque `FixedBytes<128>`, `EntityKey` → `B256`). When the
-   `serde-wire` cargo feature is enabled (default on), the types
-   serialize to the JSON shape the EntityDB consumes over its v2
-   ExEx → EntityDB JSON-RPC interface (block numbers and expiries as
-   `0x…` hex strings, attribute values tagged by `valueType`).
+The `EntityRegistry` creation bytecode is embedded as
+`ENTITY_REGISTRY_CREATION_CODE`. Op-type and attribute-type
+discriminators are re-exported as `OP_*` / `ATTR_*` constants.
+
+### 2. Validated types (`src/types/`)
+
+Validation logic is added directly to the alloy-generated types as `impl`
+blocks, keeping the ABI types as the single source of truth:
+
+- **`Ident32`** — `encode(s: &str)` validates the charset (`a-z 0-9 . - _`,
+  must start `a-z`, max 32 bytes). `validate(self)` additionally enforces
+  that once a null byte appears all remaining bytes are also null (no
+  embedded nulls), matching `validateIdent32` in `Ident32.sol`.
+  Implements `Display` and `Serialize` (serialises as ASCII string).
+
+- **`Mime128`** — `encode(s: &str)` validates the RFC 2045 structure
+  (`type/subtype[; param=value]*`, lowercase only, max 128 bytes),
+  matching `validateMime128` in `Mime128.sol`. `as_str()` decodes the
+  `bytes32[4]` container back to a string. Implements `Display` and
+  `Serialize` (serialises as string).
+
+### 3. Calldata encoding (`src/encode.rs`)
+
+Factory methods on the ABI-generated types for building `execute()`
+calldata without manually filling the flat `Operation` struct:
+
+```rust
+// Per-op constructors: only required fields, rest zeroed
+Operation::create(btl, payload, content_type, attributes)
+Operation::update(entity_key, payload, content_type, attributes)
+Operation::extend(entity_key, btl)
+Operation::transfer(entity_key, new_owner)
+Operation::delete(entity_key)
+Operation::expire(entity_key)
+
+// Attribute constructors: handles bytes32[4] packing per valueType
+Attribute::uint(name, value)          // right-aligns U256 in data[0]
+Attribute::string(name, bytes)         // left-aligns up to 128 bytes
+Attribute::entity_key(name, key)       // stores B256 in data[0]
+Attribute::sort(attrs)                 // sort ascending by name (required)
+```
+
+`Operation::create` and `Operation::update` call `Attribute::sort`
+automatically. All constructors are infallible except `Attribute::string`
+(validates the 128-byte limit).
+
+### 4. Storage layout helpers (`src/storage_layout.rs`)
+
+Slot indices, key-packing functions (`operation_key`, `transaction_key`,
+`mapping_slot`), and slot decoders that mirror `Entity.sol` exactly. This
+lets the ExEx recompute the rolling changeset hash by reading storage slots
+directly at historical block state without spinning up an EVM. A test
+asserts all constants match the Foundry `storageLayout` artifact, catching
+contract drift at build time.
+
+### 5. Wire decoder (`src/wire.rs`)
+
+Types and decoding logic for the ExEx → EntityDB JSON-RPC interface:
+
+**Envelope types** (the full block/transaction hierarchy):
+- `ArkivBlock` — block header + transactions
+- `ArkivBlockHeader` — number, hash, parent hash, rolling changeset hash
+- `ArkivTransaction` — tx hash, index, sender, decoded operations
+- `ArkivBlockRef` — minimal block identifier for revert payloads
+
+**Decoded operation types**:
+- `ArkivOperation` — tagged enum (`Create`, `Update`, `Extend`,
+  `Transfer`, `Delete`, `Expire`). `expires_at` on `CreateOp`/`ExtendOp`
+  is the absolute block number sourced from the `EntityOperation` event
+  (i.e. `currentBlock + op.btl`); the raw `btl` from calldata is not
+  exposed.
+- `ArkivAttribute` — tagged enum (`Uint` → `U256`, `String` →
+  `FixedBytes<128>` opaque, `EntityKey` → `B256`). Attribute names are
+  `Ident32` values serialising as ASCII strings.
+
+**`ParsedRegistryTx`** — the intermediate between raw on-chain data and
+a fully decoded `ArkivTransaction`:
+
+```rust
+// Step 1: decode calldata, pair events, validate 1:1 correspondence
+let parsed = ParsedRegistryTx::parse(calldata_bytes, &registry_logs)?;
+
+// Step 2: validate Mime128 / Ident32, produce ArkivTransaction
+let (tx, last_changeset_hash) = parsed.decode(tx_hash, tx_index, sender)?;
+```
+
+Logs must be pre-filtered to the EntityRegistry address by the caller;
+`parse` handles event separation, count validation, and per-op `entityKey`
+cross-checks. `decode` validates content types and attribute names,
+returning the complete `ArkivTransaction` alongside the final changeset
+hash for the caller to thread through the block-level rolling value.
+
+When the `serde-wire` feature is enabled (default on), all wire types
+serialise to the JSON shape the EntityDB consumes (block numbers and
+expiries as `0x…` hex strings, attributes tagged by `valueType`).
+
+---
 
 The crate is the contract's primary off-chain consumer surface — every
 type, event, error, and storage layout that a Rust client needs is

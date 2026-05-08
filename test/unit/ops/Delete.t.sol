@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../../contracts/types/BlockNumber.sol";
+import {BlockNumber32} from "../../../contracts/types/BlockNumber32.sol";
 import {Test, Vm} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {Entity} from "../../../contracts/Entity.sol";
@@ -12,22 +12,24 @@ contract DeleteTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
 
-    BlockNumber expiresAt;
+    BlockNumber32 btl;
+    BlockNumber32 expiresAt;
     bytes32 testKey;
 
     function doCreate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _create(op, BlockNumber.wrap(uint32(block.number)));
+        return _create(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function doDelete(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _delete(op, BlockNumber.wrap(uint32(block.number)));
+        return _delete(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function setUp() public {
-        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
+        btl = BlockNumber32.wrap(1000);
+        expiresAt = BlockNumber32.wrap(uint32(block.number)) + btl;
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
+        Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, btl);
         vm.prank(alice);
         (testKey,) = this.doCreate(createOp);
     }
@@ -46,9 +48,9 @@ contract DeleteTest is Test, EntityRegistry {
         assertEq(c.creator, address(0));
         assertEq(c.owner, address(0));
         assertEq(c.coreHash, bytes32(0));
-        assertEq(BlockNumber.unwrap(c.createdAt), 0);
-        assertEq(BlockNumber.unwrap(c.updatedAt), 0);
-        assertEq(BlockNumber.unwrap(c.expiresAt), 0);
+        assertEq(BlockNumber32.unwrap(c.createdAt), 0);
+        assertEq(BlockNumber32.unwrap(c.updatedAt), 0);
+        assertEq(BlockNumber32.unwrap(c.expiresAt), 0);
     }
 
     // =========================================================================
@@ -96,8 +98,8 @@ contract DeleteTest is Test, EntityRegistry {
         assertEq(logs[0].topics[1], testKey);
         assertEq(logs[0].topics[2], bytes32(uint256(Entity.DELETE)));
         assertEq(logs[0].topics[3], bytes32(uint256(uint160(alice))));
-        (BlockNumber emittedExpiry, bytes32 emittedHash) = abi.decode(logs[0].data, (BlockNumber, bytes32));
-        assertEq(BlockNumber.unwrap(emittedExpiry), BlockNumber.unwrap(expiresAt));
+        (BlockNumber32 emittedExpiry, bytes32 emittedHash) = abi.decode(logs[0].data, (BlockNumber32, bytes32));
+        assertEq(BlockNumber32.unwrap(emittedExpiry), BlockNumber32.unwrap(expiresAt));
         assertEq(emittedHash, entityHash_);
     }
 
@@ -113,7 +115,7 @@ contract DeleteTest is Test, EntityRegistry {
     }
 
     function test_delete_revertsIfExpired() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
+        vm.roll(BlockNumber32.unwrap(expiresAt));
         Entity.Operation memory op = Lib.deleteOp(testKey);
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityExpired.selector, testKey, expiresAt));

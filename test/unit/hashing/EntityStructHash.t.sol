@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../../contracts/types/BlockNumber.sol";
+import {BlockNumber32} from "../../../contracts/types/BlockNumber32.sol";
 import {Test} from "forge-std/Test.sol";
 import {Entity} from "../../../contracts/Entity.sol";
 
@@ -17,8 +17,8 @@ contract EntityStructHashTest is Test {
         bytes32 core = keccak256("core");
 
         // WHEN computing entityStructHash twice
-        bytes32 hashA = Entity.entityStructHash(core, alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
-        bytes32 hashB = Entity.entityStructHash(core, alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
+        bytes32 hashA = Entity.entityStructHash(core, alice, BlockNumber32.wrap(100), BlockNumber32.wrap(200));
+        bytes32 hashB = Entity.entityStructHash(core, alice, BlockNumber32.wrap(100), BlockNumber32.wrap(200));
 
         // THEN the hashes are equal
         assertEq(hashA, hashB);
@@ -30,8 +30,10 @@ contract EntityStructHashTest is Test {
 
     function test_entityStructHash_differentCoreHash_differs() public view {
         // GIVEN two calls differing only in coreHash
-        bytes32 hashA = Entity.entityStructHash(keccak256("core1"), alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
-        bytes32 hashB = Entity.entityStructHash(keccak256("core2"), alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
+        bytes32 hashA =
+            Entity.entityStructHash(keccak256("core1"), alice, BlockNumber32.wrap(100), BlockNumber32.wrap(200));
+        bytes32 hashB =
+            Entity.entityStructHash(keccak256("core2"), alice, BlockNumber32.wrap(100), BlockNumber32.wrap(200));
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -41,8 +43,8 @@ contract EntityStructHashTest is Test {
         // GIVEN two calls differing only in owner
         bytes32 core = keccak256("core");
 
-        bytes32 hashA = Entity.entityStructHash(core, alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
-        bytes32 hashB = Entity.entityStructHash(core, bob, BlockNumber.wrap(100), BlockNumber.wrap(200));
+        bytes32 hashA = Entity.entityStructHash(core, alice, BlockNumber32.wrap(100), BlockNumber32.wrap(200));
+        bytes32 hashB = Entity.entityStructHash(core, bob, BlockNumber32.wrap(100), BlockNumber32.wrap(200));
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -52,8 +54,8 @@ contract EntityStructHashTest is Test {
         // GIVEN two calls differing only in updatedAt
         bytes32 core = keccak256("core");
 
-        bytes32 hashA = Entity.entityStructHash(core, alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
-        bytes32 hashB = Entity.entityStructHash(core, alice, BlockNumber.wrap(150), BlockNumber.wrap(200));
+        bytes32 hashA = Entity.entityStructHash(core, alice, BlockNumber32.wrap(100), BlockNumber32.wrap(200));
+        bytes32 hashB = Entity.entityStructHash(core, alice, BlockNumber32.wrap(150), BlockNumber32.wrap(200));
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -63,8 +65,8 @@ contract EntityStructHashTest is Test {
         // GIVEN two calls differing only in expiresAt
         bytes32 core = keccak256("core");
 
-        bytes32 hashA = Entity.entityStructHash(core, alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
-        bytes32 hashB = Entity.entityStructHash(core, alice, BlockNumber.wrap(100), BlockNumber.wrap(300));
+        bytes32 hashA = Entity.entityStructHash(core, alice, BlockNumber32.wrap(100), BlockNumber32.wrap(200));
+        bytes32 hashB = Entity.entityStructHash(core, alice, BlockNumber32.wrap(100), BlockNumber32.wrap(300));
 
         // THEN the hashes differ
         assertNotEq(hashA, hashB);
@@ -77,8 +79,8 @@ contract EntityStructHashTest is Test {
     function test_entityStructHash_matchesManualEIP712Encoding() public view {
         // GIVEN inputs
         bytes32 core = keccak256("core");
-        BlockNumber updatedAt = BlockNumber.wrap(100);
-        BlockNumber expiresAt = BlockNumber.wrap(200);
+        BlockNumber32 updatedAt = BlockNumber32.wrap(100);
+        BlockNumber32 expiresAt = BlockNumber32.wrap(200);
 
         // WHEN computing manually per EIP-712
         bytes32 expected = keccak256(abi.encode(Entity.ENTITY_HASH_TYPEHASH, core, alice, updatedAt, expiresAt));
@@ -96,8 +98,8 @@ contract EntityStructHashTest is Test {
         bytes32 core = keccak256("core");
 
         // WHEN computing entityStructHash with different owners
-        bytes32 hashAlice = Entity.entityStructHash(core, alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
-        bytes32 hashBob = Entity.entityStructHash(core, bob, BlockNumber.wrap(100), BlockNumber.wrap(200));
+        bytes32 hashAlice = Entity.entityStructHash(core, alice, BlockNumber32.wrap(100), BlockNumber32.wrap(200));
+        bytes32 hashBob = Entity.entityStructHash(core, bob, BlockNumber32.wrap(100), BlockNumber32.wrap(200));
 
         // THEN the struct hashes differ (owner is in the outer hash)
         assertNotEq(hashAlice, hashBob);
@@ -108,8 +110,8 @@ contract EntityStructHashTest is Test {
         bytes32 core = keccak256("core");
 
         // WHEN computing entityStructHash with different expiry (simulating extend)
-        bytes32 hashOriginal = Entity.entityStructHash(core, alice, BlockNumber.wrap(100), BlockNumber.wrap(200));
-        bytes32 hashExtended = Entity.entityStructHash(core, alice, BlockNumber.wrap(150), BlockNumber.wrap(300));
+        bytes32 hashOriginal = Entity.entityStructHash(core, alice, BlockNumber32.wrap(100), BlockNumber32.wrap(200));
+        bytes32 hashExtended = Entity.entityStructHash(core, alice, BlockNumber32.wrap(150), BlockNumber32.wrap(300));
 
         // THEN the struct hashes differ
         assertNotEq(hashOriginal, hashExtended);
@@ -124,8 +126,8 @@ contract EntityStructHashTest is Test {
         pure
     {
         // GIVEN arbitrary inputs
-        BlockNumber updatedAt = BlockNumber.wrap(rawUpdatedAt);
-        BlockNumber expiresAt = BlockNumber.wrap(rawExpiresAt);
+        BlockNumber32 updatedAt = BlockNumber32.wrap(rawUpdatedAt);
+        BlockNumber32 expiresAt = BlockNumber32.wrap(rawExpiresAt);
 
         // WHEN computing via the assembly implementation
         bytes32 actual = Entity.entityStructHash(coreHash_, owner, updatedAt, expiresAt);

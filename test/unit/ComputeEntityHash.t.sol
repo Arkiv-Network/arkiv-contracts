@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../contracts/types/BlockNumber.sol";
+import {BlockNumber32} from "../../contracts/types/BlockNumber32.sol";
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../utils/Lib.sol";
 import {Entity} from "../../contracts/Entity.sol";
@@ -22,10 +22,10 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
     function doComputeEntityHash(
         bytes32 key,
         address creator,
-        BlockNumber createdAt,
+        BlockNumber32 createdAt,
         address owner,
-        BlockNumber updatedAt,
-        BlockNumber expiresAt,
+        BlockNumber32 updatedAt,
+        BlockNumber32 expiresAt,
         Entity.Operation calldata op
     ) external view returns (bytes32, bytes32) {
         return _computeEntityHash(key, creator, createdAt, owner, updatedAt, expiresAt, op);
@@ -34,7 +34,7 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
     function doCoreHash(
         bytes32 key,
         address creator,
-        BlockNumber createdAt,
+        BlockNumber32 createdAt,
         Mime128 calldata contentType,
         bytes calldata payload,
         Entity.Attribute[] calldata attributes
@@ -48,14 +48,15 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
 
     function test_coreHashMatchesLibrary() public {
         bytes32 key = keccak256("key");
-        BlockNumber current = BlockNumber.wrap(100);
+        BlockNumber32 current = BlockNumber32.wrap(100);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](1);
         attrs[0] = Lib.uintAttr("count", 42);
-        Entity.Operation memory op =
-            Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000));
+        Entity.Operation memory op = Lib.createOp(
+            "hello", textPlain, attrs, BlockNumber32.wrap(uint32(block.number)) + BlockNumber32.wrap(1000)
+        );
 
-        (bytes32 coreHash_,) = this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
+        (bytes32 coreHash_,) = this.doComputeEntityHash(key, alice, current, alice, current, current + op.btl, op);
         bytes32 expected = this.doCoreHash(key, alice, current, textPlain, "hello", attrs);
 
         assertEq(coreHash_, expected);
@@ -67,17 +68,18 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
 
     function test_entityHashWrapsWithDomainSeparator() public {
         bytes32 key = keccak256("key");
-        BlockNumber current = BlockNumber.wrap(100);
+        BlockNumber32 current = BlockNumber32.wrap(100);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory op =
-            Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000));
+        Entity.Operation memory op = Lib.createOp(
+            "hello", textPlain, attrs, BlockNumber32.wrap(uint32(block.number)) + BlockNumber32.wrap(1000)
+        );
 
         (bytes32 coreHash_, bytes32 entityHash_) =
-            this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
+            this.doComputeEntityHash(key, alice, current, alice, current, current + op.btl, op);
 
         // Verify entityHash matches _wrapEntityHash for the same inputs
-        bytes32 expected = _wrapEntityHash(coreHash_, alice, current, op.expiresAt);
+        bytes32 expected = _wrapEntityHash(coreHash_, alice, current, current + op.btl);
 
         assertEq(entityHash_, expected);
     }
@@ -88,16 +90,17 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
 
     function test_deterministic() public {
         bytes32 key = keccak256("key");
-        BlockNumber current = BlockNumber.wrap(100);
+        BlockNumber32 current = BlockNumber32.wrap(100);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory op =
-            Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000));
+        Entity.Operation memory op = Lib.createOp(
+            "hello", textPlain, attrs, BlockNumber32.wrap(uint32(block.number)) + BlockNumber32.wrap(1000)
+        );
 
         (bytes32 coreA, bytes32 entityA) =
-            this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
+            this.doComputeEntityHash(key, alice, current, alice, current, current + op.btl, op);
         (bytes32 coreB, bytes32 entityB) =
-            this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
+            this.doComputeEntityHash(key, alice, current, alice, current, current + op.btl, op);
 
         assertEq(coreA, coreB);
         assertEq(entityA, entityB);
@@ -109,31 +112,31 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
 
     function test_differentPayload_differs() public {
         bytes32 key = keccak256("key");
-        BlockNumber current = BlockNumber.wrap(100);
-        BlockNumber expiry = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
+        BlockNumber32 current = BlockNumber32.wrap(100);
+        BlockNumber32 expiry = BlockNumber32.wrap(uint32(block.number)) + BlockNumber32.wrap(1000);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         Entity.Operation memory opA = Lib.createOp("hello", textPlain, attrs, expiry);
         Entity.Operation memory opB = Lib.createOp("world", textPlain, attrs, expiry);
 
-        (bytes32 coreA,) = this.doComputeEntityHash(key, alice, current, alice, current, opA.expiresAt, opA);
-        (bytes32 coreB,) = this.doComputeEntityHash(key, alice, current, alice, current, opB.expiresAt, opB);
+        (bytes32 coreA,) = this.doComputeEntityHash(key, alice, current, alice, current, current + opA.btl, opA);
+        (bytes32 coreB,) = this.doComputeEntityHash(key, alice, current, alice, current, current + opB.btl, opB);
 
         assertNotEq(coreA, coreB);
     }
 
     function test_differentExpiry_entityHashDiffers() public {
         bytes32 key = keccak256("key");
-        BlockNumber current = BlockNumber.wrap(100);
+        BlockNumber32 current = BlockNumber32.wrap(100);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory opA = Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(500));
-        Entity.Operation memory opB = Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(600));
+        Entity.Operation memory opA = Lib.createOp("hello", textPlain, attrs, BlockNumber32.wrap(500));
+        Entity.Operation memory opB = Lib.createOp("hello", textPlain, attrs, BlockNumber32.wrap(600));
 
         (bytes32 coreA, bytes32 entityA) =
-            this.doComputeEntityHash(key, alice, current, alice, current, opA.expiresAt, opA);
+            this.doComputeEntityHash(key, alice, current, alice, current, current + opA.btl, opA);
         (bytes32 coreB, bytes32 entityB) =
-            this.doComputeEntityHash(key, alice, current, alice, current, opB.expiresAt, opB);
+            this.doComputeEntityHash(key, alice, current, alice, current, current + opB.btl, opB);
 
         // Same content → same coreHash
         assertEq(coreA, coreB);
@@ -143,8 +146,8 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
 
     function test_differentAttributes_coreHashDiffers() public {
         bytes32 key = keccak256("key");
-        BlockNumber current = BlockNumber.wrap(100);
-        BlockNumber expiry = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
+        BlockNumber32 current = BlockNumber32.wrap(100);
+        BlockNumber32 expiry = BlockNumber32.wrap(uint32(block.number)) + BlockNumber32.wrap(1000);
 
         Entity.Attribute[] memory attrsA = new Entity.Attribute[](1);
         attrsA[0] = Lib.uintAttr("count", 1);
@@ -155,8 +158,8 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         Entity.Operation memory opA = Lib.createOp("hello", textPlain, attrsA, expiry);
         Entity.Operation memory opB = Lib.createOp("hello", textPlain, attrsB, expiry);
 
-        (bytes32 coreA,) = this.doComputeEntityHash(key, alice, current, alice, current, opA.expiresAt, opA);
-        (bytes32 coreB,) = this.doComputeEntityHash(key, alice, current, alice, current, opB.expiresAt, opB);
+        (bytes32 coreA,) = this.doComputeEntityHash(key, alice, current, alice, current, current + opA.btl, opA);
+        (bytes32 coreB,) = this.doComputeEntityHash(key, alice, current, alice, current, current + opB.btl, opB);
 
         assertNotEq(coreA, coreB);
     }

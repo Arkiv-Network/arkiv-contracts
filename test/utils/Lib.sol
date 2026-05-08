@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../contracts/types/BlockNumber.sol";
+import {BlockNumber32} from "../../contracts/types/BlockNumber32.sol";
 import {Entity} from "../../contracts/Entity.sol";
 import {Ident32, encodeIdent32} from "../../contracts/types/Ident32.sol";
 import {Mime128} from "../../contracts/types/Mime128.sol";
@@ -16,7 +16,7 @@ library Lib {
         bytes memory payload_,
         Mime128 memory contentType_,
         Entity.Attribute[] memory attributes_,
-        BlockNumber expiresAt_
+        BlockNumber32 btl_
     ) internal pure returns (Entity.Operation memory) {
         return Entity.Operation({
             operationType: Entity.CREATE,
@@ -24,7 +24,7 @@ library Lib {
             payload: payload_,
             contentType: contentType_,
             attributes: attributes_,
-            expiresAt: expiresAt_,
+            btl: btl_,
             newOwner: address(0)
         });
     }
@@ -41,7 +41,7 @@ library Lib {
             payload: payload_,
             contentType: contentType_,
             attributes: attributes_,
-            expiresAt: BlockNumber.wrap(0),
+            btl: BlockNumber32.wrap(0),
             newOwner: address(0)
         });
     }
@@ -55,7 +55,7 @@ library Lib {
             payload: "",
             contentType: emptyCt,
             attributes: empty,
-            expiresAt: BlockNumber.wrap(0),
+            btl: BlockNumber32.wrap(0),
             newOwner: address(0)
         });
     }
@@ -69,7 +69,7 @@ library Lib {
             payload: "",
             contentType: emptyCt,
             attributes: empty,
-            expiresAt: BlockNumber.wrap(0),
+            btl: BlockNumber32.wrap(0),
             newOwner: newOwner_
         });
     }
@@ -83,12 +83,12 @@ library Lib {
             payload: "",
             contentType: emptyCt,
             attributes: empty,
-            expiresAt: BlockNumber.wrap(0),
+            btl: BlockNumber32.wrap(0),
             newOwner: address(0)
         });
     }
 
-    function extendOp(bytes32 entityKey_, BlockNumber expiresAt_) internal pure returns (Entity.Operation memory) {
+    function extendOp(bytes32 entityKey_, BlockNumber32 btl_) internal pure returns (Entity.Operation memory) {
         Entity.Attribute[] memory empty = new Entity.Attribute[](0);
         Mime128 memory emptyCt;
         return Entity.Operation({
@@ -97,7 +97,7 @@ library Lib {
             payload: "",
             contentType: emptyCt,
             attributes: empty,
-            expiresAt: expiresAt_,
+            btl: btl_,
             newOwner: address(0)
         });
     }
