@@ -16,12 +16,12 @@ contract ViewsTest is Test {
     address alice = makeAddr("alice");
     bytes32 testKey;
     BlockNumber deployBlock;
-    BlockNumber expiresAt;
+    BlockNumber btl;
 
     function setUp() public {
         registry = new EntityRegistry();
         deployBlock = registry.genesisBlock();
-        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
+        btl = BlockNumber.wrap(1000);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         Entity.Operation[] memory ops = new Entity.Operation[](1);
@@ -31,7 +31,7 @@ contract ViewsTest is Test {
             payload: "hello",
             contentType: encodeMime128("text/plain"),
             attributes: attrs,
-            expiresAt: expiresAt,
+            btl: btl,
             newOwner: address(0)
         });
 
@@ -128,7 +128,7 @@ contract ViewsTest is Test {
         assertEq(c.creator, alice);
         assertEq(BlockNumber.unwrap(c.createdAt), BlockNumber.unwrap(deployBlock));
         assertEq(BlockNumber.unwrap(c.updatedAt), BlockNumber.unwrap(deployBlock));
-        assertEq(BlockNumber.unwrap(c.expiresAt), BlockNumber.unwrap(expiresAt));
+        assertEq(BlockNumber.unwrap(c.expiresAt), BlockNumber.unwrap(deployBlock + btl));
         assertTrue(c.coreHash != bytes32(0));
     }
 

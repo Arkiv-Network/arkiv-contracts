@@ -14,7 +14,7 @@ contract CreateTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
 
-    BlockNumber expiresAt;
+    BlockNumber btl;
 
     bytes32 constant STUB_KEY = keccak256("stub-entity-key");
     bytes32 constant STUB_CORE_HASH = keccak256("stub-core-hash");
@@ -41,53 +41,30 @@ contract CreateTest is Test, EntityRegistry {
     }
 
     function setUp() public {
-        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
+        btl = BlockNumber.wrap(1000);
     }
 
     function _defaultOp() internal view returns (Entity.Operation memory) {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        return Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
+        return Lib.createOp("hello", encodeMime128("text/plain"), attrs, btl);
     }
 
     // =========================================================================
     // Validation — expiry
     // =========================================================================
 
-    function test_create_expiryEqualToCurrentBlock_reverts() public {
+    function test_create_zeroBtl_reverts() public {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory op =
-            Lib.createOp("hello", encodeMime128("text/plain"), attrs, BlockNumber.wrap(uint32(block.number)));
+        Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, BlockNumber.wrap(0));
 
         vm.prank(alice);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Entity.ExpiryInPast.selector,
-                BlockNumber.wrap(uint32(block.number)),
-                BlockNumber.wrap(uint32(block.number))
-            )
-        );
+        vm.expectRevert(Entity.ZeroBtl.selector);
         this.doCreate(op);
     }
 
-    function test_create_expiryInPast_reverts() public {
-        vm.roll(block.number + 100);
-
-        BlockNumber pastBlock = BlockNumber.wrap(1);
+    function test_create_btlOne_succeeds() public {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, pastBlock);
-
-        vm.prank(alice);
-        vm.expectRevert(
-            abi.encodeWithSelector(Entity.ExpiryInPast.selector, pastBlock, BlockNumber.wrap(uint32(block.number)))
-        );
-        this.doCreate(op);
-    }
-
-    function test_create_expiryOneBlockAhead_succeeds() public {
-        Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory op = Lib.createOp(
-            "hello", encodeMime128("text/plain"), attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1)
-        );
+        Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, BlockNumber.wrap(1));
 
         vm.prank(alice);
         (bytes32 key,) = this.doCreate(op);
@@ -109,7 +86,7 @@ contract CreateTest is Test, EntityRegistry {
         assertEq(c.owner, alice);
         assertEq(BlockNumber.unwrap(c.createdAt), uint32(block.number));
         assertEq(BlockNumber.unwrap(c.updatedAt), uint32(block.number));
-        assertEq(BlockNumber.unwrap(c.expiresAt), BlockNumber.unwrap(expiresAt));
+        assertEq(BlockNumber.unwrap(c.expiresAt), uint32(block.number) + BlockNumber.unwrap(btl));
         assertEq(c.coreHash, STUB_CORE_HASH);
     }
 
@@ -131,7 +108,7 @@ contract CreateTest is Test, EntityRegistry {
         assertEq(logs[0].topics[2], bytes32(uint256(Entity.CREATE)));
         assertEq(logs[0].topics[3], bytes32(uint256(uint160(alice))));
         (BlockNumber emittedExpiry, bytes32 emittedHash) = abi.decode(logs[0].data, (BlockNumber, bytes32));
-        assertEq(BlockNumber.unwrap(emittedExpiry), BlockNumber.unwrap(expiresAt));
+        assertEq(BlockNumber.unwrap(emittedExpiry), uint32(block.number) + BlockNumber.unwrap(btl));
         assertEq(emittedHash, STUB_ENTITY_HASH);
     }
 

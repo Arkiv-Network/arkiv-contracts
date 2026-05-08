@@ -61,7 +61,7 @@ contract DispatchTest is Test, EntityRegistry {
             payload: "",
             contentType: encodeMime128("text/plain"),
             attributes: attrs,
-            expiresAt: BlockNumber.wrap(0),
+            btl: BlockNumber.wrap(0),
             newOwner: address(0)
         });
     }

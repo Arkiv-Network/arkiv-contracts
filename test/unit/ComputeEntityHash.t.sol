@@ -55,7 +55,7 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         Entity.Operation memory op =
             Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000));
 
-        (bytes32 coreHash_,) = this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
+        (bytes32 coreHash_,) = this.doComputeEntityHash(key, alice, current, alice, current, current + op.btl, op);
         bytes32 expected = this.doCoreHash(key, alice, current, textPlain, "hello", attrs);
 
         assertEq(coreHash_, expected);
@@ -74,10 +74,10 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
             Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000));
 
         (bytes32 coreHash_, bytes32 entityHash_) =
-            this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
+            this.doComputeEntityHash(key, alice, current, alice, current, current + op.btl, op);
 
         // Verify entityHash matches _wrapEntityHash for the same inputs
-        bytes32 expected = _wrapEntityHash(coreHash_, alice, current, op.expiresAt);
+        bytes32 expected = _wrapEntityHash(coreHash_, alice, current, current + op.btl);
 
         assertEq(entityHash_, expected);
     }
@@ -95,9 +95,9 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
             Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000));
 
         (bytes32 coreA, bytes32 entityA) =
-            this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
+            this.doComputeEntityHash(key, alice, current, alice, current, current + op.btl, op);
         (bytes32 coreB, bytes32 entityB) =
-            this.doComputeEntityHash(key, alice, current, alice, current, op.expiresAt, op);
+            this.doComputeEntityHash(key, alice, current, alice, current, current + op.btl, op);
 
         assertEq(coreA, coreB);
         assertEq(entityA, entityB);
@@ -116,8 +116,8 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         Entity.Operation memory opA = Lib.createOp("hello", textPlain, attrs, expiry);
         Entity.Operation memory opB = Lib.createOp("world", textPlain, attrs, expiry);
 
-        (bytes32 coreA,) = this.doComputeEntityHash(key, alice, current, alice, current, opA.expiresAt, opA);
-        (bytes32 coreB,) = this.doComputeEntityHash(key, alice, current, alice, current, opB.expiresAt, opB);
+        (bytes32 coreA,) = this.doComputeEntityHash(key, alice, current, alice, current, current + opA.btl, opA);
+        (bytes32 coreB,) = this.doComputeEntityHash(key, alice, current, alice, current, current + opB.btl, opB);
 
         assertNotEq(coreA, coreB);
     }
@@ -131,9 +131,9 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         Entity.Operation memory opB = Lib.createOp("hello", textPlain, attrs, BlockNumber.wrap(600));
 
         (bytes32 coreA, bytes32 entityA) =
-            this.doComputeEntityHash(key, alice, current, alice, current, opA.expiresAt, opA);
+            this.doComputeEntityHash(key, alice, current, alice, current, current + opA.btl, opA);
         (bytes32 coreB, bytes32 entityB) =
-            this.doComputeEntityHash(key, alice, current, alice, current, opB.expiresAt, opB);
+            this.doComputeEntityHash(key, alice, current, alice, current, current + opB.btl, opB);
 
         // Same content → same coreHash
         assertEq(coreA, coreB);
@@ -155,8 +155,8 @@ contract ComputeEntityHashTest is Test, EntityRegistry {
         Entity.Operation memory opA = Lib.createOp("hello", textPlain, attrsA, expiry);
         Entity.Operation memory opB = Lib.createOp("hello", textPlain, attrsB, expiry);
 
-        (bytes32 coreA,) = this.doComputeEntityHash(key, alice, current, alice, current, opA.expiresAt, opA);
-        (bytes32 coreB,) = this.doComputeEntityHash(key, alice, current, alice, current, opB.expiresAt, opB);
+        (bytes32 coreA,) = this.doComputeEntityHash(key, alice, current, alice, current, current + opA.btl, opA);
+        (bytes32 coreB,) = this.doComputeEntityHash(key, alice, current, alice, current, current + opB.btl, opB);
 
         assertNotEq(coreA, coreB);
     }
