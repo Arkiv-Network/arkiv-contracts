@@ -1,19 +1,39 @@
-//! Wire-format types matching the v2 ExEx → EntityDB JSON-RPC interface
+//! Wire-format types for the v2 ExEx → EntityDB JSON-RPC interface
 //! (`arkiv-op-reth/docs/exex-jsonrpc-interface-v2.md`).
 //!
-//! These are the **typed data target** for decoded EntityRegistry
-//! operations: a tagged enum per operation type plus a typed attribute
-//! enum, both serializing to the JSON shape the EntityDB consumes.
+//! # Type hierarchy
 //!
-//! Scope is intentionally narrow: just operations and attributes. Block,
-//! transaction, and block-ref envelopes live in the consumer (op-reth)
-//! because they're built from reth-specific inputs (`RecoveredBlock`,
-//! signature recovery, etc.).
+//! ```text
+//! ArkivBlock
+//!   └─ ArkivBlockHeader       (block number, hash, changeset hash)
+//!   └─ ArkivTransaction[]
+//!        └─ ArkivOperation[]  (tagged by op type)
+//!             └─ ArkivAttribute[] (on create / update)
+//! ```
 //!
-//! Decoding is byte-exact and non-lossy. ATTR_STRING is exposed as
-//! `FixedBytes<128>` — the protocol treats those 128 bytes as opaque,
-//! so the bindings preserve them verbatim. UTF-8 (or any other charset)
-//! interpretation is the consumer's choice.
+//! [`ArkivOperation`] and [`ArkivAttribute`] are the decoded, validated
+//! representations of the raw ABI [`Operation`] / [`Attribute`] calldata
+//! structs. Block and transaction envelopes are defined here so that all
+//! wire-format shapes live in one place; consumers build them from
+//! reth-specific inputs (`RecoveredBlock`, signature recovery, etc.) and
+//! forward the complete [`ArkivBlock`] to the EntityDB.
+//!
+//! [`Operation`]: crate::Operation
+//! [`Attribute`]: crate::Attribute
+//!
+//! # Decoding
+//!
+//! [`decode_operation`] pairs one raw calldata [`Operation`] with its two
+//! emitted events (`EntityOperation` and `ChangeSetHashUpdate`) to produce
+//! an [`ArkivOperation`]. It validates [`Mime128`] content types and
+//! [`Ident32`] attribute names on the way in.
+//!
+//! `expires_at` on [`CreateOp`] and [`ExtendOp`] is sourced from
+//! `EntityOperation.expiresAt` — the absolute block number the contract
+//! computed as `currentBlock + op.btl`. The raw `btl` is not exposed.
+//!
+//! `ATTR_STRING` values are `FixedBytes<128>` — the protocol treats those
+//! 128 bytes as opaque; UTF-8 interpretation is the consumer's choice.
 //!
 //! Serde annotations are gated behind the `serde-wire` feature (default on).
 
@@ -24,23 +44,69 @@ use eyre::{Result, bail};
 use serde::Serialize;
 
 use crate::IEntityRegistry::{ChangeSetHashUpdate, EntityOperation};
-use crate::types::{Ident32, Mime128Str};
 use crate::{
-    ATTR_ENTITY_KEY, ATTR_STRING, ATTR_UINT, Attribute as CalldataAttribute, OP_CREATE, OP_DELETE,
-    OP_EXPIRE, OP_EXTEND, OP_TRANSFER, OP_UPDATE, Operation as CalldataOp,
+    ATTR_ENTITY_KEY, ATTR_STRING, ATTR_UINT, Attribute, Ident32, Mime128, OP_CREATE, OP_DELETE,
+    OP_EXPIRE, OP_EXTEND, OP_TRANSFER, OP_UPDATE, Operation,
 };
 
 // -----------------------------------------------------------------------------
-// Operation enum + per-op structs
+// Block / transaction envelopes
 // -----------------------------------------------------------------------------
 
-/// A decoded EntityRegistry operation, tagged by type.
+/// Block header subset forwarded to the EntityDB.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde-wire", derive(Serialize))]
+#[cfg_attr(feature = "serde-wire", serde(rename_all = "camelCase"))]
+pub struct ArkivBlockHeader {
+    #[cfg_attr(feature = "serde-wire", serde(with = "hex_u64"))]
+    pub number: u64,
+    pub hash: B256,
+    pub parent_hash: B256,
+    /// Rolling changeset hash as of the end of this block. `B256::ZERO` only
+    /// when no operation has ever been recorded at or before this block.
+    pub changeset_hash: B256,
+}
+
+/// A block with its decoded Arkiv transactions (may be empty).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde-wire", derive(Serialize))]
+pub struct ArkivBlock {
+    pub header: ArkivBlockHeader,
+    pub transactions: Vec<ArkivTransaction>,
+}
+
+/// A transaction targeting the EntityRegistry with decoded operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde-wire", derive(Serialize))]
+#[cfg_attr(feature = "serde-wire", serde(rename_all = "camelCase"))]
+pub struct ArkivTransaction {
+    pub hash: B256,
+    pub index: u32,
+    pub sender: Address,
+    pub operations: Vec<ArkivOperation>,
+}
+
+/// Minimal block identifier for revert payloads.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde-wire", derive(Serialize))]
+#[cfg_attr(feature = "serde-wire", serde(rename_all = "camelCase"))]
+pub struct ArkivBlockRef {
+    #[cfg_attr(feature = "serde-wire", serde(with = "hex_u64"))]
+    pub number: u64,
+    pub hash: B256,
+}
+
+// -----------------------------------------------------------------------------
+// ArkivOperation — decoded, validated, tagged by op type
+// -----------------------------------------------------------------------------
+
+/// A decoded EntityRegistry operation.
 ///
-/// JSON shape per v2 wire spec: `{"type": "create" | "update" | …, …fields}`.
+/// JSON shape: `{"type": "create" | "update" | …, …fields}`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde-wire", derive(Serialize))]
 #[cfg_attr(feature = "serde-wire", serde(tag = "type", rename_all = "camelCase"))]
-pub enum Operation {
+pub enum ArkivOperation {
     Create(CreateOp),
     Update(UpdateOp),
     Extend(ExtendOp),
@@ -61,8 +127,8 @@ pub struct CreateOp {
     pub entity_hash: B256,
     pub changeset_hash: B256,
     pub payload: Bytes,
-    pub content_type: Mime128Str,
-    pub attributes: Vec<Attribute>,
+    pub content_type: Mime128,
+    pub attributes: Vec<ArkivAttribute>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,8 +141,8 @@ pub struct UpdateOp {
     pub entity_hash: B256,
     pub changeset_hash: B256,
     pub payload: Bytes,
-    pub content_type: Mime128Str,
-    pub attributes: Vec<Attribute>,
+    pub content_type: Mime128,
+    pub attributes: Vec<ArkivAttribute>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -126,71 +192,48 @@ pub struct ExpireOp {
 }
 
 // -----------------------------------------------------------------------------
-// Attribute enum
+// ArkivAttribute — validated, typed attribute value
 // -----------------------------------------------------------------------------
 
-/// A typed attribute, mirroring the on-chain `Attribute { name, valueType,
-/// value }` shape. The variant carries the value's natural Rust type at
-/// the natural size for that `valueType`:
+/// A typed attribute decoded from the on-chain `Attribute { name, valueType,
+/// value }` shape.
 ///
 /// - `Uint`      — `U256` (right-aligned in `data[0]` on-chain)
-/// - `String`    — `FixedBytes<128>` (the full `bytes32[4]` container,
-///   byte-exact). The protocol treats ATTR_STRING as opaque bytes; UTF-8
-///   is convention only and is the consumer's call to interpret.
-/// - `EntityKey` — `B256` (== `FixedBytes<32>`, in `data[0]` on-chain)
-///
-/// `valueType` is reified on the wire as the serde tag so JSON consumers
-/// see exactly the same three fields the contract defines.
+/// - `String`    — `FixedBytes<128>` (full `bytes32[4]`, byte-exact and opaque)
+/// - `EntityKey` — `B256` (`data[0]` on-chain)
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde-wire", derive(Serialize))]
 #[cfg_attr(
     feature = "serde-wire",
     serde(tag = "valueType", rename_all = "camelCase")
 )]
-pub enum Attribute {
-    Uint {
-        name: Ident32,
-        value: U256,
-    },
-    String {
-        name: Ident32,
-        value: FixedBytes<128>,
-    },
-    EntityKey {
-        name: Ident32,
-        value: B256,
-    },
+pub enum ArkivAttribute {
+    Uint { name: Ident32, value: U256 },
+    String { name: Ident32, value: FixedBytes<128> },
+    EntityKey { name: Ident32, value: B256 },
 }
 
 // -----------------------------------------------------------------------------
 // Decoder
 // -----------------------------------------------------------------------------
 
-/// Build a typed [`Operation`] from a single decoded calldata op plus the
-/// two paired event records (`EntityOperation` and `ChangeSetHashUpdate`).
+/// Build a typed [`ArkivOperation`] from a single decoded calldata op plus
+/// the two paired event records (`EntityOperation` and `ChangeSetHashUpdate`).
 ///
-/// Inputs:
-/// - `op_index`: the operation's position within its transaction's `ops[]`
-/// - `calldata`: the `Operation` struct from `executeCall::abi_decode`
+/// - `op_index`: position within the transaction's `ops[]`
+/// - `calldata`: the [`Operation`] struct from `executeCall::abi_decode`
 /// - `entity_event`: the `EntityOperation` event emitted for this op
 /// - `hash_event`: the `ChangeSetHashUpdate` event emitted for this op
 ///
-/// The `expires_at` field on `CreateOp` and `ExtendOp` is sourced from
-/// `entity_event.expiresAt` — the absolute block number computed by the
-/// contract as `currentBlock + op.btl` and emitted on-chain. The raw `btl`
-/// from calldata is not exposed in the wire format.
-///
-/// Errors:
-/// - `entity_event.operationType` doesn't match `calldata.operationType`
-/// - Unknown operation type
-/// - Attribute name fails Ident32 decode
-/// - Attribute value_type is unknown or violates natural-size invariants
+/// Errors if operationType mismatches, the op type is unknown, the
+/// `Mime128` content type is invalid, or any attribute name fails
+/// `Ident32` validation.
 pub fn decode_operation(
     op_index: u32,
-    calldata: &CalldataOp,
+    calldata: &Operation,
     entity_event: &EntityOperation,
     hash_event: &ChangeSetHashUpdate,
-) -> Result<Operation> {
+) -> Result<ArkivOperation> {
     if entity_event.operationType != calldata.operationType {
         bail!(
             "event/calldata operationType mismatch: event={}, calldata={}",
@@ -203,10 +246,11 @@ pub fn decode_operation(
     let owner = entity_event.owner;
     let entity_hash = entity_event.entityHash;
     let changeset_hash = hash_event.changeSetHash;
+    // expiresAt is u32 in the event struct (alloy uses the underlying RustType).
     let expires_at = u64::from(entity_event.expiresAt);
 
     Ok(match calldata.operationType {
-        OP_CREATE => Operation::Create(CreateOp {
+        OP_CREATE => ArkivOperation::Create(CreateOp {
             op_index,
             entity_key,
             owner,
@@ -214,20 +258,20 @@ pub fn decode_operation(
             entity_hash,
             changeset_hash,
             payload: calldata.payload.clone(),
-            content_type: Mime128Str::try_from(&calldata.contentType)?,
+            content_type: calldata.contentType.clone().validate()?,
             attributes: decode_attributes(&calldata.attributes)?,
         }),
-        OP_UPDATE => Operation::Update(UpdateOp {
+        OP_UPDATE => ArkivOperation::Update(UpdateOp {
             op_index,
             entity_key,
             owner,
             entity_hash,
             changeset_hash,
             payload: calldata.payload.clone(),
-            content_type: Mime128Str::try_from(&calldata.contentType)?,
+            content_type: calldata.contentType.clone().validate()?,
             attributes: decode_attributes(&calldata.attributes)?,
         }),
-        OP_EXTEND => Operation::Extend(ExtendOp {
+        OP_EXTEND => ArkivOperation::Extend(ExtendOp {
             op_index,
             entity_key,
             owner,
@@ -235,21 +279,21 @@ pub fn decode_operation(
             entity_hash,
             changeset_hash,
         }),
-        OP_TRANSFER => Operation::Transfer(TransferOp {
+        OP_TRANSFER => ArkivOperation::Transfer(TransferOp {
             op_index,
             entity_key,
             owner,
             entity_hash,
             changeset_hash,
         }),
-        OP_DELETE => Operation::Delete(DeleteOp {
+        OP_DELETE => ArkivOperation::Delete(DeleteOp {
             op_index,
             entity_key,
             owner,
             entity_hash,
             changeset_hash,
         }),
-        OP_EXPIRE => Operation::Expire(ExpireOp {
+        OP_EXPIRE => ArkivOperation::Expire(ExpireOp {
             op_index,
             entity_key,
             owner,
@@ -260,37 +304,36 @@ pub fn decode_operation(
     })
 }
 
-fn decode_attributes(attrs: &[CalldataAttribute]) -> Result<Vec<Attribute>> {
+fn decode_attributes(attrs: &[Attribute]) -> Result<Vec<ArkivAttribute>> {
     attrs.iter().map(decode_attribute).collect()
 }
 
-fn decode_attribute(attr: &CalldataAttribute) -> Result<Attribute> {
-    let name = Ident32::try_from(attr.name)?;
+fn decode_attribute(attr: &Attribute) -> Result<ArkivAttribute> {
+    // attr.name is FixedBytes<32> — alloy unwraps UDVTs to primitives in
+    // struct fields. Wrap into Ident32 and validate charset + null-termination.
+    let name = Ident32(attr.name).validate()?;
 
     match attr.valueType {
         ATTR_UINT => {
             require_single_word(&attr.value, attr.valueType)?;
-            Ok(Attribute::Uint {
+            Ok(ArkivAttribute::Uint {
                 name,
                 value: U256::from_be_bytes(attr.value[0].0),
             })
         }
         ATTR_STRING => {
-            // Concat 4 words into a single 128-byte buffer, byte-exact.
-            // No NUL-truncation, no UTF-8 — the protocol is opaque on the
-            // contents of this field.
             let mut buf = [0u8; 128];
             for (i, w) in attr.value.iter().enumerate() {
                 buf[i * 32..(i + 1) * 32].copy_from_slice(w.as_slice());
             }
-            Ok(Attribute::String {
+            Ok(ArkivAttribute::String {
                 name,
                 value: FixedBytes::from(buf),
             })
         }
         ATTR_ENTITY_KEY => {
             require_single_word(&attr.value, attr.valueType)?;
-            Ok(Attribute::EntityKey {
+            Ok(ArkivAttribute::EntityKey {
                 name,
                 value: attr.value[0],
             })
@@ -299,7 +342,7 @@ fn decode_attribute(attr: &CalldataAttribute) -> Result<Attribute> {
     }
 }
 
-/// Enforce the bytes32-sized invariant (natural size of UINT and ENTITY_KEY):
+/// Enforce the bytes32-sized invariant for UINT and ENTITY_KEY:
 /// `value[1..=3]` must be zero.
 fn require_single_word(value: &[FixedBytes<32>; 4], value_type: u8) -> Result<()> {
     for (i, w) in value.iter().enumerate().skip(1) {
@@ -315,7 +358,7 @@ fn require_single_word(value: &[FixedBytes<32>; 4], value_type: u8) -> Result<()
 }
 
 // -----------------------------------------------------------------------------
-// Hex u64 serializer — block numbers, expiry are JSON hex strings ("0x…").
+// Hex u64 serializer — block numbers and expiry as JSON hex strings ("0x…").
 // -----------------------------------------------------------------------------
 
 #[cfg(feature = "serde-wire")]
@@ -333,10 +376,10 @@ mod tests {
     use crate::Mime128;
     use alloy_primitives::FixedBytes;
 
-    fn ident32(name: &str) -> B256 {
+    fn ident32(name: &str) -> FixedBytes<32> {
         let mut bytes = [0u8; 32];
         bytes[..name.len()].copy_from_slice(name.as_bytes());
-        B256::from(bytes)
+        FixedBytes::from(bytes)
     }
 
     fn mime128(s: &str) -> Mime128 {
@@ -356,7 +399,6 @@ mod tests {
         data
     }
 
-    /// Build a `bytes32[4]` calldata value from a 128-byte buffer.
     fn calldata_value(buf: [u8; 128]) -> [FixedBytes<32>; 4] {
         let mut data = [FixedBytes::ZERO; 4];
         for (i, w) in data.iter_mut().enumerate() {
@@ -365,9 +407,6 @@ mod tests {
         data
     }
 
-    /// Pack a string into the on-chain ATTR_STRING wire shape (left-aligned,
-    /// zero-padded). The wire decoder preserves the full 128 bytes; tests
-    /// likewise compare the full 128-byte buffer.
     fn string_buf(s: &str) -> [u8; 128] {
         let mut buf = [0u8; 128];
         buf[..s.len()].copy_from_slice(s.as_bytes());
@@ -379,7 +418,7 @@ mod tests {
             entityKey: B256::repeat_byte(0xE1),
             operationType: op_type,
             owner: Address::repeat_byte(0xAA),
-            expiresAt: 1234,
+            expiresAt: 1234u32,
             entityHash: B256::repeat_byte(0xE2),
         }
     }
@@ -392,23 +431,23 @@ mod tests {
         }
     }
 
-    fn calldata_op(op_type: u8) -> CalldataOp {
-        CalldataOp {
+    fn raw_op(op_type: u8) -> Operation {
+        Operation {
             operationType: op_type,
             entityKey: B256::ZERO,
             payload: Bytes::from_static(b"hello"),
             contentType: mime128("text/plain"),
             attributes: vec![],
-            btl: 1234,
+            btl: 1234u32,
             newOwner: Address::ZERO,
         }
     }
 
     #[test]
     fn decode_create_populates_body_fields() {
-        let op = calldata_op(OP_CREATE);
+        let op = raw_op(OP_CREATE);
         let decoded = decode_operation(0, &op, &entity_event(OP_CREATE), &hash_event()).unwrap();
-        let Operation::Create(c) = decoded else {
+        let ArkivOperation::Create(c) = decoded else {
             panic!("expected Create variant");
         };
         assert_eq!(c.op_index, 0);
@@ -418,27 +457,52 @@ mod tests {
         assert_eq!(c.entity_hash, B256::repeat_byte(0xE2));
         assert_eq!(c.changeset_hash, B256::repeat_byte(0xC1));
         assert_eq!(c.payload, Bytes::from_static(b"hello"));
-        assert_eq!(c.content_type.as_str(), "text/plain");
+        assert_eq!(c.content_type.as_str().unwrap(), "text/plain");
         assert!(c.attributes.is_empty());
     }
 
     #[test]
+    fn decode_fails_on_invalid_mime_content_type() {
+        let mut op = raw_op(OP_CREATE);
+        op.contentType = mime128("text");
+        let err = decode_operation(0, &op, &entity_event(OP_CREATE), &hash_event())
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("MIME"), "{}", err);
+    }
+
+    #[test]
+    fn decode_fails_on_invalid_ident32_attribute_name() {
+        let mut op = raw_op(OP_CREATE);
+        let mut name_bytes = [0u8; 32];
+        name_bytes[..5].copy_from_slice(b"UPPER");
+        op.attributes.push(Attribute {
+            name: FixedBytes::from(name_bytes),
+            valueType: ATTR_UINT,
+            value: u256_word(1),
+        });
+        let err = decode_operation(0, &op, &entity_event(OP_CREATE), &hash_event())
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("Ident32"), "{}", err);
+    }
+
+    #[test]
     fn decode_update_omits_expires_at() {
-        let op = calldata_op(OP_UPDATE);
+        let op = raw_op(OP_UPDATE);
         let decoded = decode_operation(3, &op, &entity_event(OP_UPDATE), &hash_event()).unwrap();
-        let Operation::Update(u) = decoded else {
+        let ArkivOperation::Update(u) = decoded else {
             panic!("expected Update");
         };
         assert_eq!(u.op_index, 3);
         assert_eq!(u.payload, Bytes::from_static(b"hello"));
-        // No expires_at on UpdateOp by design.
     }
 
     #[test]
     fn decode_extend_carries_expires_at_no_body() {
-        let op = calldata_op(OP_EXTEND);
+        let op = raw_op(OP_EXTEND);
         let decoded = decode_operation(1, &op, &entity_event(OP_EXTEND), &hash_event()).unwrap();
-        let Operation::Extend(e) = decoded else {
+        let ArkivOperation::Extend(e) = decoded else {
             panic!("expected Extend");
         };
         assert_eq!(e.expires_at, 1234);
@@ -447,12 +511,12 @@ mod tests {
     #[test]
     fn decode_transfer_delete_expire_have_no_body() {
         for ty in [OP_TRANSFER, OP_DELETE, OP_EXPIRE] {
-            let op = calldata_op(ty);
+            let op = raw_op(ty);
             let decoded = decode_operation(0, &op, &entity_event(ty), &hash_event()).unwrap();
             match (ty, &decoded) {
-                (OP_TRANSFER, Operation::Transfer(_)) => {}
-                (OP_DELETE, Operation::Delete(_)) => {}
-                (OP_EXPIRE, Operation::Expire(_)) => {}
+                (OP_TRANSFER, ArkivOperation::Transfer(_)) => {}
+                (OP_DELETE, ArkivOperation::Delete(_)) => {}
+                (OP_EXPIRE, ArkivOperation::Expire(_)) => {}
                 _ => panic!("variant mismatch for op_type {}: {:?}", ty, decoded),
             }
         }
@@ -460,7 +524,7 @@ mod tests {
 
     #[test]
     fn decode_rejects_event_calldata_mismatch() {
-        let op = calldata_op(OP_CREATE);
+        let op = raw_op(OP_CREATE);
         let err = decode_operation(0, &op, &entity_event(OP_DELETE), &hash_event())
             .unwrap_err()
             .to_string();
@@ -469,7 +533,7 @@ mod tests {
 
     #[test]
     fn decode_rejects_unknown_op_type() {
-        let mut op = calldata_op(OP_CREATE);
+        let mut op = raw_op(OP_CREATE);
         op.operationType = 99;
         let mut ev = entity_event(OP_CREATE);
         ev.operationType = 99;
@@ -481,13 +545,13 @@ mod tests {
 
     #[test]
     fn decode_uint_attribute() {
-        let mut op = calldata_op(OP_CREATE);
-        op.attributes.push(CalldataAttribute {
+        let mut op = raw_op(OP_CREATE);
+        op.attributes.push(Attribute {
             name: ident32("count"),
             valueType: ATTR_UINT,
             value: u256_word(42),
         });
-        let Operation::Create(c) =
+        let ArkivOperation::Create(c) =
             decode_operation(0, &op, &entity_event(OP_CREATE), &hash_event()).unwrap()
         else {
             unreachable!();
@@ -495,7 +559,7 @@ mod tests {
         assert_eq!(c.attributes.len(), 1);
         assert_eq!(
             c.attributes[0],
-            Attribute::Uint {
+            ArkivAttribute::Uint {
                 name: Ident32::encode("count").unwrap(),
                 value: U256::from(42u64),
             },
@@ -505,20 +569,20 @@ mod tests {
     #[test]
     fn decode_string_attribute_byte_exact() {
         let buf = string_buf("hello");
-        let mut op = calldata_op(OP_CREATE);
-        op.attributes.push(CalldataAttribute {
+        let mut op = raw_op(OP_CREATE);
+        op.attributes.push(Attribute {
             name: ident32("title"),
             valueType: ATTR_STRING,
             value: calldata_value(buf),
         });
-        let Operation::Create(c) =
+        let ArkivOperation::Create(c) =
             decode_operation(0, &op, &entity_event(OP_CREATE), &hash_event()).unwrap()
         else {
             unreachable!();
         };
         assert_eq!(
             c.attributes[0],
-            Attribute::String {
+            ArkivAttribute::String {
                 name: Ident32::encode("title").unwrap(),
                 value: FixedBytes::from(buf),
             },
@@ -527,26 +591,24 @@ mod tests {
 
     #[test]
     fn decode_string_attribute_preserves_arbitrary_bytes() {
-        // Non-UTF-8 bytes pass through verbatim — no UTF-8 attempted, no
-        // NUL-truncation. The full 128 bytes are preserved.
         let mut buf = [0u8; 128];
         buf[0] = 0xFF;
         buf[1] = 0xFE;
-        buf[10] = 0x00; // NUL in the middle
-        buf[20] = b'x'; // bytes after the NUL must survive
+        buf[10] = 0x00;
+        buf[20] = b'x';
         buf[127] = 0xAA;
-        let mut op = calldata_op(OP_CREATE);
-        op.attributes.push(CalldataAttribute {
+        let mut op = raw_op(OP_CREATE);
+        op.attributes.push(Attribute {
             name: ident32("garbage"),
             valueType: ATTR_STRING,
             value: calldata_value(buf),
         });
-        let Operation::Create(c) =
+        let ArkivOperation::Create(c) =
             decode_operation(0, &op, &entity_event(OP_CREATE), &hash_event()).unwrap()
         else {
             unreachable!();
         };
-        let Attribute::String { value, .. } = &c.attributes[0] else {
+        let ArkivAttribute::String { value, .. } = &c.attributes[0] else {
             panic!("expected String");
         };
         assert_eq!(value.as_slice(), &buf);
@@ -557,20 +619,20 @@ mod tests {
         let key = B256::repeat_byte(0x77);
         let mut value = [FixedBytes::ZERO; 4];
         value[0] = key;
-        let mut op = calldata_op(OP_CREATE);
-        op.attributes.push(CalldataAttribute {
+        let mut op = raw_op(OP_CREATE);
+        op.attributes.push(Attribute {
             name: ident32("linked.to"),
             valueType: ATTR_ENTITY_KEY,
             value,
         });
-        let Operation::Create(c) =
+        let ArkivOperation::Create(c) =
             decode_operation(0, &op, &entity_event(OP_CREATE), &hash_event()).unwrap()
         else {
             unreachable!();
         };
         assert_eq!(
             c.attributes[0],
-            Attribute::EntityKey {
+            ArkivAttribute::EntityKey {
                 name: Ident32::encode("linked.to").unwrap(),
                 value: key,
             },
@@ -581,8 +643,8 @@ mod tests {
     fn decode_attribute_rejects_uint_with_nonzero_higher_words() {
         let mut value = u256_word(7);
         value[2] = FixedBytes::repeat_byte(0xFF);
-        let mut op = calldata_op(OP_CREATE);
-        op.attributes.push(CalldataAttribute {
+        let mut op = raw_op(OP_CREATE);
+        op.attributes.push(Attribute {
             name: ident32("bad"),
             valueType: ATTR_UINT,
             value,
@@ -595,8 +657,8 @@ mod tests {
 
     #[test]
     fn decode_attribute_rejects_unknown_value_type() {
-        let mut op = calldata_op(OP_CREATE);
-        op.attributes.push(CalldataAttribute {
+        let mut op = raw_op(OP_CREATE);
+        op.attributes.push(Attribute {
             name: ident32("unknown"),
             valueType: 99,
             value: [FixedBytes::ZERO; 4],
@@ -608,19 +670,19 @@ mod tests {
     }
 
     // -------------------------------------------------------------------------
-    // Serde JSON shape tests (gated on feature)
+    // Serde JSON shape tests
     // -------------------------------------------------------------------------
 
     #[cfg(feature = "serde-wire")]
     #[test]
     fn create_op_json_shape() {
-        let mut op = calldata_op(OP_CREATE);
-        op.attributes.push(CalldataAttribute {
+        let mut op = raw_op(OP_CREATE);
+        op.attributes.push(Attribute {
             name: ident32("priority"),
             valueType: ATTR_UINT,
             value: u256_word(42),
         });
-        op.attributes.push(CalldataAttribute {
+        op.attributes.push(Attribute {
             name: ident32("title"),
             valueType: ATTR_STRING,
             value: calldata_value(string_buf("note")),
@@ -630,17 +692,15 @@ mod tests {
 
         assert_eq!(json["type"], "create");
         assert_eq!(json["opIndex"], 0);
-        assert_eq!(json["expiresAt"], "0x4d2"); // 1234 in hex
-        assert_eq!(json["payload"], "0x68656c6c6f"); // "hello"
+        assert_eq!(json["expiresAt"], "0x4d2");
+        assert_eq!(json["payload"], "0x68656c6c6f");
         assert_eq!(json["contentType"], "text/plain");
 
         let attr0 = &json["attributes"][0];
         assert_eq!(attr0["valueType"], "uint");
         assert_eq!(attr0["name"], "priority");
-        assert_eq!(attr0["value"], "0x2a"); // 42 in hex
+        assert_eq!(attr0["value"], "0x2a");
 
-        // String value is the full 128 bytes (left-aligned "note" + zero
-        // padding) as a single hex string — byte-exact, no truncation.
         let attr1 = &json["attributes"][1];
         assert_eq!(attr1["valueType"], "string");
         assert_eq!(attr1["name"], "title");
@@ -659,7 +719,7 @@ mod tests {
             (OP_DELETE, "delete"),
             (OP_EXPIRE, "expire"),
         ] {
-            let op = calldata_op(ty);
+            let op = raw_op(ty);
             let decoded = decode_operation(0, &op, &entity_event(ty), &hash_event()).unwrap();
             let json = serde_json::to_value(&decoded).unwrap();
             assert_eq!(json["type"], expected_tag, "wrong tag for op_type {}", ty);
@@ -670,7 +730,7 @@ mod tests {
     #[test]
     fn entity_key_attribute_json_shape() {
         let key = B256::repeat_byte(0x42);
-        let attr = Attribute::EntityKey {
+        let attr = ArkivAttribute::EntityKey {
             name: Ident32::encode("linked.to").unwrap(),
             value: key,
         };

@@ -460,7 +460,7 @@ mod tests {
     #[test]
     fn decode_head_block_reads_low_u32() {
         let word = slot_word(&0x1234_5678u32.to_be_bytes());
-        assert_eq!(decode_head_block(word), 0x1234_5678);
+        assert_eq!(decode_head_block(word), 0x1234_5678u32);
     }
 
     #[test]
@@ -472,8 +472,8 @@ mod tests {
         bytes[24..28].copy_from_slice(&0xBEEFu32.to_be_bytes()); // nextBlock @ offset 4
         bytes[28..32].copy_from_slice(&0xDEADu32.to_be_bytes()); // prevBlock @ offset 0
         let node = decode_block_node(B256::from(bytes));
-        assert_eq!(node.prevBlock, 0xDEAD);
-        assert_eq!(node.nextBlock, 0xBEEF);
+        assert_eq!(node.prevBlock, 0xDEADu32);
+        assert_eq!(node.nextBlock, 0xBEEFu32);
         assert_eq!(node.txCount, 0xCAFE);
     }
 

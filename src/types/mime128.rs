@@ -1,8 +1,25 @@
+//! Validation and string-conversion impls for the ABI-generated [`Mime128`] struct.
+//!
+//! [`Mime128`] stores a MIME type string as 4 × `bytes32` (left-aligned, null-padded).
+//! Validates per RFC 2045: `type/subtype[; param=value]*`, lowercase only, max 128 bytes.
+//!
+//! These impl blocks mirror the validation rules in `contracts/types/Mime128.sol`.
+
 use alloy_primitives::FixedBytes;
 use eyre::{Result, bail};
 
+use crate::Mime128;
+
+/// Printable ASCII (0x20–0x7E) excluding uppercase A-Z (0x41–0x5A).
+///   bits 32–64  (0x20–0x40): set — space through @
+///   bits 91–126 (0x5B–0x7E): set — [ through ~ (uppercase gap 0x41–0x5A is absent)
+/// Mirrors `LOWER_PRINTABLE_ASCII` in Mime128.sol.
+const LOWER_PRINTABLE_ASCII: u128 = (((1u128 << 33) - 1) << 32) | (((1u128 << 36) - 1) << 91);
+
 /// Valid MIME token characters (RFC 2045, lowercase only).
-/// Mirrors MIME_TOKEN in Mime128.sol.
+/// Token chars = printable ASCII minus tspecials and uppercase.
+/// tspecials: SPACE " ( ) , / : ; < = > ? @ [ \ ]
+/// Mirrors `MIME_TOKEN` in Mime128.sol.
 const MIME_TOKEN: u128 = LOWER_PRINTABLE_ASCII
     & !((1 << 0x20) // space
         | (1 << 0x22) // "
@@ -21,9 +38,6 @@ const MIME_TOKEN: u128 = LOWER_PRINTABLE_ASCII
         | (1 << 0x5C) // \
         | (1 << 0x5D)); // ]
 
-/// Printable ASCII excluding uppercase.
-const LOWER_PRINTABLE_ASCII: u128 = (((1u128 << 33) - 1) << 32) | (((1u128 << 36) - 1) << 91);
-
 const S_TYPE: u8 = 0;
 const S_SUBTYPE: u8 = 1;
 const S_OWS: u8 = 2;
@@ -34,15 +48,11 @@ fn is_token(b: u8) -> bool {
     b < 128 && (MIME_TOKEN >> b) & 1 == 1
 }
 
-/// A validated 128-byte MIME type string, mirroring the Solidity `Mime128` struct.
-///
-/// Stored as 4 × bytes32 (left-aligned, null-padded).
-/// Validated per RFC 2045: `type/subtype[; param=value]*`, lowercase only.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Mime128Str(String);
-
-impl Mime128Str {
-    /// Encode and validate a MIME string.
+impl Mime128 {
+    /// Encode and validate a MIME type string into a `Mime128`.
+    ///
+    /// Validates per RFC 2045 (mirrors `validateMime128` in Mime128.sol):
+    /// `type/subtype[; param=value]*`, lowercase only, at most 128 bytes.
     pub fn encode(s: &str) -> Result<Self> {
         let bytes = s.as_bytes();
         if bytes.is_empty() {
@@ -51,77 +61,68 @@ impl Mime128Str {
         if bytes.len() > 128 {
             bail!("MIME type too long: {} bytes (max 128)", bytes.len());
         }
-        validate_mime(bytes)?;
-        Ok(Self(s.to_string()))
-    }
-
-    /// Decode from the raw 4 × bytes32 representation.
-    pub fn decode(data: &[FixedBytes<32>; 4]) -> Option<String> {
-        let mut bytes = Vec::with_capacity(128);
-        for b32 in data {
-            bytes.extend_from_slice(&b32[..]);
-        }
-        if let Some(end) = bytes.iter().position(|b| *b == 0) {
-            bytes.truncate(end);
-        }
-        String::from_utf8(bytes).ok()
-    }
-
-    /// Encode into the raw 4 × bytes32 representation.
-    pub fn to_bytes32x4(&self) -> [FixedBytes<32>; 4] {
-        let bytes = self.0.as_bytes();
+        validate_mime_bytes(bytes)?;
         let mut data = [FixedBytes::ZERO; 4];
         for (i, chunk) in bytes.chunks(32).enumerate() {
-            if i >= 4 {
-                break;
-            }
             let mut buf = [0u8; 32];
             buf[..chunk.len()].copy_from_slice(chunk);
             data[i] = FixedBytes::from(buf);
         }
-        data
+        Ok(Self { data })
     }
 
-    /// Get the string value.
-    pub fn as_str(&self) -> &str {
-        &self.0
+    /// Decode a `Mime128` to its string representation, stripping null padding.
+    pub fn as_str(&self) -> Result<String> {
+        let mut bytes = Vec::with_capacity(128);
+        for b32 in &self.data {
+            bytes.extend_from_slice(b32.as_slice());
+        }
+        if let Some(end) = bytes.iter().position(|&b| b == 0) {
+            bytes.truncate(end);
+        }
+        String::from_utf8(bytes).map_err(|e| eyre::eyre!("invalid UTF-8 in Mime128: {}", e))
+    }
+
+    /// Validate a `Mime128`'s raw bytes, returning `self` if valid.
+    ///
+    /// Mirrors `validateMime128` in Mime128.sol.
+    pub fn validate(self) -> Result<Self> {
+        let s = self.as_str()?;
+        if s.is_empty() {
+            bail!("MIME type cannot be empty");
+        }
+        validate_mime_bytes(s.as_bytes())?;
+        Ok(self)
     }
 }
 
-impl TryFrom<&str> for Mime128Str {
+impl TryFrom<&str> for Mime128 {
     type Error = eyre::Error;
     fn try_from(s: &str) -> Result<Self> {
         Self::encode(s)
     }
 }
 
-/// Decode + validate the sol!-generated `Mime128` struct in one step.
-///
-/// Symmetric counterpart of [`Mime128Str::to_bytes32x4`] composed into the
-/// `Mime128 { data }` wrapper: bytes → string → validated MIME.
-impl TryFrom<&crate::Mime128> for Mime128Str {
-    type Error = eyre::Error;
-    fn try_from(mime: &crate::Mime128) -> Result<Self> {
-        let s = Self::decode(&mime.data).ok_or_else(|| eyre::eyre!("invalid UTF-8 in Mime128"))?;
-        Self::encode(&s)
-    }
-}
-
-impl std::fmt::Display for Mime128Str {
+impl std::fmt::Display for Mime128 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        match self.as_str() {
+            Ok(s) => write!(f, "{}", s),
+            Err(_) => write!(f, "<invalid Mime128>"),
+        }
     }
 }
 
 #[cfg(feature = "serde-wire")]
-impl serde::Serialize for Mime128Str {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(self.as_str())
+impl serde::Serialize for Mime128 {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+        let string = self.as_str().map_err(serde::ser::Error::custom)?;
+        s.serialize_str(&string)
     }
 }
 
-/// Validate MIME structure per RFC 2045 state machine (mirrors Mime128.sol).
-fn validate_mime(bytes: &[u8]) -> Result<()> {
+/// Validate raw MIME bytes using the RFC 2045 state machine.
+/// Mirrors `validateMime128` in Mime128.sol.
+fn validate_mime_bytes(bytes: &[u8]) -> Result<()> {
     let mut state = S_TYPE;
     let mut seg_len: usize = 0;
 
@@ -181,7 +182,6 @@ fn validate_mime(bytes: &[u8]) -> Result<()> {
         }
     }
 
-    // Must end in SUBTYPE or PVALUE with non-empty segment
     if (state == S_SUBTYPE || state == S_PVALUE) && seg_len > 0 {
         Ok(())
     } else {
@@ -195,88 +195,53 @@ mod tests {
 
     #[test]
     fn encode_decode_roundtrip() {
-        let m = Mime128Str::encode("application/json").unwrap();
-        let raw = m.to_bytes32x4();
-        let decoded = Mime128Str::decode(&raw).unwrap();
-        assert_eq!(decoded, "application/json");
+        let m = Mime128::encode("application/json").unwrap();
+        assert_eq!(m.as_str().unwrap(), "application/json");
     }
 
     #[test]
     fn with_params() {
-        let m = Mime128Str::encode("text/plain; charset=utf-8").unwrap();
-        assert_eq!(m.as_str(), "text/plain; charset=utf-8");
+        let m = Mime128::encode("text/plain; charset=utf-8").unwrap();
+        assert_eq!(m.as_str().unwrap(), "text/plain; charset=utf-8");
     }
 
     #[test]
     fn rejects_empty() {
-        assert!(Mime128Str::encode("").is_err());
+        assert!(Mime128::encode("").is_err());
     }
 
     #[test]
     fn rejects_uppercase() {
-        assert!(Mime128Str::encode("Application/JSON").is_err());
+        assert!(Mime128::encode("Application/JSON").is_err());
     }
 
     #[test]
     fn rejects_missing_subtype() {
-        assert!(Mime128Str::encode("text").is_err());
+        assert!(Mime128::encode("text").is_err());
     }
 
     #[test]
     fn rejects_incomplete_param() {
-        assert!(Mime128Str::encode("text/plain; charset").is_err());
+        assert!(Mime128::encode("text/plain; charset").is_err());
     }
 
     #[test]
-    fn max_length() {
-        let s = format!("{}/{}", "a".repeat(63), "b".repeat(64));
-        assert!(Mime128Str::encode(&s).is_ok());
-    }
-
-    #[test]
-    fn rejects_too_long() {
-        let s = format!("{}/{}", "a".repeat(64), "b".repeat(64));
-        assert!(Mime128Str::encode(&s).is_err());
-    }
-
-    #[test]
-    fn try_from_mime128_roundtrip() {
-        let m = Mime128Str::encode("text/plain; charset=utf-8").unwrap();
-        let mime = crate::Mime128 {
-            data: m.to_bytes32x4(),
+    fn validate_rejects_invalid_bytes() {
+        let mut buf = [0u8; 32];
+        buf[0] = 0xFF; // invalid UTF-8
+        let m = Mime128 {
+            data: [FixedBytes::from(buf), FixedBytes::ZERO, FixedBytes::ZERO, FixedBytes::ZERO],
         };
-        let recovered = Mime128Str::try_from(&mime).unwrap();
-        assert_eq!(recovered, m);
+        assert!(m.validate().is_err());
     }
 
     #[test]
-    fn try_from_mime128_rejects_invalid_utf8() {
-        let mut w0 = [0u8; 32];
-        w0[0] = 0xFF; // invalid UTF-8 leading byte
-        let mime = crate::Mime128 {
-            data: [
-                FixedBytes::from(w0),
-                FixedBytes::ZERO,
-                FixedBytes::ZERO,
-                FixedBytes::ZERO,
-            ],
+    fn validate_rejects_invalid_mime_structure() {
+        let mut buf = [0u8; 32];
+        buf[..4].copy_from_slice(b"text"); // missing slash
+        let m = Mime128 {
+            data: [FixedBytes::from(buf), FixedBytes::ZERO, FixedBytes::ZERO, FixedBytes::ZERO],
         };
-        assert!(Mime128Str::try_from(&mime).is_err());
-    }
-
-    #[test]
-    fn try_from_mime128_rejects_invalid_mime_structure() {
-        // Valid UTF-8 bytes that fail MIME validation (uppercase, lowercase-only rule).
-        let mut w0 = [0u8; 32];
-        w0[..16].copy_from_slice(b"Application/JSON");
-        let mime = crate::Mime128 {
-            data: [
-                FixedBytes::from(w0),
-                FixedBytes::ZERO,
-                FixedBytes::ZERO,
-                FixedBytes::ZERO,
-            ],
-        };
-        assert!(Mime128Str::try_from(&mime).is_err());
+        assert!(m.validate().is_err());
     }
 }

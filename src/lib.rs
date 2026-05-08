@@ -3,8 +3,10 @@ pub mod types;
 pub mod wire;
 
 // Generated from IEntityRegistry.sol ABI by build.rs.
-// Contains struct definitions (Operation, Attribute, Mime128, Commitment, BlockNode)
-// and the IEntityRegistry interface with all functions, events, and errors.
+// Emits top-level types at the crate root:
+//   UDVTs:   BlockNumber32, Ident32, OperationKey
+//   Structs: Mime128, Attribute, Operation, Commitment, BlockNode
+//   Module:  IEntityRegistry (functions, events, errors)
 include!(concat!(env!("OUT_DIR"), "/sol.rs"));
 
 // EntityRegistry creation bytecode embedded at build time.
@@ -67,7 +69,7 @@ mod tests {
                 data: [FixedBytes::ZERO; 4],
             },
             attributes: vec![],
-            btl: 1000,
+            btl: 1000u32,
             newOwner: Address::ZERO,
         };
 
@@ -82,12 +84,12 @@ mod tests {
 
     #[test]
     fn operation_with_attributes_roundtrip() {
-        let name = types::Ident32::encode("status").unwrap();
+        let name = Ident32::encode("status").unwrap();
         let mut value = [FixedBytes::ZERO; 4];
         value[0] = B256::from(U256::from(42));
 
         let attr = Attribute {
-            name: name.as_b256().into(),
+            name: name.0, // Attribute.name is FixedBytes<32>; .0 unwraps the Ident32
             valueType: ATTR_UINT,
             value,
         };
@@ -100,7 +102,7 @@ mod tests {
                 data: [FixedBytes::ZERO; 4],
             },
             attributes: vec![attr.clone()],
-            btl: 500,
+            btl: 500u32,
             newOwner: Address::ZERO,
         };
 
@@ -119,7 +121,7 @@ mod tests {
             entityKey: B256::repeat_byte(0x01),
             operationType: OP_CREATE,
             owner: Address::repeat_byte(0xAA),
-            expiresAt: 1000,
+            expiresAt: 1000u32,
             entityHash: B256::repeat_byte(0x02),
         };
 
@@ -131,7 +133,7 @@ mod tests {
         assert_eq!(decoded.entityKey, B256::repeat_byte(0x01));
         assert_eq!(decoded.operationType, OP_CREATE);
         assert_eq!(decoded.owner, Address::repeat_byte(0xAA));
-        assert_eq!(decoded.expiresAt, 1000);
+        assert_eq!(decoded.expiresAt, 1000u32);
     }
 
     #[test]
@@ -156,9 +158,9 @@ mod tests {
     fn commitment_roundtrip() {
         let c = Commitment {
             creator: Address::repeat_byte(0x01),
-            createdAt: 100,
-            updatedAt: 200,
-            expiresAt: 300,
+            createdAt: 100u32,
+            updatedAt: 200u32,
+            expiresAt: 300u32,
             owner: Address::repeat_byte(0x02),
             coreHash: B256::repeat_byte(0xAA),
         };
@@ -170,32 +172,29 @@ mod tests {
 
     #[test]
     fn ident32_encode_validates() {
-        assert!(types::Ident32::encode("valid.name").is_ok());
-        assert!(types::Ident32::encode("").is_err());
-        assert!(types::Ident32::encode("UPPER").is_err());
-        assert!(types::Ident32::encode("1digit").is_err());
+        assert!(Ident32::encode("valid.name").is_ok());
+        assert!(Ident32::encode("").is_err());
+        assert!(Ident32::encode("UPPER").is_err());
+        assert!(Ident32::encode("1digit").is_err());
     }
 
     #[test]
     fn mime128_encode_validates() {
-        assert!(types::Mime128Str::encode("application/json").is_ok());
-        assert!(types::Mime128Str::encode("text/plain; charset=utf-8").is_ok());
-        assert!(types::Mime128Str::encode("").is_err());
-        assert!(types::Mime128Str::encode("Application/JSON").is_err());
-        assert!(types::Mime128Str::encode("text").is_err());
+        assert!(Mime128::encode("application/json").is_ok());
+        assert!(Mime128::encode("text/plain; charset=utf-8").is_ok());
+        assert!(Mime128::encode("").is_err());
+        assert!(Mime128::encode("Application/JSON").is_err());
+        assert!(Mime128::encode("text").is_err());
     }
 
     #[test]
     fn mime128_encode_produces_valid_abi_data() {
-        let m = types::Mime128Str::encode("application/json").unwrap();
-        let raw = m.to_bytes32x4();
-        let decoded = types::Mime128Str::decode(&raw).unwrap();
-        assert_eq!(decoded, "application/json");
+        let m = Mime128::encode("application/json").unwrap();
+        assert_eq!(m.as_str().unwrap(), "application/json");
 
-        // Also works with the sol!-generated Mime128 type via TryFrom
-        let mime = Mime128 { data: raw };
-        let recovered = types::Mime128Str::try_from(&mime).unwrap();
-        assert_eq!(recovered.as_str(), "application/json");
+        // Roundtrip through raw data
+        let m2 = Mime128 { data: m.data };
+        assert_eq!(m2.as_str().unwrap(), "application/json");
     }
 
     #[test]
