@@ -18,6 +18,7 @@ contract EntityLifecycleTest is Test {
     address bob;
 
     Mime128 textPlain;
+    BlockNumber btl;
     BlockNumber expiresAt;
 
     function setUp() public {
@@ -25,7 +26,8 @@ contract EntityLifecycleTest is Test {
         alice = makeAddr("alice");
         bob = makeAddr("bob");
         textPlain = encodeMime128("text/plain");
-        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
+        btl = BlockNumber.wrap(1000);
+        expiresAt = BlockNumber.wrap(uint32(block.number)) + btl;
     }
 
     /// @dev Helper — build a single-op array and execute as sender.
@@ -44,7 +46,7 @@ contract EntityLifecycleTest is Test {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
 
         // Create.
-        _exec(alice, Lib.createOp("v1", textPlain, attrs, expiresAt));
+        _exec(alice, Lib.createOp("v1", textPlain, attrs, btl));
         bytes32 key = registry.entityKey(alice, 0);
 
         Entity.Commitment memory c = registry.commitment(key);
@@ -64,7 +66,7 @@ contract EntityLifecycleTest is Test {
 
         // Extend.
         BlockNumber newExpiry = expiresAt + BlockNumber.wrap(500);
-        _exec(alice, Lib.extendOp(key, newExpiry));
+        _exec(alice, Lib.extendOp(key, newExpiry - BlockNumber.wrap(uint32(block.number))));
         assertEq(BlockNumber.unwrap(registry.commitment(key).expiresAt), BlockNumber.unwrap(newExpiry));
         bytes32 hashAfterExtend = registry.changeSetHash();
         assertNotEq(hashAfterExtend, hashAfterUpdate);
@@ -92,8 +94,8 @@ contract EntityLifecycleTest is Test {
         // We can't reference the key before it's created, but we can create
         // two entities in one batch.
         Entity.Operation[] memory ops = new Entity.Operation[](2);
-        ops[0] = Lib.createOp("first", textPlain, attrs, expiresAt);
-        ops[1] = Lib.createOp("second", textPlain, attrs, expiresAt);
+        ops[0] = Lib.createOp("first", textPlain, attrs, btl);
+        ops[1] = Lib.createOp("second", textPlain, attrs, btl);
 
         vm.prank(alice);
         registry.execute(ops);
@@ -129,7 +131,7 @@ contract EntityLifecycleTest is Test {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
 
         // Block 1: create.
-        _exec(alice, Lib.createOp("hello", textPlain, attrs, expiresAt));
+        _exec(alice, Lib.createOp("hello", textPlain, attrs, btl));
         bytes32 key = registry.entityKey(alice, 0);
         BlockNumber block1 = registry.headBlock();
         bytes32 hashBlock1 = registry.changeSetHash();
@@ -165,7 +167,7 @@ contract EntityLifecycleTest is Test {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
 
         // Create.
-        _exec(alice, Lib.createOp("ephemeral", textPlain, attrs, expiresAt));
+        _exec(alice, Lib.createOp("ephemeral", textPlain, attrs, btl));
         bytes32 key = registry.entityKey(alice, 0);
         assertTrue(registry.commitment(key).creator != address(0));
 
@@ -184,8 +186,8 @@ contract EntityLifecycleTest is Test {
     function test_multipleOwners_independentEntities() public {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
 
-        _exec(alice, Lib.createOp("alice-doc", textPlain, attrs, expiresAt));
-        _exec(bob, Lib.createOp("bob-doc", textPlain, attrs, expiresAt));
+        _exec(alice, Lib.createOp("alice-doc", textPlain, attrs, btl));
+        _exec(bob, Lib.createOp("bob-doc", textPlain, attrs, btl));
 
         bytes32 aliceKey = registry.entityKey(alice, 0);
         bytes32 bobKey = registry.entityKey(bob, 0);
