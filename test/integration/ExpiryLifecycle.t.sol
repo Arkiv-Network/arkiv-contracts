@@ -14,6 +14,7 @@ contract ExpiryLifecycleTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
 
+    BlockNumber btl;
     BlockNumber expiresAt;
     bytes32 testKey;
 
@@ -38,10 +39,11 @@ contract ExpiryLifecycleTest is Test, EntityRegistry {
     }
 
     function setUp() public {
-        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(100);
+        btl = BlockNumber.wrap(100);
+        expiresAt = BlockNumber.wrap(uint32(block.number)) + btl;
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
+        Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, btl);
         vm.prank(alice);
         (testKey,) = this.doCreate(createOp);
     }
@@ -53,12 +55,12 @@ contract ExpiryLifecycleTest is Test, EntityRegistry {
     function test_extendMultipleTimes() public {
         BlockNumber expiry1 = expiresAt + BlockNumber.wrap(100);
         vm.prank(alice);
-        this.doExtend(Lib.extendOp(testKey, expiry1));
+        this.doExtend(Lib.extendOp(testKey, expiry1 - BlockNumber.wrap(uint32(block.number))));
         assertEq(BlockNumber.unwrap(commitment(testKey).expiresAt), BlockNumber.unwrap(expiry1));
 
         BlockNumber expiry2 = expiry1 + BlockNumber.wrap(100);
         vm.prank(alice);
-        this.doExtend(Lib.extendOp(testKey, expiry2));
+        this.doExtend(Lib.extendOp(testKey, expiry2 - BlockNumber.wrap(uint32(block.number))));
         assertEq(BlockNumber.unwrap(commitment(testKey).expiresAt), BlockNumber.unwrap(expiry2));
     }
 
@@ -79,9 +81,10 @@ contract ExpiryLifecycleTest is Test, EntityRegistry {
     function test_expiredEntityCannotBeExtended() public {
         vm.roll(BlockNumber.unwrap(expiresAt));
 
+        BlockNumber newExpiry = expiresAt + BlockNumber.wrap(500);
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityExpired.selector, testKey, expiresAt));
-        this.doExtend(Lib.extendOp(testKey, expiresAt + BlockNumber.wrap(500)));
+        this.doExtend(Lib.extendOp(testKey, newExpiry - BlockNumber.wrap(uint32(block.number))));
     }
 
     function test_expiredEntityCannotBeDeleted() public {
@@ -111,7 +114,7 @@ contract ExpiryLifecycleTest is Test, EntityRegistry {
     function test_extendThenOperateAfterOriginalExpiry() public {
         BlockNumber newExpiry = expiresAt + BlockNumber.wrap(500);
         vm.prank(alice);
-        this.doExtend(Lib.extendOp(testKey, newExpiry));
+        this.doExtend(Lib.extendOp(testKey, newExpiry - BlockNumber.wrap(uint32(block.number))));
 
         // Roll past original expiry but before new expiry.
         vm.roll(BlockNumber.unwrap(expiresAt) + 1);
@@ -132,7 +135,7 @@ contract ExpiryLifecycleTest is Test, EntityRegistry {
         // Extend.
         BlockNumber newExpiry = expiresAt + BlockNumber.wrap(200);
         vm.prank(alice);
-        this.doExtend(Lib.extendOp(testKey, newExpiry));
+        this.doExtend(Lib.extendOp(testKey, newExpiry - BlockNumber.wrap(uint32(block.number))));
 
         // Roll to new expiry.
         vm.roll(BlockNumber.unwrap(newExpiry));
