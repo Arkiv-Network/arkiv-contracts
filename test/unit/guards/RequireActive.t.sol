@@ -11,6 +11,7 @@ import {encodeMime128} from "../../../contracts/types/Mime128.sol";
 contract RequireActiveTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
 
+    BlockNumber btl;
     BlockNumber expiresAt;
     bytes32 testKey;
 
@@ -24,10 +25,11 @@ contract RequireActiveTest is Test, EntityRegistry {
     }
 
     function setUp() public {
-        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
+        btl = BlockNumber.wrap(1000);
+        expiresAt = BlockNumber.wrap(uint32(block.number)) + btl;
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);
+        Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, btl);
         vm.prank(alice);
         (testKey,) = this.doCreate(op);
     }
