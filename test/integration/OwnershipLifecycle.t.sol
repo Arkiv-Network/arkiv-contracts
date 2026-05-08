@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../contracts/types/BlockNumber.sol";
+import {BlockNumber32} from "../../contracts/types/BlockNumber32.sol";
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../utils/Lib.sol";
 import {Entity} from "../../contracts/Entity.sol";
@@ -15,33 +15,33 @@ contract OwnershipLifecycleTest is Test, EntityRegistry {
     address bob = makeAddr("bob");
     address charlie = makeAddr("charlie");
 
-    BlockNumber btl;
-    BlockNumber expiresAt;
+    BlockNumber32 btl;
+    BlockNumber32 expiresAt;
     bytes32 testKey;
 
     function doCreate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _create(op, BlockNumber.wrap(uint32(block.number)));
+        return _create(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function doTransfer(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _transfer(op, BlockNumber.wrap(uint32(block.number)));
+        return _transfer(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function doUpdate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _update(op, BlockNumber.wrap(uint32(block.number)));
+        return _update(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function doDelete(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _delete(op, BlockNumber.wrap(uint32(block.number)));
+        return _delete(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function doExtend(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _extend(op, BlockNumber.wrap(uint32(block.number)));
+        return _extend(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function setUp() public {
-        btl = BlockNumber.wrap(1000);
-        expiresAt = BlockNumber.wrap(uint32(block.number)) + btl;
+        btl = BlockNumber32.wrap(1000);
+        expiresAt = BlockNumber32.wrap(uint32(block.number)) + btl;
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, btl);
@@ -86,7 +86,9 @@ contract OwnershipLifecycleTest is Test, EntityRegistry {
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.NotOwner.selector, testKey, alice, bob));
-        this.doExtend(Lib.extendOp(testKey, expiresAt + BlockNumber.wrap(500) - BlockNumber.wrap(uint32(block.number))));
+        this.doExtend(
+            Lib.extendOp(testKey, expiresAt + BlockNumber32.wrap(500) - BlockNumber32.wrap(uint32(block.number)))
+        );
     }
 
     function test_previousOwnerCannotDelete() public {
@@ -126,10 +128,10 @@ contract OwnershipLifecycleTest is Test, EntityRegistry {
         vm.prank(alice);
         this.doTransfer(Lib.transferOp(testKey, bob));
 
-        BlockNumber newExpiry = expiresAt + BlockNumber.wrap(500);
+        BlockNumber32 newExpiry = expiresAt + BlockNumber32.wrap(500);
         vm.prank(bob);
-        this.doExtend(Lib.extendOp(testKey, newExpiry - BlockNumber.wrap(uint32(block.number))));
-        assertEq(BlockNumber.unwrap(commitment(testKey).expiresAt), BlockNumber.unwrap(newExpiry));
+        this.doExtend(Lib.extendOp(testKey, newExpiry - BlockNumber32.wrap(uint32(block.number))));
+        assertEq(BlockNumber32.unwrap(commitment(testKey).expiresAt), BlockNumber32.unwrap(newExpiry));
     }
 
     function test_newOwnerCanDelete() public {

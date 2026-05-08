@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../../contracts/types/BlockNumber.sol";
+import {BlockNumber32} from "../../../contracts/types/BlockNumber32.sol";
 import {Test, Vm} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {Entity} from "../../../contracts/Entity.sol";
@@ -14,7 +14,7 @@ contract CreateTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
 
-    BlockNumber btl;
+    BlockNumber32 btl;
 
     bytes32 constant STUB_KEY = keccak256("stub-entity-key");
     bytes32 constant STUB_CORE_HASH = keccak256("stub-core-hash");
@@ -27,21 +27,21 @@ contract CreateTest is Test, EntityRegistry {
     function _computeEntityHash(
         bytes32,
         address,
-        BlockNumber,
+        BlockNumber32,
         address,
-        BlockNumber,
-        BlockNumber,
+        BlockNumber32,
+        BlockNumber32,
         Entity.Operation calldata
     ) internal pure override returns (bytes32, bytes32) {
         return (STUB_CORE_HASH, STUB_ENTITY_HASH);
     }
 
     function doCreate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _create(op, BlockNumber.wrap(uint32(block.number)));
+        return _create(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function setUp() public {
-        btl = BlockNumber.wrap(1000);
+        btl = BlockNumber32.wrap(1000);
     }
 
     function _defaultOp() internal view returns (Entity.Operation memory) {
@@ -55,7 +55,7 @@ contract CreateTest is Test, EntityRegistry {
 
     function test_create_zeroBtl_reverts() public {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, BlockNumber.wrap(0));
+        Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, BlockNumber32.wrap(0));
 
         vm.prank(alice);
         vm.expectRevert(Entity.ZeroBtl.selector);
@@ -64,7 +64,7 @@ contract CreateTest is Test, EntityRegistry {
 
     function test_create_btlOne_succeeds() public {
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
-        Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, BlockNumber.wrap(1));
+        Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, BlockNumber32.wrap(1));
 
         vm.prank(alice);
         (bytes32 key,) = this.doCreate(op);
@@ -84,9 +84,9 @@ contract CreateTest is Test, EntityRegistry {
         Entity.Commitment memory c = commitment(STUB_KEY);
         assertEq(c.creator, alice);
         assertEq(c.owner, alice);
-        assertEq(BlockNumber.unwrap(c.createdAt), uint32(block.number));
-        assertEq(BlockNumber.unwrap(c.updatedAt), uint32(block.number));
-        assertEq(BlockNumber.unwrap(c.expiresAt), uint32(block.number) + BlockNumber.unwrap(btl));
+        assertEq(BlockNumber32.unwrap(c.createdAt), uint32(block.number));
+        assertEq(BlockNumber32.unwrap(c.updatedAt), uint32(block.number));
+        assertEq(BlockNumber32.unwrap(c.expiresAt), uint32(block.number) + BlockNumber32.unwrap(btl));
         assertEq(c.coreHash, STUB_CORE_HASH);
     }
 
@@ -107,8 +107,8 @@ contract CreateTest is Test, EntityRegistry {
         assertEq(logs[0].topics[1], STUB_KEY);
         assertEq(logs[0].topics[2], bytes32(uint256(Entity.CREATE)));
         assertEq(logs[0].topics[3], bytes32(uint256(uint160(alice))));
-        (BlockNumber emittedExpiry, bytes32 emittedHash) = abi.decode(logs[0].data, (BlockNumber, bytes32));
-        assertEq(BlockNumber.unwrap(emittedExpiry), uint32(block.number) + BlockNumber.unwrap(btl));
+        (BlockNumber32 emittedExpiry, bytes32 emittedHash) = abi.decode(logs[0].data, (BlockNumber32, bytes32));
+        assertEq(BlockNumber32.unwrap(emittedExpiry), uint32(block.number) + BlockNumber32.unwrap(btl));
         assertEq(emittedHash, STUB_ENTITY_HASH);
     }
 

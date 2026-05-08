@@ -32,10 +32,10 @@ pub const HASH_AT_SLOT: u64 = 4;
 /// `mapping(TransactionKey transactionKey => uint32 opCount) _txOpCount`.
 pub const TX_OP_COUNT_SLOT: u64 = 5;
 
-/// `mapping(BlockNumber blockNumber => Entity.BlockNode node) _blocks`.
+/// `mapping(BlockNumber32 blockNumber => Entity.BlockNode node) _blocks`.
 pub const BLOCKS_SLOT: u64 = 6;
 
-/// `BlockNumber _headBlock` — single-value slot (uint32 in the low 4 bytes).
+/// `BlockNumber32 _headBlock` — single-value slot (uint32 in the low 4 bytes).
 pub const HEAD_BLOCK_SLOT: u64 = 7;
 
 // -----------------------------------------------------------------------------
@@ -62,7 +62,7 @@ pub fn operation_key(block: u32, tx: u32, op: u32) -> U256 {
 /// `keccak256(abi.encode(key, slot))`.
 ///
 /// `key` is the 32-byte ABI-encoded mapping key. For value types narrower than
-/// 32 bytes (e.g. `address`, `uint32`, `BlockNumber`, `OperationKey`), the
+/// 32 bytes (e.g. `address`, `uint32`, `BlockNumber32`, `OperationKey`), the
 /// caller must left-pad to 32 bytes per Solidity ABI rules.
 pub fn mapping_slot(slot: u64, key: B256) -> B256 {
     let mut buf = [0u8; 64];
@@ -485,7 +485,7 @@ mod tests {
         let (created, updated, expires) = (100u32, 200u32, 300u32);
 
         // Slot 0: [zero(20)][expiresAt(4)][updatedAt(4)][createdAt(4)][creator(20)]
-        // Wait — creator is 20 bytes at offset 0, then BlockNumbers at 20/24/28.
+        // Wait — creator is 20 bytes at offset 0, then BlockNumber32s at 20/24/28.
         // BE word: [expiresAt][updatedAt][createdAt][creator]
         let mut s0 = [0u8; 32];
         s0[0..4].copy_from_slice(&expires.to_be_bytes()); // offset 28

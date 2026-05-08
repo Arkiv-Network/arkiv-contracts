@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../contracts/types/BlockNumber.sol";
+import {BlockNumber32} from "../../contracts/types/BlockNumber32.sol";
 import {Test} from "forge-std/Test.sol";
 import {Entity} from "../../contracts/Entity.sol";
 import {EntityRegistry} from "../../contracts/EntityRegistry.sol";
@@ -17,32 +17,32 @@ contract DispatchTest is Test, EntityRegistry {
         return (keccak256("key"), keccak256("hash"));
     }
 
-    function _create(Entity.Operation calldata, BlockNumber) internal override returns (bytes32, bytes32) {
+    function _create(Entity.Operation calldata, BlockNumber32) internal override returns (bytes32, bytes32) {
         _calledOpType = Entity.CREATE;
         return _stubReturn();
     }
 
-    function _update(Entity.Operation calldata, BlockNumber) internal override returns (bytes32, bytes32) {
+    function _update(Entity.Operation calldata, BlockNumber32) internal override returns (bytes32, bytes32) {
         _calledOpType = Entity.UPDATE;
         return _stubReturn();
     }
 
-    function _extend(Entity.Operation calldata, BlockNumber) internal override returns (bytes32, bytes32) {
+    function _extend(Entity.Operation calldata, BlockNumber32) internal override returns (bytes32, bytes32) {
         _calledOpType = Entity.EXTEND;
         return _stubReturn();
     }
 
-    function _transfer(Entity.Operation calldata, BlockNumber) internal override returns (bytes32, bytes32) {
+    function _transfer(Entity.Operation calldata, BlockNumber32) internal override returns (bytes32, bytes32) {
         _calledOpType = Entity.TRANSFER;
         return _stubReturn();
     }
 
-    function _delete(Entity.Operation calldata, BlockNumber) internal override returns (bytes32, bytes32) {
+    function _delete(Entity.Operation calldata, BlockNumber32) internal override returns (bytes32, bytes32) {
         _calledOpType = Entity.DELETE;
         return _stubReturn();
     }
 
-    function _expire(Entity.Operation calldata, BlockNumber) internal override returns (bytes32, bytes32) {
+    function _expire(Entity.Operation calldata, BlockNumber32) internal override returns (bytes32, bytes32) {
         _calledOpType = Entity.EXPIRE;
         return _stubReturn();
     }
@@ -50,7 +50,7 @@ contract DispatchTest is Test, EntityRegistry {
     /// @dev External wrapper so we can call _dispatch via this.doDispatch()
     /// to get calldata encoding.
     function doDispatch(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _dispatch(op, BlockNumber.wrap(uint32(block.number)));
+        return _dispatch(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function _op(uint8 operationType) internal pure returns (Entity.Operation memory) {
@@ -61,7 +61,7 @@ contract DispatchTest is Test, EntityRegistry {
             payload: "",
             contentType: encodeMime128("text/plain"),
             attributes: attrs,
-            btl: BlockNumber.wrap(0),
+            btl: BlockNumber32.wrap(0),
             newOwner: address(0)
         });
     }

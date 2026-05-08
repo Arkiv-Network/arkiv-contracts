@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../../contracts/types/BlockNumber.sol";
+import {BlockNumber32} from "../../../contracts/types/BlockNumber32.sol";
 import {Test, Vm} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {Entity} from "../../../contracts/Entity.sol";
@@ -12,21 +12,21 @@ contract ExpireTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
 
-    BlockNumber btl;
-    BlockNumber expiresAt;
+    BlockNumber32 btl;
+    BlockNumber32 expiresAt;
     bytes32 testKey;
 
     function doCreate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _create(op, BlockNumber.wrap(uint32(block.number)));
+        return _create(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function doExpire(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _expire(op, BlockNumber.wrap(uint32(block.number)));
+        return _expire(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function setUp() public {
-        btl = BlockNumber.wrap(1000);
-        expiresAt = BlockNumber.wrap(uint32(block.number)) + btl;
+        btl = BlockNumber32.wrap(1000);
+        expiresAt = BlockNumber32.wrap(uint32(block.number)) + btl;
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         Entity.Operation memory createOp = Lib.createOp("hello", encodeMime128("text/plain"), attrs, btl);
@@ -39,16 +39,16 @@ contract ExpireTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_expire_removesCommitment() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
+        vm.roll(BlockNumber32.unwrap(expiresAt));
         this.doExpire(Lib.expireOp(testKey));
 
         Entity.Commitment memory c = commitment(testKey);
         assertEq(c.creator, address(0));
         assertEq(c.owner, address(0));
         assertEq(c.coreHash, bytes32(0));
-        assertEq(BlockNumber.unwrap(c.createdAt), 0);
-        assertEq(BlockNumber.unwrap(c.updatedAt), 0);
-        assertEq(BlockNumber.unwrap(c.expiresAt), 0);
+        assertEq(BlockNumber32.unwrap(c.createdAt), 0);
+        assertEq(BlockNumber32.unwrap(c.updatedAt), 0);
+        assertEq(BlockNumber32.unwrap(c.expiresAt), 0);
     }
 
     // =========================================================================
@@ -56,7 +56,7 @@ contract ExpireTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_expire_returnsEntityKey() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
+        vm.roll(BlockNumber32.unwrap(expiresAt));
         (bytes32 returnedKey,) = this.doExpire(Lib.expireOp(testKey));
         assertEq(returnedKey, testKey);
     }
@@ -69,7 +69,7 @@ contract ExpireTest is Test, EntityRegistry {
         Entity.Commitment memory c = commitment(testKey);
         bytes32 expected = _wrapEntityHash(c.coreHash, c.owner, c.updatedAt, c.expiresAt);
 
-        vm.roll(BlockNumber.unwrap(expiresAt));
+        vm.roll(BlockNumber32.unwrap(expiresAt));
         (, bytes32 entityHash_) = this.doExpire(Lib.expireOp(testKey));
         assertEq(entityHash_, expected);
     }
@@ -79,7 +79,7 @@ contract ExpireTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_expire_emitsEntityOperation() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
+        vm.roll(BlockNumber32.unwrap(expiresAt));
         vm.recordLogs();
         (, bytes32 entityHash_) = this.doExpire(Lib.expireOp(testKey));
 
@@ -89,8 +89,8 @@ contract ExpireTest is Test, EntityRegistry {
         assertEq(logs[0].topics[1], testKey);
         assertEq(logs[0].topics[2], bytes32(uint256(Entity.EXPIRE)));
         assertEq(logs[0].topics[3], bytes32(uint256(uint160(alice))));
-        (BlockNumber emittedExpiry, bytes32 emittedHash) = abi.decode(logs[0].data, (BlockNumber, bytes32));
-        assertEq(BlockNumber.unwrap(emittedExpiry), BlockNumber.unwrap(expiresAt));
+        (BlockNumber32 emittedExpiry, bytes32 emittedHash) = abi.decode(logs[0].data, (BlockNumber32, bytes32));
+        assertEq(BlockNumber32.unwrap(emittedExpiry), BlockNumber32.unwrap(expiresAt));
         assertEq(emittedHash, entityHash_);
     }
 
@@ -100,7 +100,7 @@ contract ExpireTest is Test, EntityRegistry {
 
     function test_expire_revertsIfNotFound() public {
         bytes32 bogus = keccak256("bogus");
-        vm.roll(BlockNumber.unwrap(expiresAt));
+        vm.roll(BlockNumber32.unwrap(expiresAt));
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityNotFound.selector, bogus));
         this.doExpire(Lib.expireOp(bogus));
     }

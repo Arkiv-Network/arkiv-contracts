@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../../contracts/types/BlockNumber.sol";
+import {BlockNumber32} from "../../../contracts/types/BlockNumber32.sol";
 import {Test} from "forge-std/Test.sol";
 import {Entity, OperationKey, TransactionKey} from "../../../contracts/Entity.sol";
 
@@ -19,8 +19,8 @@ contract PackTest is Test {
         // WHEN packing twice
         // THEN the results are equal
         assertEq(
-            OperationKey.unwrap(Entity.operationKey(BlockNumber.wrap(1), 2, 3)),
-            OperationKey.unwrap(Entity.operationKey(BlockNumber.wrap(1), 2, 3))
+            OperationKey.unwrap(Entity.operationKey(BlockNumber32.wrap(1), 2, 3)),
+            OperationKey.unwrap(Entity.operationKey(BlockNumber32.wrap(1), 2, 3))
         );
     }
 
@@ -30,22 +30,22 @@ contract PackTest is Test {
 
     function test_operationKey_differentBlock_differs() public pure {
         assertNotEq(
-            OperationKey.unwrap(Entity.operationKey(BlockNumber.wrap(1), 1, 1)),
-            OperationKey.unwrap(Entity.operationKey(BlockNumber.wrap(2), 1, 1))
+            OperationKey.unwrap(Entity.operationKey(BlockNumber32.wrap(1), 1, 1)),
+            OperationKey.unwrap(Entity.operationKey(BlockNumber32.wrap(2), 1, 1))
         );
     }
 
     function test_operationKey_differentTx_differs() public pure {
         assertNotEq(
-            OperationKey.unwrap(Entity.operationKey(BlockNumber.wrap(1), 1, 1)),
-            OperationKey.unwrap(Entity.operationKey(BlockNumber.wrap(1), 2, 1))
+            OperationKey.unwrap(Entity.operationKey(BlockNumber32.wrap(1), 1, 1)),
+            OperationKey.unwrap(Entity.operationKey(BlockNumber32.wrap(1), 2, 1))
         );
     }
 
     function test_operationKey_differentOp_differs() public pure {
         assertNotEq(
-            OperationKey.unwrap(Entity.operationKey(BlockNumber.wrap(1), 1, 1)),
-            OperationKey.unwrap(Entity.operationKey(BlockNumber.wrap(1), 1, 2))
+            OperationKey.unwrap(Entity.operationKey(BlockNumber32.wrap(1), 1, 1)),
+            OperationKey.unwrap(Entity.operationKey(BlockNumber32.wrap(1), 1, 2))
         );
     }
 
@@ -55,7 +55,7 @@ contract PackTest is Test {
 
     function test_operationKey_layout() public pure {
         // GIVEN known inputs
-        BlockNumber blockNumber = BlockNumber.wrap(0xAB);
+        BlockNumber32 blockNumber = BlockNumber32.wrap(0xAB);
         uint32 txSeq = 0xCD;
         uint32 opSeq = 0xEF;
 
@@ -70,7 +70,7 @@ contract PackTest is Test {
     function test_operationKey_zeroInputs() public pure {
         // GIVEN all zeros
         // THEN the packed key is zero
-        assertEq(OperationKey.unwrap(Entity.operationKey(BlockNumber.wrap(0), 0, 0)), 0);
+        assertEq(OperationKey.unwrap(Entity.operationKey(BlockNumber32.wrap(0), 0, 0)), 0);
     }
 
     // -------------------------------------------------------------------------
@@ -79,7 +79,7 @@ contract PackTest is Test {
 
     function test_operationKey_fuzz(uint32 rawBlock, uint32 txSeq, uint32 opSeq) public pure {
         // GIVEN arbitrary inputs
-        BlockNumber blockNumber = BlockNumber.wrap(rawBlock);
+        BlockNumber32 blockNumber = BlockNumber32.wrap(rawBlock);
 
         // WHEN packing via the library
         uint256 actual = OperationKey.unwrap(Entity.operationKey(blockNumber, txSeq, opSeq));
@@ -95,7 +95,7 @@ contract PackTest is Test {
 
     function test_operationKey_extendsTransactionKey(uint32 rawBlock, uint32 txSeq, uint32 opSeq) public pure {
         // GIVEN an operationKey and its corresponding transactionKey
-        BlockNumber blockNumber = BlockNumber.wrap(rawBlock);
+        BlockNumber32 blockNumber = BlockNumber32.wrap(rawBlock);
         uint256 ok = OperationKey.unwrap(Entity.operationKey(blockNumber, txSeq, opSeq));
         uint256 tk = TransactionKey.unwrap(Entity.transactionKey(blockNumber, txSeq));
 
@@ -116,8 +116,8 @@ contract PackTest is Test {
         // WHEN packing twice
         // THEN the results are equal
         assertEq(
-            TransactionKey.unwrap(Entity.transactionKey(BlockNumber.wrap(1), 2)),
-            TransactionKey.unwrap(Entity.transactionKey(BlockNumber.wrap(1), 2))
+            TransactionKey.unwrap(Entity.transactionKey(BlockNumber32.wrap(1), 2)),
+            TransactionKey.unwrap(Entity.transactionKey(BlockNumber32.wrap(1), 2))
         );
     }
 
@@ -127,15 +127,15 @@ contract PackTest is Test {
 
     function test_transactionKey_differentBlock_differs() public pure {
         assertNotEq(
-            TransactionKey.unwrap(Entity.transactionKey(BlockNumber.wrap(1), 1)),
-            TransactionKey.unwrap(Entity.transactionKey(BlockNumber.wrap(2), 1))
+            TransactionKey.unwrap(Entity.transactionKey(BlockNumber32.wrap(1), 1)),
+            TransactionKey.unwrap(Entity.transactionKey(BlockNumber32.wrap(2), 1))
         );
     }
 
     function test_transactionKey_differentTx_differs() public pure {
         assertNotEq(
-            TransactionKey.unwrap(Entity.transactionKey(BlockNumber.wrap(1), 1)),
-            TransactionKey.unwrap(Entity.transactionKey(BlockNumber.wrap(1), 2))
+            TransactionKey.unwrap(Entity.transactionKey(BlockNumber32.wrap(1), 1)),
+            TransactionKey.unwrap(Entity.transactionKey(BlockNumber32.wrap(1), 2))
         );
     }
 
@@ -145,7 +145,7 @@ contract PackTest is Test {
 
     function test_transactionKey_layout() public pure {
         // GIVEN known inputs
-        BlockNumber blockNumber = BlockNumber.wrap(0xAB);
+        BlockNumber32 blockNumber = BlockNumber32.wrap(0xAB);
         uint32 txSeq = 0xCD;
 
         // WHEN packing
@@ -159,7 +159,7 @@ contract PackTest is Test {
     function test_transactionKey_zeroInputs() public pure {
         // GIVEN all zeros
         // THEN the packed key is zero
-        assertEq(TransactionKey.unwrap(Entity.transactionKey(BlockNumber.wrap(0), 0)), 0);
+        assertEq(TransactionKey.unwrap(Entity.transactionKey(BlockNumber32.wrap(0), 0)), 0);
     }
 
     // -------------------------------------------------------------------------
@@ -168,7 +168,7 @@ contract PackTest is Test {
 
     function test_transactionKey_fuzz(uint32 rawBlock, uint32 txSeq) public pure {
         // GIVEN arbitrary inputs
-        BlockNumber blockNumber = BlockNumber.wrap(rawBlock);
+        BlockNumber32 blockNumber = BlockNumber32.wrap(rawBlock);
 
         // WHEN packing via the library
         uint256 actual = TransactionKey.unwrap(Entity.transactionKey(blockNumber, txSeq));

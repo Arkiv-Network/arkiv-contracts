@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../../contracts/types/BlockNumber.sol";
+import {BlockNumber32} from "../../../contracts/types/BlockNumber32.sol";
 import {Test, Vm} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {Entity} from "../../../contracts/Entity.sol";
@@ -12,8 +12,8 @@ contract UpdateTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
 
-    BlockNumber btl;
-    BlockNumber expiresAt;
+    BlockNumber32 btl;
+    BlockNumber32 expiresAt;
     bytes32 testKey;
 
     Mime128 textPlain;
@@ -21,17 +21,17 @@ contract UpdateTest is Test, EntityRegistry {
 
     // Calldata wrappers.
     function doCreate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _create(op, BlockNumber.wrap(uint32(block.number)));
+        return _create(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function doUpdate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _update(op, BlockNumber.wrap(uint32(block.number)));
+        return _update(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function hashCore(
         bytes32 key,
         address creator,
-        BlockNumber createdAt,
+        BlockNumber32 createdAt,
         Mime128 calldata contentType,
         bytes calldata payload,
         Entity.Attribute[] calldata attributes
@@ -43,8 +43,8 @@ contract UpdateTest is Test, EntityRegistry {
         textPlain = encodeMime128("text/plain");
         appJson = encodeMime128("application/json");
 
-        btl = BlockNumber.wrap(1000);
-        expiresAt = BlockNumber.wrap(uint32(block.number)) + btl;
+        btl = BlockNumber32.wrap(1000);
+        expiresAt = BlockNumber32.wrap(uint32(block.number)) + btl;
 
         // Create an entity owned by alice.
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
@@ -85,7 +85,7 @@ contract UpdateTest is Test, EntityRegistry {
         this.doUpdate(op);
 
         Entity.Commitment memory after_ = commitment(testKey);
-        assertEq(BlockNumber.unwrap(after_.updatedAt), uint32(block.number));
+        assertEq(BlockNumber32.unwrap(after_.updatedAt), uint32(block.number));
     }
 
     function test_update_preservesImmutableFields() public {
@@ -98,8 +98,8 @@ contract UpdateTest is Test, EntityRegistry {
         Entity.Commitment memory after_ = commitment(testKey);
         assertEq(after_.creator, before_.creator);
         assertEq(after_.owner, before_.owner);
-        assertEq(BlockNumber.unwrap(after_.createdAt), BlockNumber.unwrap(before_.createdAt));
-        assertEq(BlockNumber.unwrap(after_.expiresAt), BlockNumber.unwrap(before_.expiresAt));
+        assertEq(BlockNumber32.unwrap(after_.createdAt), BlockNumber32.unwrap(before_.createdAt));
+        assertEq(BlockNumber32.unwrap(after_.expiresAt), BlockNumber32.unwrap(before_.expiresAt));
     }
 
     // =========================================================================
@@ -159,8 +159,8 @@ contract UpdateTest is Test, EntityRegistry {
         assertEq(logs[0].topics[1], testKey);
         assertEq(logs[0].topics[2], bytes32(uint256(Entity.UPDATE)));
         assertEq(logs[0].topics[3], bytes32(uint256(uint160(alice))));
-        (BlockNumber emittedExpiry, bytes32 emittedHash) = abi.decode(logs[0].data, (BlockNumber, bytes32));
-        assertEq(BlockNumber.unwrap(emittedExpiry), BlockNumber.unwrap(expiresAt));
+        (BlockNumber32 emittedExpiry, bytes32 emittedHash) = abi.decode(logs[0].data, (BlockNumber32, bytes32));
+        assertEq(BlockNumber32.unwrap(emittedExpiry), BlockNumber32.unwrap(expiresAt));
         assertEq(emittedHash, entityHash_);
     }
 
@@ -226,7 +226,7 @@ contract UpdateTest is Test, EntityRegistry {
     }
 
     function test_update_revertsIfExpired() public {
-        vm.roll(BlockNumber.unwrap(expiresAt));
+        vm.roll(BlockNumber32.unwrap(expiresAt));
         Entity.Operation memory op = _simpleUpdateOp();
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Entity.EntityExpired.selector, testKey, expiresAt));

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../../contracts/types/BlockNumber.sol";
+import {BlockNumber32} from "../../../contracts/types/BlockNumber32.sol";
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../../utils/Lib.sol";
 import {Entity} from "../../../contracts/Entity.sol";
@@ -11,11 +11,11 @@ import {encodeMime128} from "../../../contracts/types/Mime128.sol";
 contract RequireExistsTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
 
-    BlockNumber expiresAt;
+    BlockNumber32 expiresAt;
     bytes32 testKey;
 
     function doCreate(Entity.Operation calldata op) external returns (bytes32, bytes32) {
-        return _create(op, BlockNumber.wrap(uint32(block.number)));
+        return _create(op, BlockNumber32.wrap(uint32(block.number)));
     }
 
     function doRequireExists(bytes32 key) external view {
@@ -24,7 +24,7 @@ contract RequireExistsTest is Test, EntityRegistry {
     }
 
     function setUp() public {
-        expiresAt = BlockNumber.wrap(uint32(block.number)) + BlockNumber.wrap(1000);
+        expiresAt = BlockNumber32.wrap(uint32(block.number)) + BlockNumber32.wrap(1000);
 
         Entity.Attribute[] memory attrs = new Entity.Attribute[](0);
         Entity.Operation memory op = Lib.createOp("hello", encodeMime128("text/plain"), attrs, expiresAt);

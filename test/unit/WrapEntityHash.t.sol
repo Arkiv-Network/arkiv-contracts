@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../contracts/types/BlockNumber.sol";
+import {BlockNumber32} from "../../contracts/types/BlockNumber32.sol";
 import {Test} from "forge-std/Test.sol";
 import {Entity} from "../../contracts/Entity.sol";
 import {EntityRegistry} from "../../contracts/EntityRegistry.sol";
@@ -11,7 +11,7 @@ import {EntityRegistry} from "../../contracts/EntityRegistry.sol";
 contract WrapEntityHashTest is Test, EntityRegistry {
     address alice = makeAddr("alice");
 
-    function doWrap(bytes32 coreHash_, address owner, BlockNumber updatedAt, BlockNumber expiresAt)
+    function doWrap(bytes32 coreHash_, address owner, BlockNumber32 updatedAt, BlockNumber32 expiresAt)
         external
         view
         returns (bytes32)
@@ -25,8 +25,8 @@ contract WrapEntityHashTest is Test, EntityRegistry {
 
     function test_matchesManualDomainWrapping() public {
         bytes32 coreHash_ = keccak256("core");
-        BlockNumber updatedAt = BlockNumber.wrap(100);
-        BlockNumber expiresAt = BlockNumber.wrap(500);
+        BlockNumber32 updatedAt = BlockNumber32.wrap(100);
+        BlockNumber32 expiresAt = BlockNumber32.wrap(500);
 
         bytes32 structHash = Entity.entityStructHash(coreHash_, alice, updatedAt, expiresAt);
         bytes32 expected = _hashTypedDataV4(structHash);
@@ -40,8 +40,8 @@ contract WrapEntityHashTest is Test, EntityRegistry {
 
     function test_deterministic() public {
         bytes32 coreHash_ = keccak256("core");
-        BlockNumber updatedAt = BlockNumber.wrap(100);
-        BlockNumber expiresAt = BlockNumber.wrap(500);
+        BlockNumber32 updatedAt = BlockNumber32.wrap(100);
+        BlockNumber32 expiresAt = BlockNumber32.wrap(500);
 
         assertEq(
             this.doWrap(coreHash_, alice, updatedAt, expiresAt), this.doWrap(coreHash_, alice, updatedAt, expiresAt)
@@ -53,8 +53,8 @@ contract WrapEntityHashTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_differentCoreHash_differs() public {
-        BlockNumber updatedAt = BlockNumber.wrap(100);
-        BlockNumber expiresAt = BlockNumber.wrap(500);
+        BlockNumber32 updatedAt = BlockNumber32.wrap(100);
+        BlockNumber32 expiresAt = BlockNumber32.wrap(500);
 
         assertNotEq(
             this.doWrap(keccak256("a"), alice, updatedAt, expiresAt),
@@ -64,8 +64,8 @@ contract WrapEntityHashTest is Test, EntityRegistry {
 
     function test_differentOwner_differs() public {
         bytes32 coreHash_ = keccak256("core");
-        BlockNumber updatedAt = BlockNumber.wrap(100);
-        BlockNumber expiresAt = BlockNumber.wrap(500);
+        BlockNumber32 updatedAt = BlockNumber32.wrap(100);
+        BlockNumber32 expiresAt = BlockNumber32.wrap(500);
         address bob = makeAddr("bob");
 
         assertNotEq(
@@ -75,21 +75,21 @@ contract WrapEntityHashTest is Test, EntityRegistry {
 
     function test_differentUpdatedAt_differs() public {
         bytes32 coreHash_ = keccak256("core");
-        BlockNumber expiresAt = BlockNumber.wrap(500);
+        BlockNumber32 expiresAt = BlockNumber32.wrap(500);
 
         assertNotEq(
-            this.doWrap(coreHash_, alice, BlockNumber.wrap(100), expiresAt),
-            this.doWrap(coreHash_, alice, BlockNumber.wrap(200), expiresAt)
+            this.doWrap(coreHash_, alice, BlockNumber32.wrap(100), expiresAt),
+            this.doWrap(coreHash_, alice, BlockNumber32.wrap(200), expiresAt)
         );
     }
 
     function test_differentExpiresAt_differs() public {
         bytes32 coreHash_ = keccak256("core");
-        BlockNumber updatedAt = BlockNumber.wrap(100);
+        BlockNumber32 updatedAt = BlockNumber32.wrap(100);
 
         assertNotEq(
-            this.doWrap(coreHash_, alice, updatedAt, BlockNumber.wrap(500)),
-            this.doWrap(coreHash_, alice, updatedAt, BlockNumber.wrap(600))
+            this.doWrap(coreHash_, alice, updatedAt, BlockNumber32.wrap(500)),
+            this.doWrap(coreHash_, alice, updatedAt, BlockNumber32.wrap(600))
         );
     }
 
@@ -98,8 +98,8 @@ contract WrapEntityHashTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_fuzz(bytes32 coreHash_, address owner, uint32 rawUpdatedAt, uint32 rawExpiresAt) public {
-        BlockNumber updatedAt = BlockNumber.wrap(rawUpdatedAt);
-        BlockNumber expiresAt = BlockNumber.wrap(rawExpiresAt);
+        BlockNumber32 updatedAt = BlockNumber32.wrap(rawUpdatedAt);
+        BlockNumber32 expiresAt = BlockNumber32.wrap(rawExpiresAt);
 
         bytes32 expected = _hashTypedDataV4(Entity.entityStructHash(coreHash_, owner, updatedAt, expiresAt));
         assertEq(this.doWrap(coreHash_, owner, updatedAt, expiresAt), expected);

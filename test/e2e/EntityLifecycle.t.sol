@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../contracts/types/BlockNumber.sol";
+import {BlockNumber32} from "../../contracts/types/BlockNumber32.sol";
 import {Test} from "forge-std/Test.sol";
 import {Lib} from "../utils/Lib.sol";
 import {Entity} from "../../contracts/Entity.sol";
@@ -18,16 +18,16 @@ contract EntityLifecycleTest is Test {
     address bob;
 
     Mime128 textPlain;
-    BlockNumber btl;
-    BlockNumber expiresAt;
+    BlockNumber32 btl;
+    BlockNumber32 expiresAt;
 
     function setUp() public {
         registry = new EntityRegistry();
         alice = makeAddr("alice");
         bob = makeAddr("bob");
         textPlain = encodeMime128("text/plain");
-        btl = BlockNumber.wrap(1000);
-        expiresAt = BlockNumber.wrap(uint32(block.number)) + btl;
+        btl = BlockNumber32.wrap(1000);
+        expiresAt = BlockNumber32.wrap(uint32(block.number)) + btl;
     }
 
     /// @dev Helper — build a single-op array and execute as sender.
@@ -65,9 +65,9 @@ contract EntityLifecycleTest is Test {
         assertNotEq(hashAfterUpdate, hashAfterCreate);
 
         // Extend.
-        BlockNumber newExpiry = expiresAt + BlockNumber.wrap(500);
-        _exec(alice, Lib.extendOp(key, newExpiry - BlockNumber.wrap(uint32(block.number))));
-        assertEq(BlockNumber.unwrap(registry.commitment(key).expiresAt), BlockNumber.unwrap(newExpiry));
+        BlockNumber32 newExpiry = expiresAt + BlockNumber32.wrap(500);
+        _exec(alice, Lib.extendOp(key, newExpiry - BlockNumber32.wrap(uint32(block.number))));
+        assertEq(BlockNumber32.unwrap(registry.commitment(key).expiresAt), BlockNumber32.unwrap(newExpiry));
         bytes32 hashAfterExtend = registry.changeSetHash();
         assertNotEq(hashAfterExtend, hashAfterUpdate);
 
@@ -109,7 +109,7 @@ contract EntityLifecycleTest is Test {
         assertEq(registry.nonces(alice), 2);
 
         // Both ops recorded in the same tx.
-        BlockNumber head = registry.headBlock();
+        BlockNumber32 head = registry.headBlock();
         assertEq(registry.txOpCount(head, 0), 2);
 
         // Per-op snapshots differ.
@@ -133,27 +133,27 @@ contract EntityLifecycleTest is Test {
         // Block 1: create.
         _exec(alice, Lib.createOp("hello", textPlain, attrs, btl));
         bytes32 key = registry.entityKey(alice, 0);
-        BlockNumber block1 = registry.headBlock();
+        BlockNumber32 block1 = registry.headBlock();
         bytes32 hashBlock1 = registry.changeSetHash();
 
         // Block 2: update.
         vm.roll(block.number + 5);
         _exec(alice, Lib.updateOp(key, "updated", textPlain, attrs));
-        BlockNumber block2 = registry.headBlock();
+        BlockNumber32 block2 = registry.headBlock();
         bytes32 hashBlock2 = registry.changeSetHash();
 
         // Chain advanced.
         assertNotEq(hashBlock2, hashBlock1);
 
         // Head moved.
-        assertEq(BlockNumber.unwrap(registry.headBlock()), BlockNumber.unwrap(block2));
+        assertEq(BlockNumber32.unwrap(registry.headBlock()), BlockNumber32.unwrap(block2));
 
         // Linked list intact.
         Entity.BlockNode memory node1 = registry.getBlockNode(block1);
-        assertEq(BlockNumber.unwrap(node1.nextBlock), BlockNumber.unwrap(block2));
+        assertEq(BlockNumber32.unwrap(node1.nextBlock), BlockNumber32.unwrap(block2));
 
         Entity.BlockNode memory node2 = registry.getBlockNode(block2);
-        assertEq(BlockNumber.unwrap(node2.prevBlock), BlockNumber.unwrap(block1));
+        assertEq(BlockNumber32.unwrap(node2.prevBlock), BlockNumber32.unwrap(block1));
 
         // Historical hash still accessible.
         assertEq(registry.changeSetHashAtBlock(block1), hashBlock1);
@@ -172,7 +172,7 @@ contract EntityLifecycleTest is Test {
         assertTrue(registry.commitment(key).creator != address(0));
 
         // Roll to expiry.
-        vm.roll(BlockNumber.unwrap(expiresAt));
+        vm.roll(BlockNumber32.unwrap(expiresAt));
 
         // Anyone can expire through execute.
         _exec(bob, Lib.expireOp(key));
@@ -208,7 +208,7 @@ contract EntityLifecycleTest is Test {
 
     function test_initialState() public view {
         assertEq(registry.changeSetHash(), bytes32(0));
-        assertEq(BlockNumber.unwrap(registry.genesisBlock()), BlockNumber.unwrap(registry.headBlock()));
+        assertEq(BlockNumber32.unwrap(registry.genesisBlock()), BlockNumber32.unwrap(registry.headBlock()));
         assertEq(registry.nonces(alice), 0);
     }
 }

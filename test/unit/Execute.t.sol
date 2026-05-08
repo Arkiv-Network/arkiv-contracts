@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../contracts/types/BlockNumber.sol";
+import {BlockNumber32} from "../../contracts/types/BlockNumber32.sol";
 import {Test, Vm} from "forge-std/Test.sol";
 import {Entity, OperationKey} from "../../contracts/Entity.sol";
 import {EntityRegistry} from "../../contracts/EntityRegistry.sol";
@@ -17,7 +17,7 @@ contract ExecuteTest is Test, EntityRegistry {
     uint256 internal _stubIndex;
     uint256 internal _stubSeed;
 
-    function _dispatch(Entity.Operation calldata, BlockNumber) internal override returns (bytes32, bytes32) {
+    function _dispatch(Entity.Operation calldata, BlockNumber32) internal override returns (bytes32, bytes32) {
         bytes32 key = _stubKeys[_stubIndex];
         bytes32 hash = _stubHashes[_stubIndex];
         _stubIndex++;
@@ -46,7 +46,7 @@ contract ExecuteTest is Test, EntityRegistry {
             payload: "",
             contentType: encodeMime128("text/plain"),
             attributes: attrs,
-            btl: BlockNumber.wrap(0),
+            btl: BlockNumber32.wrap(0),
             newOwner: address(0)
         });
     }
@@ -125,7 +125,7 @@ contract ExecuteTest is Test, EntityRegistry {
         ops[2] = _op(Entity.DELETE);
         this.execute(ops);
 
-        BlockNumber head = headBlock();
+        BlockNumber32 head = headBlock();
         bytes32 chain0 = Entity.chainOperationHash(bytes32(0), Entity.CREATE, k0, h0);
         bytes32 chain1 = Entity.chainOperationHash(chain0, Entity.UPDATE, k1, h1);
         bytes32 chain2 = Entity.chainOperationHash(chain1, Entity.DELETE, k2, h2);
@@ -165,20 +165,20 @@ contract ExecuteTest is Test, EntityRegistry {
 
     function test_execute_newBlock_headBlockUpdated() public {
         vm.roll(block.number + 10);
-        BlockNumber newBlock = BlockNumber.wrap(uint32(block.number));
+        BlockNumber32 newBlock = BlockNumber32.wrap(uint32(block.number));
 
         _pushStubs(1);
         Entity.Operation[] memory ops = new Entity.Operation[](1);
         ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 
-        assertEq(BlockNumber.unwrap(headBlock()), BlockNumber.unwrap(newBlock));
+        assertEq(BlockNumber32.unwrap(headBlock()), BlockNumber32.unwrap(newBlock));
     }
 
     function test_execute_newBlock_linkedListPointers() public {
-        BlockNumber genesis = genesisBlock();
+        BlockNumber32 genesis = genesisBlock();
         vm.roll(block.number + 10);
-        BlockNumber newBlock = BlockNumber.wrap(uint32(block.number));
+        BlockNumber32 newBlock = BlockNumber32.wrap(uint32(block.number));
 
         _pushStubs(1);
         Entity.Operation[] memory ops = new Entity.Operation[](1);
@@ -186,10 +186,10 @@ contract ExecuteTest is Test, EntityRegistry {
         this.execute(ops);
 
         Entity.BlockNode memory genesisNode = getBlockNode(genesis);
-        assertEq(BlockNumber.unwrap(genesisNode.nextBlock), BlockNumber.unwrap(newBlock));
+        assertEq(BlockNumber32.unwrap(genesisNode.nextBlock), BlockNumber32.unwrap(newBlock));
 
         Entity.BlockNode memory newNode = getBlockNode(newBlock);
-        assertEq(BlockNumber.unwrap(newNode.prevBlock), BlockNumber.unwrap(genesis));
+        assertEq(BlockNumber32.unwrap(newNode.prevBlock), BlockNumber32.unwrap(genesis));
     }
 
     function test_execute_newBlock_txCountIsOne() public {
@@ -242,7 +242,7 @@ contract ExecuteTest is Test, EntityRegistry {
         ops2[0] = _op(Entity.DELETE);
         this.execute(ops2);
 
-        BlockNumber head = headBlock();
+        BlockNumber32 head = headBlock();
         assertEq(txOpCount(head, 0), 2);
         assertEq(txOpCount(head, 1), 1);
     }
@@ -272,53 +272,53 @@ contract ExecuteTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_execute_crossBlock_linkedListMaintained() public {
-        BlockNumber genesis = genesisBlock();
+        BlockNumber32 genesis = genesisBlock();
 
         vm.roll(block.number + 10);
         _pushStubs(1);
         Entity.Operation[] memory ops1 = new Entity.Operation[](1);
         ops1[0] = _op(Entity.CREATE);
         this.execute(ops1);
-        BlockNumber blockA = headBlock();
+        BlockNumber32 blockA = headBlock();
 
         vm.roll(block.number + 5);
         _pushStubs(1);
         Entity.Operation[] memory ops2 = new Entity.Operation[](1);
         ops2[0] = _op(Entity.CREATE);
         this.execute(ops2);
-        BlockNumber blockB = headBlock();
+        BlockNumber32 blockB = headBlock();
 
         // genesis → blockA → blockB
         Entity.BlockNode memory genesisNode = getBlockNode(genesis);
-        assertEq(BlockNumber.unwrap(genesisNode.nextBlock), BlockNumber.unwrap(blockA));
+        assertEq(BlockNumber32.unwrap(genesisNode.nextBlock), BlockNumber32.unwrap(blockA));
 
         Entity.BlockNode memory nodeA = getBlockNode(blockA);
-        assertEq(BlockNumber.unwrap(nodeA.prevBlock), BlockNumber.unwrap(genesis));
-        assertEq(BlockNumber.unwrap(nodeA.nextBlock), BlockNumber.unwrap(blockB));
+        assertEq(BlockNumber32.unwrap(nodeA.prevBlock), BlockNumber32.unwrap(genesis));
+        assertEq(BlockNumber32.unwrap(nodeA.nextBlock), BlockNumber32.unwrap(blockB));
 
         Entity.BlockNode memory nodeB = getBlockNode(blockB);
-        assertEq(BlockNumber.unwrap(nodeB.prevBlock), BlockNumber.unwrap(blockA));
-        assertEq(BlockNumber.unwrap(nodeB.nextBlock), 0);
+        assertEq(BlockNumber32.unwrap(nodeB.prevBlock), BlockNumber32.unwrap(blockA));
+        assertEq(BlockNumber32.unwrap(nodeB.nextBlock), 0);
     }
 
     function test_execute_crossBlock_headBlockUpdates() public {
-        BlockNumber genesis = genesisBlock();
+        BlockNumber32 genesis = genesisBlock();
 
         vm.roll(block.number + 10);
         _pushStubs(1);
         Entity.Operation[] memory ops1 = new Entity.Operation[](1);
         ops1[0] = _op(Entity.CREATE);
         this.execute(ops1);
-        BlockNumber blockA = headBlock();
-        assertTrue(BlockNumber.unwrap(blockA) > BlockNumber.unwrap(genesis));
+        BlockNumber32 blockA = headBlock();
+        assertTrue(BlockNumber32.unwrap(blockA) > BlockNumber32.unwrap(genesis));
 
         vm.roll(block.number + 5);
         _pushStubs(1);
         Entity.Operation[] memory ops2 = new Entity.Operation[](1);
         ops2[0] = _op(Entity.CREATE);
         this.execute(ops2);
-        BlockNumber blockB = headBlock();
-        assertTrue(BlockNumber.unwrap(blockB) > BlockNumber.unwrap(blockA));
+        BlockNumber32 blockB = headBlock();
+        assertTrue(BlockNumber32.unwrap(blockB) > BlockNumber32.unwrap(blockA));
     }
 
     function test_execute_crossBlock_hashChainContinues() public {
@@ -392,7 +392,7 @@ contract ExecuteTest is Test, EntityRegistry {
 
         bytes32 chain0 = Entity.chainOperationHash(bytes32(0), Entity.CREATE, tx0k0, tx0h0);
         bytes32 chain1 = Entity.chainOperationHash(chain0, Entity.UPDATE, tx0k1, tx0h1);
-        BlockNumber head = headBlock();
+        BlockNumber32 head = headBlock();
         assertEq(changeSetHashAtTx(head, 0), chain1);
 
         bytes32 chain2 = Entity.chainOperationHash(chain1, Entity.DELETE, tx1k0, tx1h0);
@@ -400,7 +400,7 @@ contract ExecuteTest is Test, EntityRegistry {
     }
 
     function test_changeSetHashAtBlock_uninitializedBlock_returnsZero() public view {
-        assertEq(changeSetHashAtBlock(BlockNumber.wrap(999999)), bytes32(0));
+        assertEq(changeSetHashAtBlock(BlockNumber32.wrap(999999)), bytes32(0));
     }
 
     // =========================================================================
@@ -415,12 +415,12 @@ contract ExecuteTest is Test, EntityRegistry {
         this.execute(ops);
 
         bytes32 current = changeSetHash();
-        BlockNumber head = headBlock();
+        BlockNumber32 head = headBlock();
 
         // Querying head returns the current rolling hash.
         assertEq(changeSetHashAtBlock(head), current);
         // Any block past head returns the same.
-        BlockNumber future = BlockNumber.wrap(BlockNumber.unwrap(head) + 100);
+        BlockNumber32 future = BlockNumber32.wrap(BlockNumber32.unwrap(head) + 100);
         assertEq(changeSetHashAtBlock(future), current);
     }
 
@@ -437,7 +437,7 @@ contract ExecuteTest is Test, EntityRegistry {
         Entity.Operation[] memory opsA = new Entity.Operation[](1);
         opsA[0] = _op(Entity.CREATE);
         this.execute(opsA);
-        BlockNumber blockA = headBlock();
+        BlockNumber32 blockA = headBlock();
         bytes32 hashAtA = changeSetHash();
 
         // Skip empty blocks, then mutate at blockB.
@@ -446,33 +446,33 @@ contract ExecuteTest is Test, EntityRegistry {
         Entity.Operation[] memory opsB = new Entity.Operation[](1);
         opsB[0] = _op(Entity.UPDATE);
         this.execute(opsB);
-        BlockNumber blockB = headBlock();
+        BlockNumber32 blockB = headBlock();
 
         // Sanity: there is at least one empty block between A and B.
-        assertGt(BlockNumber.unwrap(blockB), BlockNumber.unwrap(blockA) + 1);
+        assertGt(BlockNumber32.unwrap(blockB), BlockNumber32.unwrap(blockA) + 1);
 
         // Any empty block in (A, B) reads back as A's hash.
-        BlockNumber justAfterA = BlockNumber.wrap(BlockNumber.unwrap(blockA) + 1);
+        BlockNumber32 justAfterA = BlockNumber32.wrap(BlockNumber32.unwrap(blockA) + 1);
         assertEq(changeSetHashAtBlock(justAfterA), hashAtA);
 
-        BlockNumber justBeforeB = BlockNumber.wrap(BlockNumber.unwrap(blockB) - 1);
+        BlockNumber32 justBeforeB = BlockNumber32.wrap(BlockNumber32.unwrap(blockB) - 1);
         assertEq(changeSetHashAtBlock(justBeforeB), hashAtA);
     }
 
     function test_changeSetHashAtBlock_beforeFirstMutation_returnsZero() public {
         // Roll past genesis so the first mutation is strictly after deploy.
-        BlockNumber genesis = genesisBlock();
+        BlockNumber32 genesis = genesisBlock();
         vm.roll(block.number + 10);
         _pushStubs(1);
         Entity.Operation[] memory ops = new Entity.Operation[](1);
         ops[0] = _op(Entity.CREATE);
         this.execute(ops);
-        BlockNumber blockA = headBlock();
+        BlockNumber32 blockA = headBlock();
 
         // Genesis is in the linked list but unmutated; querying any block
         // in [genesis, blockA) returns zero.
-        BlockNumber between = BlockNumber.wrap(BlockNumber.unwrap(genesis) + 1);
-        assertLt(BlockNumber.unwrap(between), BlockNumber.unwrap(blockA));
+        BlockNumber32 between = BlockNumber32.wrap(BlockNumber32.unwrap(genesis) + 1);
+        assertLt(BlockNumber32.unwrap(between), BlockNumber32.unwrap(blockA));
         assertEq(changeSetHashAtBlock(between), bytes32(0));
         assertEq(changeSetHashAtBlock(genesis), bytes32(0));
     }
@@ -483,18 +483,18 @@ contract ExecuteTest is Test, EntityRegistry {
     }
 
     function test_changeSetHashAtBlock_priorToGenesis_returnsZero() public {
-        // Walk falls off the start of the chain (cursor reaches BlockNumber 0).
+        // Walk falls off the start of the chain (cursor reaches BlockNumber32 0).
         vm.roll(block.number + 5);
         _pushStubs(1);
         Entity.Operation[] memory ops = new Entity.Operation[](1);
         ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 
-        assertEq(changeSetHashAtBlock(BlockNumber.wrap(0)), bytes32(0));
+        assertEq(changeSetHashAtBlock(BlockNumber32.wrap(0)), bytes32(0));
     }
 
     function test_changeSetHashAtTx_uninitializedTx_returnsZero() public view {
-        assertEq(changeSetHashAtTx(BlockNumber.wrap(999999), 0), bytes32(0));
+        assertEq(changeSetHashAtTx(BlockNumber32.wrap(999999), 0), bytes32(0));
     }
 
     // =========================================================================
@@ -502,14 +502,14 @@ contract ExecuteTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_execute_atDeployBlock_noBlockTransition() public {
-        BlockNumber genesis = genesisBlock();
+        BlockNumber32 genesis = genesisBlock();
 
         _pushStubs(1);
         Entity.Operation[] memory ops = new Entity.Operation[](1);
         ops[0] = _op(Entity.CREATE);
         this.execute(ops);
 
-        assertEq(BlockNumber.unwrap(headBlock()), BlockNumber.unwrap(genesis));
+        assertEq(BlockNumber32.unwrap(headBlock()), BlockNumber32.unwrap(genesis));
         assertEq(getBlockNode(genesis).txCount, 1);
     }
 
@@ -526,11 +526,11 @@ contract ExecuteTest is Test, EntityRegistry {
     // =========================================================================
 
     function test_genesisBlock_equalsDeployBlock() public view {
-        assertEq(BlockNumber.unwrap(genesisBlock()), uint32(block.number));
+        assertEq(BlockNumber32.unwrap(genesisBlock()), uint32(block.number));
     }
 
     function test_headBlock_initiallyEqualsGenesisBlock() public view {
-        assertEq(BlockNumber.unwrap(headBlock()), BlockNumber.unwrap(genesisBlock()));
+        assertEq(BlockNumber32.unwrap(headBlock()), BlockNumber32.unwrap(genesisBlock()));
     }
 
     // =========================================================================
@@ -585,7 +585,7 @@ contract ExecuteTest is Test, EntityRegistry {
 
         assertEq(logs.length, 3);
 
-        BlockNumber head = headBlock();
+        BlockNumber32 head = headBlock();
         bytes32 chain0 = Entity.chainOperationHash(bytes32(0), Entity.CREATE, k0, h0);
         bytes32 chain1 = Entity.chainOperationHash(chain0, Entity.UPDATE, k1, h1);
         bytes32 chain2 = Entity.chainOperationHash(chain1, Entity.DELETE, k2, h2);
