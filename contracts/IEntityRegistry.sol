@@ -28,7 +28,7 @@ interface IEntityRegistry {
     error AttributesNotSorted();
     error InvalidValueType(Ident32 name, uint8 valueType);
     error InvalidOpType(uint8 operationType);
-    error ExpiryInPast(BlockNumber expiresAt, BlockNumber currentBlock);
+    error ZeroBtl();
     error TooManyAttributes(uint256 count, uint256 maxCount);
     error EntityNotFound(bytes32 entityKey);
     error NotOwner(bytes32 entityKey, address caller, address owner);
