@@ -30,20 +30,19 @@ Legend — design principles per component:
 - **ExecutionClient** — stand-in for the adjusted reth
   client. Binds the tx context (caller, budget, block height, config)
   into the `ExecutionEnv`; this binding is the *only* path into the Arkiv
-  engine. Owns the protocol parameter instance and serves the query views (reads
-  are client/DB-layer territory); storage belongs to Golem DB and is
-  touched only through the engine. Its ABI — `execute`, views,
-  events, errors — is the entity model's stability contract: 1:1 towards the SDK.
+  engine. Owns the protocol parameter instance and serves the query views;
+  storage belongs to Golem DB and is touched only through the engine.
+  Its ABI — `execute`, views, events, errors — is the entity model's
+  contract towards the SDK.
 - **ArkivEngine** — all business logic: validation, authorization, key
   derivation, dispatch, cost metering. Abstract and stateless — no
-  storage, no immutables — so everything it touches provably arrives
-  through `(state, env, input)`; independence from a specific environment 
-  is compiler-enforced. Input and outcome are opaque bytes: the engine
-  interface survives a different data model (documents, KV, …) with
-  its own codec. 
+  storage — so everything it touches provably arrives through `(state, env, input)`;
+  independence from a specific environment is compiler-enforced.
+  Input and outcome are opaque bytes: the engine interface survives a
+  different data model (documents, KV, …) with its own codec. 
   Its implementation supports a single specific data model (entity model for V1). 
   Access to state is provided through an abstract RecordStore interface, 
-  the Arkiv engine itself is unaware of any specific implementation of the RecordStore.
+  the Arkiv engine itself is unaware of any specific implementation of that store.
 - **Golem DB** — the state/storage subsystem: hosts the storage interface
   (RecordStore/RecordReader) and the file store it persists onto. The
   only component above it that touches it is the engine.
@@ -54,9 +53,7 @@ Legend — design principles per component:
 - **File Store** — persistence layer beneath the record store; the
   record store maps records and cells onto it. 
 - **ProtocolParams** — statically declared chain config: limits,
-  record store and engine operation cost parameters. Probed once per
-  batch; limits and costs ride in the env only as a temporary tuning
-  affordance until they harden into engine constants.
+  record store and Arkiv engine operation cost parameters. 
 
 ## 2. Attribute Types
 
@@ -155,10 +152,9 @@ Dedicated lifecycle entity ops; all content mutation is one generic `patch`.
 
 ## 3. Batch execution
 
-**One external entry point: `execute(ops[])`. A transaction is an
-ordered, atomic batch of the five ops.** The changeset hash chain is
-out of scope for now; this section only fixes how a transaction maps
-to a sequence of entity ops.
+One external entry point: `execute(ops[])`. A transaction is an
+ordered, atomic batch of entity ops. This section explains how 
+a transaction maps to a sequence of entity ops.
 
 | aspect | rule |
 |---|---|
@@ -177,22 +173,20 @@ to a sequence of entity ops.
   carry the terminology. Unknown tags are a typed revert, not a
   skip — and new op types extend the protocol without changing the
   `execute()` signature. The protocol demands canonical encoding of
-  `operationData`; the Solidity reference (`abi.decode`) is laxer
-  than the native executor, which rejects non-canonical bytes.
+  `operationData`.
 - **Same-batch composition**: `create` mints its key from the caller's
   nonce, so a later op in the same batch can target a just-created
   entity by precomputing `entityKey(owner, nonce)` client-side —
-  ordering guarantees it exists by then. Whether V1 also offers an
-  in-batch back-reference (op index instead of key) is **open**.
-- **Mixed batches are allowed**: any combination of the five ops, any
+  ordering guarantees it exists by then.
+- **Mixed batches are supported**: any combination of entity ops, any
   number of distinct entities, including the same entity touched more
   than once — each op sees the state left by its predecessors.
 
 ## 4. Record Store (proposal)
 
-**The engine's state/storage interface is a generic record/cell store with
+The engine's state/storage interface is a generic record/cell store with
 zero entity knowledge — Arkiv's entity model is one data model on top
-of it.** A record is an engine-keyed set of named, typed cells,
+of it. A record is a set of named, typed cells,
 enumerable in strictly ascending name order.
 
 | aspect | rule |
@@ -228,20 +222,20 @@ enumerable in strictly ascending name order.
   mutations of `MutateRow` — the same lineage the wire's
   `patch(key, mutations[])` naming comes from. Deliberate
   divergences: cells are single-versioned (no timestamps — history
-  lives in events/DB layer), access is point-only (no scans — queries
-  are the DB layer's job), cells carry one byte of opaque typing
-  ("typed CSV"; an untyped model just tags everything `bytes`), and
-  the record key is materialized as the key cell. Vocabulary note:
-  *cell* follows the wide-column lineage, *record* the CSV/record-store
-  lineage (RFC 4180) — chosen over HBase's *row* to avoid relational
-  connotations.
+  lives in events/blockchain storage layer), access is point-only,
+  cells carry one byte of opaque typing ("typed CSV"; an untyped model
+  just tags everything `bytes`), and the record key is materialized as
+  the key cell. Vocabulary note: *cell* follows the wide-column lineage,
+  *record* the CSV/record-store lineage — chosen over HBase's *row* to
+  avoid relational connotations.
 
 ## 5. Concrete SDK surface: `execute(ops)`
 
-**The single tx entry point the Arkiv SDK targets — one transaction is
-one atomic batch of ops** (strict execution order, all-or-nothing,
+The single TX entry point the Arkiv SDK targets — one transaction is
+one atomic batch of entity ops (strict execution order, all-or-nothing,
 one event per applied op). 
-The definitions below are (almost) the live ABI from the reference `ExecutionClient.sol`, `ArkivEngine.sol`, `RecordStore.sol`, etc.
+The definitions below are (almost) the live ABI from the reference 
+`ExecutionClient.sol`, `ArkivEngine.sol`, `RecordStore.sol`, etc.
 
 ```typescript
 /// SDK-facing ABI interface.
