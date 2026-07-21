@@ -6,7 +6,7 @@
 graph TD
     SDK["Arkiv SDK"]
     EC["ExecutionClient<br/>(reth stand-in)"]
-    AE["ArkivEngine<br/>(generic interface, stateless)"]
+    AE["ArkivEngine<br/>(ArkivStateManager (TBD - possibly with caching), Accounting,  generic interface, stateless)"]
     PP["ProtocolParams<br/>(chain config)"]
 
     subgraph GD["Golem DB"]
