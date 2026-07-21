@@ -6,7 +6,7 @@
 graph TD
     SDK["Arkiv SDK"]
     EC["ExecutionClient<br/>(reth stand-in)"]
-    AE["ArkivEngine<br/>(ArkivStateManager (TBD - possibly with caching), Accounting,  generic interface, stateless)"]
+    AE["ArkivEngine<br/>(Accounting,  generic interface, stateless)"]
     PP["ProtocolParams<br/>(chain config)"]
 
     subgraph GD["Golem DB (CRUD + Shallow Copies + TBD Caching)"]
@@ -18,7 +18,7 @@ graph TD
     SDK -->|"execute(ops) + query views — the RPC exposed ABI"| EC
     EC -->|"probes limits, costs, constants"| PP
     EC -->|"calls engine interface<br/>execute(state, env, input) → (outcome, cost)"| AE
-    AE -->|"reads/writes records & cells<br/>only via the passed state param"| RS
+    AE -->|"ArkivStateManager (TBD - possibly with caching)<br /> reads/writes records & cells<br/>only via the passed state param"| RS
 ```
 
 Arrows are dependencies. No circular dependencies: the engine knows neither client nor
