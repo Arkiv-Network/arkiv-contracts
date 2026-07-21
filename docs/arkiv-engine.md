@@ -42,7 +42,7 @@ Legend — design principles per component:
   Input and outcome are opaque bytes: the engine interface survives a
   different data model (documents, KV, …) with its own codec. 
   Its implementation supports a single specific data model (entity model for V1). 
-  Access to state is provided through an abstract RecordStore interface, 
+  Access to state is provided through an abstract RecordStore(PB: ArkivStateManager???) interface, 
   the Arkiv engine itself is unaware of any specific implementation of that store.
 - **Golem DB** — the state/storage subsystem: hosts the storage interface
   (RecordStore/RecordReader) and the file store it persists onto. The
