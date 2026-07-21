@@ -9,7 +9,8 @@ graph TD
     AE["ArkivEngine<br/>(ArkivStateManager (TBD - possibly with caching), Accounting,  generic interface, stateless)"]
     PP["ProtocolParams<br/>(chain config)"]
 
-    subgraph GD["Golem DB"]
+    subgraph GD["Golem DB<br />(CRUD + Shallow Copies + TBD Caching)"]
+        
         RS["RecordStore is RecordReader<br/>(generic record/cell store)"]
         FS["File Store"]
         RS --> FS
