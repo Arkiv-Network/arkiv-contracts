@@ -46,7 +46,7 @@ Legend — design principles per component:
   the Arkiv engine itself is unaware of any specific implementation of that store.
 - **Golem DB** — the state/storage subsystem: hosts the storage interface
   (RecordStore/RecordReader) and the file store it persists onto. The
-  only component above it that touches it is the engine.
+  only component above it that touches it is the ArkivEngine.
 - **RecordStore / RecordReader** — generic schemaless record/cell
   store with zero knowledge of entities inspired by HBase and CSV file stores. 
   Maintains state, provides shallow copies, caching, file persistence etc.
