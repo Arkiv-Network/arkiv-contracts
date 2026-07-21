@@ -65,7 +65,7 @@ Pros
 Cons
 - large modified-reth work package
 
-## Option C — start with option A, migrate to B
+## Option C — start with option A, move on to B
 
 Testnet in September ships A, later testnet-2 ships B via a testnet reset (no migration). 
 
