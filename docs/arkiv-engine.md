@@ -6,7 +6,7 @@
 graph TD
     SDK["Arkiv SDK"]
     EC["ExecutionClient<br/>(reth stand-in)"]
-    AE["ArkivEngine<br/>(Accounting,  generic interface, stateless)"]
+    AE["ArkivEngine<br/>(generic interface including accounting, stateless, operates on provided state manager)"]
     PP["ProtocolParams<br/>(chain config)"]
 
     subgraph GD["Golem DB (CRUD + Shallow Copies + TBD Caching)"]
@@ -17,13 +17,15 @@ graph TD
 
     SDK -->|"execute(ops) + query views — the RPC exposed ABI"| EC
     EC -->|"probes limits, costs, constants"| PP
-    EC -->|"calls engine interface<br/>execute(state, env, input) → (outcome, cost)"| AE
-    AE -->|"ArkivStateManager (TBD - possibly with caching)<br /> reads/writes records & cells<br/>only via the passed state param"| RS
+    EC -->|"calls engine interface<br/>execute(state, env, input) → (outcome)"| AE
+    AE -->|"reads/writes data via provided state manager<br/>(ArkivStateManager — TBD, possibly with caching)"| RS
 ```
 
 Arrows are dependencies. No circular dependencies: the engine knows neither client nor
 config contract (values arrive in the env), and the store knows
 nothing at all about what runs above it.
+
+TODO: consolidate the state-manager design with Raj's proposal.
 
 Legend — design principles per component:
 
@@ -36,37 +38,46 @@ Legend — design principles per component:
   contract towards the SDK.
 - **ArkivEngine** — all business logic: validation, authorization, key
   derivation, dispatch, cost metering. Abstract and stateless — no
-  storage — so everything it touches provably arrives through `(state, env, input)`;
-  independence from a specific environment is compiler-enforced.
-  Input and outcome are opaque bytes: the engine interface survives a
-  different data model (documents, KV, …) with its own codec. 
-  Its implementation supports a single specific data model (entity model for V1). 
-  Access to state is provided through an abstract RecordStore(PB: ArkivStateManager???) interface, 
-  the Arkiv engine itself is unaware of any specific implementation of that store.
+  storage — so everything it touches provably arrives through `(state, env, input)`.
+  Access to state is provided by the execution client as the state argument which is represented by the state manager. 
 - **Golem DB** — the state/storage subsystem: hosts the storage interface
   (RecordStore/RecordReader) and the file store it persists onto. The
   only component above it that touches it is the ArkivEngine.
-- **Golem DB API** — generic schemaless data (record/cell) 
+- **Caching (position)** — cache correctness is about storage-consistency
+  and should belong to whoever owns writes: **write-path
+  caching lives inside Golem DB, behind its API** — invisible to
+  callers, with invalidation tied to writes, shallow-copy
+  commits/discards, and reorgs. The Arkiv engine can never cache: it
+  is stateless by construction. Read-path caching (query layer, reth
+  state caches) is a separate topic, deliberately deferred —
+  write-path caching is the critical one and comes first. In all
+  cases, **caching must not leak into cost**: metered op prices are
+  consensus values and must not depend on any node's cache hits; if
+  cache-aware pricing is ever wanted, the only sound form is
+  deterministic warm/cold accounting à la EVM's EIP-2929.
+- **Golem DB API** — generic schemaless data (record/cell)
   store with zero knowledge of Arkiv Entities.
-  It provides following operations:
-  - GetDBHash()
+  It provides the following operations:
+  - `GetDBHash()`
   - CREATE
-  - - Write (optional PointerToShallowCopy, data, indexes)=>key), 
-  - READ Read (optional PointerToShallowCopy, key) => data,
-  - - Scan(query)=>result,
+    - `Write(optional PointerToShallowCopy, data, indexes) => key`
+  - READ
+    - `Read(optional PointerToShallowCopy, key) => data`
+    - `Scan(query) => result`
   - UPDATE
-  - - PATCH (optional PointerToShallowCopy, key, data, index...)
+    - `Patch(optional PointerToShallowCopy, key, data, indexes...)`
   - DELETE
-  - - DELETE (key, indexes)
-  - ShallowCopy(param) => PointerToShallowCopy,
-  - CommitShallowCopy (pointer)
- 
-  Whenever CommitShallowCopy is executed or WriteOpera
+    - `Delete(key, indexes)`
+  - `ShallowCopy(param) => PointerToShallowCopy`
+  - `CommitShallowCopy(pointer)`
+
+  TODO (unfinished note): "Whenever CommitShallowCopy is executed or
+  a write operation …" — complete this sentence.
 
   To discuss: Should writes be possible only through shallow copies, or direct writes should be also possible?
-  
+
   Maintains state, provides shallow copies, caching, file persistence etc.
-  Enforces structural invariants only. 
+  Enforces structural invariants only.
 - **File Store** — persistence layer beneath the record store; the
   record store maps records and cells onto it. 
 - **ProtocolParams** — statically declared chain config: limits,
@@ -128,9 +139,9 @@ Dedicated lifecycle entity ops; all content mutation is one generic `patch`.
     revert.
   - **Mutations (`patch`) set and unset**: each triple sets a user
     attribute or system key, or unsets one by tombstone.
-- **Entity lifetime** - TODO for  `create`/ `extend_expiry`: come 
-  up with a good proposal that covers both relative (current impl) 
-  and absolute block numbers for expiriy.
+- **Entity lifetime** - TODO for `create`/`extend_expiry`: come
+  up with a good proposal that covers both relative (current impl)
+  and absolute block numbers for expiry.
 - **Naming precedent** — the set-only/data vs set-and-unset/
   instruction split is the universal DB convention: DynamoDB
   `PutItem` (`Item` = "map of attribute name/value pairs") vs
@@ -167,7 +178,7 @@ Dedicated lifecycle entity ops; all content mutation is one generic `patch`.
   chain-queryable — they live in the DB layer, reconstructed from
   calldata by sorted merge (create list + patch deltas).
 
-## 3. Batch execution
+## 4. Batch execution
 
 One external entry point: `execute(ops[])`. A transaction is an
 ordered, atomic batch of entity ops. This section explains how 
@@ -199,7 +210,7 @@ a transaction maps to a sequence of entity ops.
   number of distinct entities, including the same entity touched more
   than once — each op sees the state left by its predecessors.
 
-## 4. Record Store (proposal)
+## 5. Record Store (proposal)
 
 The engine's state/storage interface is a generic record/cell store with
 zero entity knowledge — Arkiv's entity model is one data model on top
@@ -246,7 +257,7 @@ enumerable in strictly ascending name order.
   *record* the CSV/record-store lineage — chosen over HBase's *row* to
   avoid relational connotations.
 
-## 5. Concrete SDK surface: `execute(ops)`
+## 6. Concrete SDK surface: `execute(ops)`
 
 The single TX entry point the Arkiv SDK targets — one transaction is
 one atomic batch of entity ops (strict execution order, all-or-nothing,
@@ -254,7 +265,7 @@ one event per applied op).
 The definitions below are (almost) the live ABI from the reference 
 `ExecutionClient.sol`, `ArkivEngine.sol`, `RecordStore.sol`, etc.
 
-```typescript
+```solidity
 /// SDK-facing ABI interface.
 /// @return keys the entity key created/affected by each op.
 function execute(Operation[] calldata ops)
@@ -322,7 +333,7 @@ Beyond `execute`, the SDK-facing ABI comprises the query views
 (`query`, `nonces`, and account reading functions), the five per-op events
 (`EntityCreated`, `EntityPatched`, `ExpiryExtended`,
 `OwnershipTransferred`, `EntityDeleted`), and the typed errors — all
-defined in `Entity` / `ExecutionClient` and stable 1:1 across
+defined in `EntityV2` / `ExecutionClient` and stable 1:1 across
 implementations.
 
 ---

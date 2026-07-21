@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {ArkivEngine} from "./ArkivEngine.sol";
-import {BlockNumber} from "./types/BlockNumber.sol";
+import {BlockNumber32} from "./types/BlockNumber32.sol";
 import {EntityKey} from "./types/EntityKey.sol";
 import {EntityV2} from "./EntityV2.sol";
 import {Ident32} from "./types/Ident32.sol";
@@ -29,7 +29,7 @@ import {RecordStore} from "./RecordStore.sol";
 /// the interfaces underneath are the layer that survives model swaps.
 contract ExecutionClient is ArkivEngine {
     /// @dev Reverted when the block height exceeds the uint32
-    /// BlockNumber range — the narrowing is the execution client's responsibility.
+    /// BlockNumber32 range — the narrowing is the execution client's responsibility.
     error BlockNumberOutOfRange(uint256 blockNumber);
 
     // -------------------------------------------------------------------------
@@ -99,13 +99,13 @@ contract ExecutionClient is ArkivEngine {
     }
 
     /// @dev Host-side narrowing of block height to the engine's uint32
-    /// BlockNumber time model. Fits for ~136 years at 1s blocks; the
+    /// BlockNumber32 time model. Fits for ~136 years at 1s blocks; the
     /// explicit check pins the boundary regardless.
-    function _blockNumber() internal view returns (BlockNumber) {
+    function _blockNumber() internal view returns (BlockNumber32) {
         if (block.number > type(uint32).max) revert BlockNumberOutOfRange(block.number);
         // casting to 'uint32' is safe: bounds-checked directly above
         // forge-lint: disable-next-line(unsafe-typecast)
-        return BlockNumber.wrap(uint32(block.number));
+        return BlockNumber32.wrap(uint32(block.number));
     }
 
     // -------------------------------------------------------------------------
@@ -138,8 +138,18 @@ contract ExecutionClient is ArkivEngine {
         c.customAttributes = uint16(customAttributeNames(key).length);
     }
 
-    function nonces(address owner) public view returns (uint32) {
-        RecordReader.Cell memory f = STORE.getCell(_nonceRecordKey(owner), Ident32.wrap(NONCE_CELL));
+    /// @notice The owner's tx nonce: +1 per successful tx — accounting
+    /// and tx replay protection.
+    function txNonce(address owner) public view returns (uint32) {
+        RecordReader.Cell memory f = STORE.getCell(_accountRecordKey(owner), Ident32.wrap(TX_NONCE_CELL));
+        if (Ident32.unwrap(f.name) == 0) return 0;
+        return _cellUint32(f);
+    }
+
+    /// @notice The owner's entity-creation nonce — the key-derivation
+    /// counter (+0..n per tx, one per create).
+    function entityNonce(address owner) public view returns (uint32) {
+        RecordReader.Cell memory f = STORE.getCell(_accountRecordKey(owner), Ident32.wrap(ENTITY_NONCE_CELL));
         if (Ident32.unwrap(f.name) == 0) return 0;
         return _cellUint32(f);
     }

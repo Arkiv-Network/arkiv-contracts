@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "../../src/types/BlockNumber.sol";
-import {EntityKey} from "../../src/types/EntityKey.sol";
-import {ExecutionClient} from "../../src/ExecutionClient.sol";
-import {EntityV2} from "../../src/EntityV2.sol";
-import {Ident32, encodeIdent32} from "../../src/types/Ident32.sol";
-import {ProtocolParams} from "../../src/ProtocolParams.sol";
-import {RecordReader} from "../../src/RecordReader.sol";
-import {RecordStore} from "../../src/RecordStore.sol";
+import {BlockNumber32} from "../../contracts/types/BlockNumber32.sol";
+import {EntityKey} from "../../contracts/types/EntityKey.sol";
+import {ExecutionClient} from "../../contracts/ExecutionClient.sol";
+import {EntityV2} from "../../contracts/EntityV2.sol";
+import {Ident32, encodeIdent32} from "../../contracts/types/Ident32.sol";
+import {ProtocolParams} from "../../contracts/ProtocolParams.sol";
+import {RecordReader} from "../../contracts/RecordReader.sol";
+import {RecordStore} from "../../contracts/RecordStore.sol";
 import {Test} from "forge-std/Test.sol";
 
 /// @dev Full-lifecycle tests for the V2 reference client: batch execute,
@@ -98,7 +98,7 @@ contract ExecutionClientTest is Test {
 
     /// @dev Create a default entity as alice: btl 50, no flags, 3 attributes.
     function createDefault() internal returns (EntityKey key) {
-        key = client.entityKey(alice, client.nonces(alice));
+        key = client.entityKey(alice, client.entityNonce(alice));
         vm.prank(alice);
         executeOne(createOp(50, 0, threeAttrs()));
     }
@@ -111,7 +111,7 @@ contract ExecutionClientTest is Test {
         EntityKey key = client.entityKey(alice, 0);
 
         vm.expectEmit();
-        emit EntityV2.EntityCreated(key, alice, BlockNumber.wrap(150), bytes32(0), 5, 1, 0);
+        emit EntityV2.EntityCreated(key, alice, BlockNumber32.wrap(150), bytes32(0), 5, 1, 0);
         vm.prank(alice);
         EntityKey returned = executeOne(createOp(50, 0, threeAttrs()));
         assertEq(EntityKey.unwrap(returned), EntityKey.unwrap(key));
@@ -119,11 +119,11 @@ contract ExecutionClientTest is Test {
         EntityV2.Commitment memory c = client.commitment(key);
         assertEq(c.creator, alice);
         assertEq(c.owner, alice);
-        assertEq(BlockNumber.unwrap(c.createdAt), 100);
-        assertEq(BlockNumber.unwrap(c.expiresAt), 150);
+        assertEq(BlockNumber32.unwrap(c.createdAt), 100);
+        assertEq(BlockNumber32.unwrap(c.expiresAt), 150);
         assertEq(c.payloadSize, 5);
         assertEq(c.customAttributes, 1);
-        assertEq(client.nonces(alice), 1);
+        assertEq(client.entityNonce(alice), 1);
         assertEq(client.attributeTypeId(key, COLOR), EntityV2.TYPE_STRING);
         assertEq(client.attributeTypeId(key, PAYLOAD), EntityV2.TYPE_BYTES);
         assertEq(client.attributeTypeId(key, SIZE), 0);
@@ -179,7 +179,7 @@ contract ExecutionClientTest is Test {
         mutations[2] = attr(SIZE, EntityV2.TYPE_U256, abi.encode(uint256(42))); // add 0 → 1
 
         vm.expectEmit();
-        emit EntityV2.EntityPatched(key, alice, BlockNumber.wrap(150), bytes32(0), 12, 1);
+        emit EntityV2.EntityPatched(key, alice, BlockNumber32.wrap(150), bytes32(0), 12, 1);
         vm.prank(alice);
         executeOne(patchOp(key, mutations));
 
@@ -233,18 +233,18 @@ contract ExecutionClientTest is Test {
         vm.roll(120);
 
         vm.expectEmit();
-        emit EntityV2.ExpiryExtended(key, alice, BlockNumber.wrap(220), bytes32(0), BlockNumber.wrap(150), alice);
+        emit EntityV2.ExpiryExtended(key, alice, BlockNumber32.wrap(220), bytes32(0), BlockNumber32.wrap(150), alice);
         vm.prank(alice);
         executeOne(extendOp(key, 100)); // 120 + 100 = 220
 
-        assertEq(BlockNumber.unwrap(client.commitment(key).expiresAt), 220);
+        assertEq(BlockNumber32.unwrap(client.commitment(key).expiresAt), 220);
     }
 
     function test_extend_notIncreasing_reverts() public {
         EntityKey key = createDefault(); // expires at 150
         vm.expectRevert(
             abi.encodeWithSelector(
-                EntityV2.ExpiryNotExtended.selector, key, BlockNumber.wrap(110), BlockNumber.wrap(150)
+                EntityV2.ExpiryNotExtended.selector, key, BlockNumber32.wrap(110), BlockNumber32.wrap(150)
             )
         );
         vm.prank(alice);
@@ -257,7 +257,7 @@ contract ExecutionClientTest is Test {
         executeOne(createOp(50, EntityV2.FLAG_PERMISSIONLESS_EXTENSION, new EntityV2.Attribute[](0)));
 
         vm.expectEmit();
-        emit EntityV2.ExpiryExtended(key, alice, BlockNumber.wrap(200), bytes32(0), BlockNumber.wrap(150), bob);
+        emit EntityV2.ExpiryExtended(key, alice, BlockNumber32.wrap(200), bytes32(0), BlockNumber32.wrap(150), bob);
         vm.prank(bob);
         executeOne(extendOp(key, 100));
     }
@@ -277,7 +277,7 @@ contract ExecutionClientTest is Test {
         EntityKey key = createDefault();
 
         vm.expectEmit();
-        emit EntityV2.OwnershipTransferred(key, bob, BlockNumber.wrap(150), bytes32(0), alice);
+        emit EntityV2.OwnershipTransferred(key, bob, BlockNumber32.wrap(150), bytes32(0), alice);
         vm.prank(alice);
         executeOne(transferOp(key, bob));
 
@@ -313,7 +313,7 @@ contract ExecutionClientTest is Test {
         EntityKey key = createDefault();
 
         vm.expectEmit();
-        emit EntityV2.EntityDeleted(key, alice, BlockNumber.wrap(150), bytes32(0));
+        emit EntityV2.EntityDeleted(key, alice, BlockNumber32.wrap(150), bytes32(0));
         vm.prank(alice);
         executeOne(deleteOp(key));
 
@@ -337,7 +337,7 @@ contract ExecutionClientTest is Test {
 
         EntityV2.Attribute[] memory mutations = new EntityV2.Attribute[](1);
         mutations[0] = attr(COLOR, EntityV2.TYPE_STRING, "blue");
-        bytes memory notActive = abi.encodeWithSelector(EntityV2.EntityNotActive.selector, key, BlockNumber.wrap(150));
+        bytes memory notActive = abi.encodeWithSelector(EntityV2.EntityNotActive.selector, key, BlockNumber32.wrap(150));
 
         vm.startPrank(alice);
         vm.expectRevert(notActive);
@@ -383,7 +383,7 @@ contract ExecutionClientTest is Test {
 
         executeOne(extendOp(key, 100)); // extend stays permitted
         vm.stopPrank();
-        assertEq(BlockNumber.unwrap(client.commitment(key).expiresAt), 200);
+        assertEq(BlockNumber32.unwrap(client.commitment(key).expiresAt), 200);
     }
 
     // -------------------------------------------------------------------------
@@ -483,14 +483,39 @@ contract ExecutionClientTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                EntityV2.ExpiryNotExtended.selector, key, BlockNumber.wrap(110), BlockNumber.wrap(150)
+                EntityV2.ExpiryNotExtended.selector, key, BlockNumber32.wrap(110), BlockNumber32.wrap(150)
             )
         );
         vm.prank(alice);
         client.execute(ops);
 
         assertEq(client.commitment(key).creator, address(0));
-        assertEq(client.nonces(alice), 0);
+        assertEq(client.entityNonce(alice), 0);
+        assertEq(client.txNonce(alice), 0); // reverted tx rolls back the tx nonce too
+    }
+
+    function test_nonces_txAndEntityAdvanceIndependently() public {
+        // Tx 1: create → both nonces advance.
+        EntityKey key = createDefault();
+        assertEq(client.txNonce(alice), 1);
+        assertEq(client.entityNonce(alice), 1);
+
+        // Tx 2: patch only → tx nonce advances, entity nonce does not.
+        EntityV2.Attribute[] memory mutations = new EntityV2.Attribute[](1);
+        mutations[0] = attr(COLOR, EntityV2.TYPE_STRING, "blue");
+        vm.prank(alice);
+        executeOne(patchOp(key, mutations));
+        assertEq(client.txNonce(alice), 2);
+        assertEq(client.entityNonce(alice), 1);
+
+        // Tx 3: batch with two creates → tx nonce +1, entity nonce +2.
+        EntityV2.Operation[] memory ops = new EntityV2.Operation[](2);
+        ops[0] = createOp(10, 0, new EntityV2.Attribute[](0));
+        ops[1] = createOp(10, 0, new EntityV2.Attribute[](0));
+        vm.prank(alice);
+        client.execute(ops);
+        assertEq(client.txNonce(alice), 3);
+        assertEq(client.entityNonce(alice), 3);
     }
 
     function test_emptyBatch_reverts() public {
@@ -544,13 +569,13 @@ contract ExecutionClientTest is Test {
     function test_recordTypes_assigned() public {
         EntityKey key = createDefault();
         assertEq(client.STORE().recordType(EntityKey.unwrap(key)), EntityV2.RECORD_TYPE_ENTITY);
-        bytes32 nonceRecord = keccak256(abi.encodePacked(bytes32("arkiv/nonce"), alice));
+        bytes32 nonceRecord = keccak256(abi.encodePacked(bytes32("arkiv/account"), alice));
         assertEq(client.STORE().recordType(nonceRecord), EntityV2.RECORD_TYPE_ACCOUNT);
     }
 
     function test_nonEntityRecordKey_asEntityKey_reverts() public {
         createDefault(); // creates alice's nonce record as a side effect
-        bytes32 nonceRecord = keccak256(abi.encodePacked(bytes32("arkiv/nonce"), alice));
+        bytes32 nonceRecord = keccak256(abi.encodePacked(bytes32("arkiv/account"), alice));
 
         vm.expectRevert(
             abi.encodeWithSelector(

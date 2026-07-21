@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "./types/BlockNumber.sol";
+import {BlockNumber32} from "./types/BlockNumber32.sol";
 import {EntityKey} from "./types/EntityKey.sol";
 import {IDENT_CHARSET, IDENT_LEADING, Ident32} from "./types/Ident32.sol";
 import {
@@ -232,7 +232,7 @@ library EntityV2 {
         uint64 budget;
         /// Discrete monotone clock; the execution client binds and narrows block height —
         /// the engine's time model is uint32 end-to-end.
-        BlockNumber blockNumber;
+        BlockNumber32 blockNumber;
         /// Chain-config constants; the execution client probes ProtocolParams.
         Constants constants;
         /// Active §3 limits at this height; the execution client probes ProtocolParams.
@@ -314,9 +314,9 @@ library EntityV2 {
     /// field yet — the $entityHash preimage is deferred (§1).
     struct Commitment {
         address creator;
-        BlockNumber createdAt;
-        BlockNumber updatedAt;
-        BlockNumber expiresAt;
+        BlockNumber32 createdAt;
+        BlockNumber32 updatedAt;
+        BlockNumber32 expiresAt;
         address owner;
         uint8 creationFlags;
         uint32 payloadSize;
@@ -358,7 +358,7 @@ library EntityV2 {
     event EntityCreated(
         EntityKey indexed entityKey,
         address indexed owner,
-        BlockNumber indexed expiresAt,
+        BlockNumber32 indexed expiresAt,
         bytes32 entityHash,
         uint32 payloadSize,
         uint16 customAttributes,
@@ -370,7 +370,7 @@ library EntityV2 {
     event EntityPatched(
         EntityKey indexed entityKey,
         address indexed owner,
-        BlockNumber indexed expiresAt,
+        BlockNumber32 indexed expiresAt,
         bytes32 entityHash,
         uint32 payloadSize,
         uint16 customAttributes
@@ -382,9 +382,9 @@ library EntityV2 {
     event ExpiryExtended(
         EntityKey indexed entityKey,
         address indexed owner,
-        BlockNumber indexed expiresAt,
+        BlockNumber32 indexed expiresAt,
         bytes32 entityHash,
-        BlockNumber previousExpiresAt,
+        BlockNumber32 previousExpiresAt,
         address caller
     );
 
@@ -393,7 +393,7 @@ library EntityV2 {
     event OwnershipTransferred(
         EntityKey indexed entityKey,
         address indexed owner,
-        BlockNumber indexed expiresAt,
+        BlockNumber32 indexed expiresAt,
         bytes32 entityHash,
         address previousOwner
     );
@@ -401,7 +401,7 @@ library EntityV2 {
     /// @dev Owner-initiated delete of an active entity. owner == msg.sender.
     /// owner / expiresAt / entityHash snapshot the entity before removal.
     event EntityDeleted(
-        EntityKey indexed entityKey, address indexed owner, BlockNumber indexed expiresAt, bytes32 entityHash
+        EntityKey indexed entityKey, address indexed owner, BlockNumber32 indexed expiresAt, bytes32 entityHash
     );
 
     // -------------------------------------------------------------------------
@@ -454,14 +454,14 @@ library EntityV2 {
     /// @dev Reverted when btl is zero.
     error ZeroBtl();
     /// @dev Reverted when current + btl exceeds the uint32 block range.
-    error ExpiryOverflow(BlockNumber current, uint32 btl);
+    error ExpiryOverflow(BlockNumber32 current, uint32 btl);
     /// @dev Reverted when extend_expiry would not strictly increase expiry.
-    error ExpiryNotExtended(EntityKey entityKey, BlockNumber newExpiresAt, BlockNumber currentExpiresAt);
+    error ExpiryNotExtended(EntityKey entityKey, BlockNumber32 newExpiresAt, BlockNumber32 currentExpiresAt);
     /// @dev Reverted when an entity key does not exist in storage.
     error EntityNotFound(EntityKey entityKey);
     /// @dev Reverted when an operation targets an expired entity.
     /// (Named to leave `EntityExpired` to the removal event.)
-    error EntityNotActive(EntityKey entityKey, BlockNumber expiresAt);
+    error EntityNotActive(EntityKey entityKey, BlockNumber32 expiresAt);
     /// @dev Reverted when the caller is not authorized for the operation.
     error NotOwner(EntityKey entityKey, address caller, address owner);
     /// @dev Reverted when patch/transfer/delete targets a readonly entity.
@@ -511,7 +511,7 @@ library EntityV2 {
     /// @dev Require that the entity has not expired (expiresAt > current).
     /// Expiry is a predicate: expired entities reject every op; their
     /// removal is protocol-controlled.
-    function requireActive(EntityKey key, Commitment memory c, BlockNumber current) internal pure {
+    function requireActive(EntityKey key, Commitment memory c, BlockNumber32 current) internal pure {
         if (c.expiresAt <= current) revert EntityNotActive(key, c.expiresAt);
     }
 
@@ -547,7 +547,7 @@ library EntityV2 {
     /// @dev Require that the new expiry is strictly greater than the current
     /// one. extend_expiry anchors at the executing block (new expiry =
     /// current + btl) and must never shorten the entity's lifetime.
-    function requireExpiryIncreased(EntityKey key, BlockNumber newExpiresAt, BlockNumber currentExpiresAt)
+    function requireExpiryIncreased(EntityKey key, BlockNumber32 newExpiresAt, BlockNumber32 currentExpiresAt)
         internal
         pure
     {
@@ -561,13 +561,13 @@ library EntityV2 {
     /// @notice Compute an expiry block from the executing block and a btl
     /// (blocks-to-live). btl must be strictly positive; the result must fit
     /// the uint32 block range.
-    function expiryFromBtl(BlockNumber current, uint32 btl) internal pure returns (BlockNumber) {
+    function expiryFromBtl(BlockNumber32 current, uint32 btl) internal pure returns (BlockNumber32) {
         if (btl == 0) revert ZeroBtl();
-        uint256 expiresAt = uint256(BlockNumber.unwrap(current)) + btl;
+        uint256 expiresAt = uint256(BlockNumber32.unwrap(current)) + btl;
         if (expiresAt > type(uint32).max) revert ExpiryOverflow(current, btl);
         // casting to 'uint32' is safe: bounds-checked directly above
         // forge-lint: disable-next-line(unsafe-typecast)
-        return BlockNumber.wrap(uint32(expiresAt));
+        return BlockNumber32.wrap(uint32(expiresAt));
     }
 
     /// @notice Validate creation flags: reserved bits (2–7) must be zero.

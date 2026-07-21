@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BlockNumber} from "./types/BlockNumber.sol";
+import {BlockNumber32} from "./types/BlockNumber32.sol";
 import {EntityKey} from "./types/EntityKey.sol";
 import {EntityV2} from "./EntityV2.sol";
 import {Ident32} from "./types/Ident32.sol";
@@ -49,9 +49,13 @@ import {RecordStore} from "./RecordStore.sol";
 ///   - abi.decode accepts some non-canonical operationData encodings the
 ///     executor rejects.
 abstract contract ArkivEngine {
-    /// @dev Key tag and cell name for per-owner nonce records.
-    bytes32 internal constant NONCE_RECORD_TAG = "arkiv/nonce";
-    bytes32 internal constant NONCE_CELL = "$nonce";
+    /// @dev Key tag and cell names for per-owner account records. An
+    /// account carries two nonces: $txNonce advances by exactly 1 per
+    /// successful tx (accounting + replay protection); $entityNonce is
+    /// the key-derivation counter, advancing 0..n per tx (one per create).
+    bytes32 internal constant ACCOUNT_RECORD_TAG = "arkiv/account";
+    bytes32 internal constant TX_NONCE_CELL = "$txNonce";
+    bytes32 internal constant ENTITY_NONCE_CELL = "$entityNonce";
 
     /// @dev The engine interface, ~1:1 with the native signature
     /// `execute<S: RecordStore>(state, env, input)`: decodes the raw input
@@ -74,11 +78,16 @@ abstract contract ArkivEngine {
         // decode ops and high level validation
         EntityV2.Operation[] memory ops = abi.decode(input, (EntityV2.Operation[]));
         if (ops.length == 0) revert EntityV2.EmptyBatch();
-        BlockNumber current = env.blockNumber;
+        BlockNumber32 current = env.blockNumber;
 
         // set up cost meter and charge base fee
         EntityV2.Meter memory meter;
         EntityV2.charge(meter, env.budget, env.costs.executeBase);
+
+        // accounting: every successful tx advances the caller's tx nonce
+        // by exactly 1; the nonce-mismatch check itself is the execution
+        // client's / tx envelope's job — the engine maintains the counter
+        _touchAccount(state, env, meter);
 
         // dispatch each op in order, collecting the affected keys and charging the meter
         EntityKey[] memory keys = new EntityKey[](ops.length);
@@ -99,7 +108,7 @@ abstract contract ArkivEngine {
     function _dispatch(
         RecordStore state,
         EntityV2.Operation memory op,
-        BlockNumber current,
+        BlockNumber32 current,
         EntityV2.ExecutionEnv memory env,
         EntityV2.Meter memory meter
     ) internal virtual returns (EntityKey) {
@@ -131,18 +140,18 @@ abstract contract ArkivEngine {
     function _create(
         RecordStore state,
         EntityV2.Create memory data,
-        BlockNumber current,
+        BlockNumber32 current,
         EntityV2.ExecutionEnv memory env,
         EntityV2.Meter memory meter
     ) internal virtual returns (EntityKey key) {
         EntityV2.validateCreationFlags(data.creationFlags);
         EntityV2.validateAttributes(data.attributes, env.limits);
-        BlockNumber expiresAt = EntityV2.expiryFromBtl(current, data.btl);
+        BlockNumber32 expiresAt = EntityV2.expiryFromBtl(current, data.btl);
 
         // TODO more fine-grained cost accounting (business logic, not store):
         // - base charge per attribute (index manipulation)
         // - per byte and block to live (expiry) charge for payload attribute
-        key = EntityV2.entityKey(env.constants.domain, env.caller, _consumeNonce(state, env, meter));
+        key = EntityV2.entityKey(env.constants.domain, env.caller, _consumeEntityNonce(state, env, meter));
 
         bytes32 record = EntityKey.unwrap(key);
         EntityV2.charge(meter, env.budget, env.costs.recordWrite);
@@ -162,7 +171,7 @@ abstract contract ArkivEngine {
     function _patch(
         RecordStore state,
         EntityV2.Patch memory data,
-        BlockNumber current,
+        BlockNumber32 current,
         EntityV2.ExecutionEnv memory env,
         EntityV2.Meter memory meter
     ) internal virtual returns (EntityKey key) {
@@ -177,7 +186,7 @@ abstract contract ArkivEngine {
 
         bytes32 record = EntityKey.unwrap(key);
         _applyMutations(state, env, meter, record, data.mutations);
-        _putUintCell(state, env, meter, record, EntityV2.SYS_UPDATED_AT, BlockNumber.unwrap(current));
+        _putUintCell(state, env, meter, record, EntityV2.SYS_UPDATED_AT, BlockNumber32.unwrap(current));
 
         // derive the post-patch counters for the event, and enforce the
         // per-entity custom attribute cap — business logic, not a store rule
@@ -195,7 +204,7 @@ abstract contract ArkivEngine {
     function _extendExpiry(
         RecordStore state,
         EntityV2.ExtendExpiry memory data,
-        BlockNumber current,
+        BlockNumber32 current,
         EntityV2.ExecutionEnv memory env,
         EntityV2.Meter memory meter
     ) internal virtual returns (EntityKey key) {
@@ -206,12 +215,12 @@ abstract contract ArkivEngine {
         EntityV2.requireActive(key, c, current);
         EntityV2.requireExtendAuth(key, c, env.caller);
 
-        BlockNumber newExpiresAt = EntityV2.expiryFromBtl(current, data.btl);
+        BlockNumber32 newExpiresAt = EntityV2.expiryFromBtl(current, data.btl);
         EntityV2.requireExpiryIncreased(key, newExpiresAt, c.expiresAt);
 
         bytes32 record = EntityKey.unwrap(key);
-        _putUintCell(state, env, meter, record, EntityV2.SYS_EXPIRES_AT, BlockNumber.unwrap(newExpiresAt));
-        _putUintCell(state, env, meter, record, EntityV2.SYS_UPDATED_AT, BlockNumber.unwrap(current));
+        _putUintCell(state, env, meter, record, EntityV2.SYS_EXPIRES_AT, BlockNumber32.unwrap(newExpiresAt));
+        _putUintCell(state, env, meter, record, EntityV2.SYS_UPDATED_AT, BlockNumber32.unwrap(current));
 
         emit EntityV2.ExpiryExtended(key, c.owner, newExpiresAt, bytes32(0), c.expiresAt, env.caller);
     }
@@ -221,7 +230,7 @@ abstract contract ArkivEngine {
     function _transferOwnership(
         RecordStore state,
         EntityV2.TransferOwnership memory data,
-        BlockNumber current,
+        BlockNumber32 current,
         EntityV2.ExecutionEnv memory env,
         EntityV2.Meter memory meter
     ) internal virtual returns (EntityKey key) {
@@ -237,7 +246,7 @@ abstract contract ArkivEngine {
 
         bytes32 record = EntityKey.unwrap(key);
         _putAddressCell(state, env, meter, record, EntityV2.SYS_OWNER, data.newOwner);
-        _putUintCell(state, env, meter, record, EntityV2.SYS_UPDATED_AT, BlockNumber.unwrap(current));
+        _putUintCell(state, env, meter, record, EntityV2.SYS_UPDATED_AT, BlockNumber32.unwrap(current));
 
         emit EntityV2.OwnershipTransferred(key, data.newOwner, c.expiresAt, bytes32(0), c.owner);
     }
@@ -247,7 +256,7 @@ abstract contract ArkivEngine {
     function _delete(
         RecordStore state,
         EntityV2.Delete memory data,
-        BlockNumber current,
+        BlockNumber32 current,
         EntityV2.ExecutionEnv memory env,
         EntityV2.Meter memory meter
     ) internal virtual returns (EntityKey key) {
@@ -307,15 +316,15 @@ abstract contract ArkivEngine {
         EntityV2.ExecutionEnv memory env,
         EntityV2.Meter memory meter,
         bytes32 record,
-        BlockNumber current,
-        BlockNumber expiresAt,
+        BlockNumber32 current,
+        BlockNumber32 expiresAt,
         uint8 creationFlags
     ) internal virtual {
         _putAddressCell(state, env, meter, record, EntityV2.SYS_CREATOR, env.caller);
         _putAddressCell(state, env, meter, record, EntityV2.SYS_OWNER, env.caller);
-        _putUintCell(state, env, meter, record, EntityV2.SYS_CREATED_AT, BlockNumber.unwrap(current));
-        _putUintCell(state, env, meter, record, EntityV2.SYS_UPDATED_AT, BlockNumber.unwrap(current));
-        _putUintCell(state, env, meter, record, EntityV2.SYS_EXPIRES_AT, BlockNumber.unwrap(expiresAt));
+        _putUintCell(state, env, meter, record, EntityV2.SYS_CREATED_AT, BlockNumber32.unwrap(current));
+        _putUintCell(state, env, meter, record, EntityV2.SYS_UPDATED_AT, BlockNumber32.unwrap(current));
+        _putUintCell(state, env, meter, record, EntityV2.SYS_EXPIRES_AT, BlockNumber32.unwrap(expiresAt));
         _putUintCell(state, env, meter, record, EntityV2.SYS_CREATION_FLAGS, creationFlags);
     }
 
@@ -360,30 +369,47 @@ abstract contract ArkivEngine {
     }
 
     // -------------------------------------------------------------------------
-    // Internal functions — nonces as records
+    // Internal functions — accounts as records
     // -------------------------------------------------------------------------
 
-    /// @dev Per-owner nonce, stored as an ordinary record of the generic
-    /// store (record key = H(nonce tag, owner), one $nonce cell). Returns
-    /// the current value and post-increments.
-    function _consumeNonce(RecordStore state, EntityV2.ExecutionEnv memory env, EntityV2.Meter memory meter)
+    /// @dev Ensure the caller's account record exists and advance its
+    /// $txNonce by exactly 1 — called once per tx, so every successful
+    /// tx increments it (a reverted tx rolls the increment back). The
+    /// nonce-mismatch check against the tx envelope is the execution
+    /// client's job; the engine only maintains the counter.
+    function _touchAccount(RecordStore state, EntityV2.ExecutionEnv memory env, EntityV2.Meter memory meter)
+        internal
+        virtual
+    {
+        bytes32 account = _accountRecordKey(env.caller);
+        RecordReader.Cell memory f = _getCell(state, env, meter, account, TX_NONCE_CELL);
+        uint32 txNonce;
+        if (Ident32.unwrap(f.name) == 0) {
+            EntityV2.charge(meter, env.budget, env.costs.recordWrite);
+            state.createRecord(account, EntityV2.RECORD_TYPE_ACCOUNT);
+        } else {
+            txNonce = _cellUint32(f);
+        }
+        _putUintCell(state, env, meter, account, TX_NONCE_CELL, uint256(txNonce) + 1);
+    }
+
+    /// @dev Per-owner entity-creation nonce — the key-derivation counter,
+    /// advancing 0..n per tx (one per create). Returns the current value
+    /// and post-increments. The account record is guaranteed to exist:
+    /// _touchAccount ran earlier in the same tx for the same caller.
+    function _consumeEntityNonce(RecordStore state, EntityV2.ExecutionEnv memory env, EntityV2.Meter memory meter)
         internal
         virtual
         returns (uint32 nonce)
     {
-        bytes32 record = _nonceRecordKey(env.caller);
-        RecordReader.Cell memory f = _getCell(state, env, meter, record, NONCE_CELL);
-        if (Ident32.unwrap(f.name) == 0) {
-            EntityV2.charge(meter, env.budget, env.costs.recordWrite);
-            state.createRecord(record, EntityV2.RECORD_TYPE_ACCOUNT);
-        } else {
-            nonce = _cellUint32(f);
-        }
-        _putUintCell(state, env, meter, record, NONCE_CELL, uint256(nonce) + 1);
+        bytes32 account = _accountRecordKey(env.caller);
+        RecordReader.Cell memory f = _getCell(state, env, meter, account, ENTITY_NONCE_CELL);
+        if (Ident32.unwrap(f.name) != 0) nonce = _cellUint32(f);
+        _putUintCell(state, env, meter, account, ENTITY_NONCE_CELL, uint256(nonce) + 1);
     }
 
-    function _nonceRecordKey(address owner) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(NONCE_RECORD_TAG, owner));
+    function _accountRecordKey(address owner) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(ACCOUNT_RECORD_TAG, owner));
     }
 
     // -------------------------------------------------------------------------
@@ -497,8 +523,8 @@ abstract contract ArkivEngine {
         return uint32(abi.decode(f.value, (uint256)));
     }
 
-    function _cellBlockNumber(RecordReader.Cell memory f) internal pure returns (BlockNumber) {
-        return BlockNumber.wrap(_cellUint32(f));
+    function _cellBlockNumber(RecordReader.Cell memory f) internal pure returns (BlockNumber32) {
+        return BlockNumber32.wrap(_cellUint32(f));
     }
 
     // -------------------------------------------------------------------------

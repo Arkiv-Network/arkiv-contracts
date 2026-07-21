@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Ident32, encodeIdent32} from "../../src/types/Ident32.sol";
-import {RecordReader} from "../../src/RecordReader.sol";
-import {RecordStore} from "../../src/RecordStore.sol";
+import {Ident32, encodeIdent32} from "../../contracts/types/Ident32.sol";
+import {RecordReader} from "../../contracts/RecordReader.sol";
+import {RecordStore} from "../../contracts/RecordStore.sol";
 import {Test} from "forge-std/Test.sol";
 
 /// @dev Unit tests for the generic record/cell store, independent of
