@@ -46,8 +46,25 @@ Legend — design principles per component:
 - **Golem DB** — the state/storage subsystem: hosts the storage interface
   (RecordStore/RecordReader) and the file store it persists onto. The
   only component above it that touches it is the ArkivEngine.
-- **RecordStore / RecordReader** — generic schemaless record/cell
-  store with zero knowledge of entities inspired by HBase and CSV file stores. 
+- **Golem DB API** — generic schemaless data (record/cell) 
+  store with zero knowledge of Arkiv Entities.
+  It provides following operations:
+  - GetDBHash()
+  - CREATE
+  - - Write (optional PointerToShallowCopy, data, indexes)=>key), 
+  - READ Read (optional PointerToShallowCopy, key) => data,
+  - - Scan(query)=>result,
+  - UPDATE
+  - - PATCH (optional PointerToShallowCopy, key, data, index...)
+  - DELETE
+  - - DELETE (key, indexes)
+  - ShallowCopy(param) => PointerToShallowCopy,
+  - CommitShallowCopy (pointer)
+ 
+  Whenever CommitShallowCopy is executed or WriteOpera
+
+  To discuss: Should writes be possible only through shallow copies, or direct writes should be also possible?
+  
   Maintains state, provides shallow copies, caching, file persistence etc.
   Enforces structural invariants only. 
 - **File Store** — persistence layer beneath the record store; the
