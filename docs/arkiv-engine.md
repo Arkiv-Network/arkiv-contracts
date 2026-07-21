@@ -32,7 +32,7 @@ Legend — design principles per component:
   client. Binds the tx context (caller, budget, block height, config)
   into the `ExecutionEnv`; this binding is the *only* path into the Arkiv
   engine. Owns the protocol parameter instance and serves query, read and write requests through an RPC;
-  storage belongs to Golem DB and is touched only through the engine.
+  storage belongs to Golem DB and is touched only through the ArkivEngine.
   Its ABI — `execute`, views, events, errors — is the entity model's
   contract towards the SDK.
 - **ArkivEngine** — all business logic: validation, authorization, key
