@@ -31,7 +31,7 @@ Legend — design principles per component:
 - **ExecutionClient** — stand-in for the adjusted reth
   client. Binds the tx context (caller, budget, block height, config)
   into the `ExecutionEnv`; this binding is the *only* path into the Arkiv
-  engine. Owns the protocol parameter instance and serves the query views;
+  engine. Owns the protocol parameter instance and serves query, read and write requests through an RPC;
   storage belongs to Golem DB and is touched only through the engine.
   Its ABI — `execute`, views, events, errors — is the entity model's
   contract towards the SDK.
