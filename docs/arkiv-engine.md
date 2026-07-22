@@ -205,7 +205,96 @@ a transaction maps to a sequence of entity ops.
   number of distinct entities, including the same entity touched more
   than once — each op sees the state left by its predecessors.
 
-## 5. Record Store (proposal)
+## 5. Expiry handling
+
+**Decision: expiry handling is the responsibility of the protocol.**
+No offchain actors (GC bots, keepers) participate in the state
+lifecycle; every node performs the same housekeeping deterministically
+in consensus. Supersedes the earlier GC-bot model
+(deletable-by-anyone).
+
+| aspect | rule |
+|---|---|
+| expired (predicate) | an entity is expired iff `$expiresAt <= current` (last live block = `$expiresAt - 1`, a pinned invariant) — block-exact, logical, independent of physical removal |
+| visibility | **no query returns expired entities** — from the expiry block on they are invisible at the RPC/SDK surface, whether purged or not |
+| purge (mechanism) | physical removal of expired entities: an engine system op, invoked by the execution client once per block, budget-bounded |
+| purge set | implicit, derived — not a maintained queue: `purgeSet(N) = stored(N) \ active(N)` where `active(N) = stored(N) minus expired`; the delta is the todo-list |
+| discovery | purge consumes the `$expiresAt` numeric range index (roaring bitmap); no dedicated expiry structure |
+| index maintenance | removing an entity (purge or `delete` op) removes its entries from every index it participates in; an index structure emptied by that removal (last referencing entity gone) is itself physically removed — no empty shells accumulate. Entry + structure removal are part of the per-entity purge cost, bounded by the entity-size caps |
+| ordering | ascending `$expiresAt`, bitmap order within equal values; budget exhaustion mid-set needs no cursor — purged entries leave the index, the frontier is self-describing |
+| events | none on purge — an entity may be purged blocks after its `$expiresAt` (budget constraints), so a purge event would mislead; apps must track the indexed `$expiresAt` offchain (the SDK synthesizes expiry notifications) |
+| economics | purge is prepaid by the fixed component of the creation/patch costs — no keeper incentives needed |
+
+Vocabulary: *expired* is the predicate, *purge* is the physical
+removal. State is defined by the **stored** set; semantics (queries,
+ops, auth) read only the **active** subset.
+
+**Consensus-state requirement**: the `$expiresAt` index purge consumes
+must be consensus state — deterministic content, identical on every
+node, updates metered like any write; node-local query acceleration
+cannot be an input to consensus. This is a supporting indicator for
+keeping indexes (or at least their commitment) as part of the state.
+
+**Limits condition (create/patch)**: the limits must guarantee that the
+max purge cost of any constructible entity stays below a fixed fraction
+(e.g. 50%) of the max block gas limit — otherwise an entity could
+become permanently unpurgeable and jam the purge frontier. Since
+entities grow by `patch`, the underlying entity-size caps must be
+enforced at create **and** patch. Companion drain invariant: per-block
+purge budget > max per-block creation/growth work, so backlog is
+bounded.
+
+**Purge slot**: 
+- Purge runs as a system call — before
+the block's transactions.
+- Is invisible to the ecosystem (no transaction,
+no receipt, no event; not in the tx list).
+- Has a fixed dedicated
+purge gas budget in engine cost units, outside the block gas limit.
+- The purge workload at height N is fully determined by end-of-block N−1
+state (`minLifetime >= 1` ⇒ nothing created in block N can already be
+expired), so the start-of-block position costs nothing in determinism
+and frees storage before the block's writes.
+
+Pros:
+- Follows Ethereum's system-call lineage for protocol housekeeping —
+  EIP-4788 (beacon root), EIP-2935 (block hashes), EIP-7002
+  (withdrawal requests) are state transitions around the tx list, and
+  withdrawals are a block field, not transactions. The contrast (OP
+  Stack's visible L1-attributes system tx) clutters every block and
+  makes explorers special-case it.
+- Invisibility matches the semantics: purge is unobservable by
+  decision (no event, abstract no-op) — a purge tx with a receipt
+  would reintroduce the misleading signal apps would index.
+- Uniform tx capacity: every block offers the identical gas limit;
+  builders never predict purge load; fee market never sees purge.
+- Housekeeping cannot be starved: in a shared gas pool, sustained full
+  blocks crowd out purge indefinitely — a dedicated budget is what
+  keeps "protocol manages housekeeping" true under load.
+- No system-sender fiction: no sender, nonce, or signature semantics
+  for a pure state-transition rule.
+
+Cons:
+- Static partitioning: the reserve idles in expiry-free blocks —
+  write throughput is consistently reduced by the purge fraction even
+  when there is nothing to purge. (Mitigation: the lag-under-budget
+  mechanism converts expiry bursts into bounded lag, so the budget is
+  sized for the *sustained* expiry rate with margin, not for peaks;
+  idle worst-case headroom is normal chain design — EIP-1559 targets
+  50% utilization.)
+- No explorer/receipt visibility for purge activity; debugging relies
+  on node-level introspection. If observability is ever needed, a
+  block-level purge summary (count / cost used) is the cheap
+  instrument — not a transaction.
+- Considered and rejected: one-way borrowing (txs consume unused purge
+  budget) reclaims the idle reserve but reintroduces per-block
+  variable tx capacity and couples the fee market to housekeeping
+  state.
+
+Open: target purge budget calibration (the purge fraction vs. sustained creation
+rate).
+
+## 6. Record Store (proposal)
 
 The engine's state/storage interface is a generic record/cell store with
 zero entity knowledge — Arkiv's entity model is one data model on top
@@ -252,7 +341,7 @@ enumerable in strictly ascending name order.
   *record* the CSV/record-store lineage — chosen over HBase's *row* to
   avoid relational connotations.
 
-## 6. Concrete SDK surface: `execute(ops)`
+## 7. Concrete SDK surface: `execute(ops)`
 
 The single TX entry point the Arkiv SDK targets — one transaction is
 one atomic batch of entity ops (strict execution order, all-or-nothing,

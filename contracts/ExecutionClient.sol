@@ -40,7 +40,7 @@ contract ExecutionClient is ArkivEngine {
     /// per batch.
     ProtocolParams public immutable PARAMS;
 
-    /// @dev §5 storage interface: generic record/cell store. Deployed by the
+    /// @dev §6 storage interface: generic record/cell store. Deployed by the
     /// client, so the store's sole authorized writer is this contract.
     RecordStore public immutable STORE;
 

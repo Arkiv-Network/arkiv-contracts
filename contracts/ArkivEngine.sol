@@ -32,7 +32,7 @@ import {RecordStore} from "./RecordStore.sol";
 /// model is one plug-in, and a document/KV model would reuse the interfaces
 /// with its own codecs, ABI, and events.
 ///
-/// The state is a generic record/cell RecordStore (the §5 storage interface): an
+/// The state is a generic record/cell RecordStore (the §6 storage interface): an
 /// entity is a record; the commitment data lives as system cells ($owner,
 /// $creator, $expiresAt, …) beside $payload, $contentType, and the
 /// custom attributes; per-owner nonces are ordinary records of their own.

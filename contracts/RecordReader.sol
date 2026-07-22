@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import {Ident32} from "./types/Ident32.sol";
 
 /// @title RecordReader
-/// @dev Read side of the generic record/cell store (the §5 storage interface):
+/// @dev Read side of the generic record/cell store (the §6 storage interface):
 /// holds the record state and every view over it, but no mutators —
 /// those are added by RecordStore. Useful on its own wherever read-only
 /// access to records is the appropriate capability.

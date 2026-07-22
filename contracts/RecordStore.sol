@@ -5,7 +5,7 @@ import {Ident32} from "./types/Ident32.sol";
 import {RecordReader} from "./RecordReader.sol";
 
 /// @title RecordStore
-/// @dev Reference analog of the §5 storage interface: RecordReader plus the
+/// @dev Reference analog of the §6 storage interface: RecordReader plus the
 /// state-changing operations, restricted to the engine. The store knows
 /// nothing about the data model on top of it and can back entities,
 /// documents, queues, or counters unchanged.
