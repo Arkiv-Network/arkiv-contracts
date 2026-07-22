@@ -142,6 +142,11 @@ Dedicated lifecycle entity ops; all content mutation is one generic `patch`.
 - **Entity lifetime** - TODO for `create`/`extend_expiry`: come
   up with a good proposal that covers both relative (current impl)
   and absolute block numbers for expiry.
+    - Proposal:
+      - `create` with 2 args: `expiresAt` (absolute) and `minLifetime` (>= 1, relative). 
+      SDK adds validation and may add convenience features on top.
+      - `extend_to` with one arg: the new `expiresAt` value X. Effect `expiresAt = max(expiresAt, X)` which implies that lifetimes cannot be shortened. 
+      SDK may add convenience on top 
 - **Naming precedent** — the set-only/data vs set-and-unset/
   instruction split is the universal DB convention: DynamoDB
   `PutItem` (`Item` = "map of attribute name/value pairs") vs
