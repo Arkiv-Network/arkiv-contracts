@@ -122,7 +122,7 @@ Dedicated lifecycle entity ops; all content mutation is one generic `patch`.
 |---|---|---|---|
 | 1 | `create` | `(btl, creation_flags, attributes[])` | mint key + set initial attributes |
 | 2 | `patch` | `(key, mutations[])` | partial patch, owner-only |
-| 3 | `extend_expiry` | `(key, btl)` | **anchored at now** (`expires_at = now + btl`), not additive — retry-idempotent |
+| 3 | `extend_expiry` | `(key, btl)` | current impl: `expires_at = now + btl`, not additive |
 | 4 | `transfer_ownership` | `(key, newOwner)` | ownership; zero/self checks |
 | 5 | `delete` | `(key)` | owner-only, active entities; expired entities are removed by the protocol |
 
@@ -139,23 +139,15 @@ Dedicated lifecycle entity ops; all content mutation is one generic `patch`.
     revert.
   - **Mutations (`patch`) set and unset**: each triple sets a user
     attribute or system key, or unsets one by tombstone.
+  - **Tombstone**: `(name, 0, null)` — under `valueType = 0` the only
+  valid value is `null`; anything else is a typed
+  revert (canonical encoding, no malleability).
 - **Entity lifetime** - Consider to replace BTL for `create`/`extend_expiry`, Proposal:
     - `create` with 2 args: `expiresAt` (absolute) and `minLifetime` (>= 1, relative). 
       SDK adds validation and may add convenience features on top.
     - `extend_to` (instead of `extend_expiry`) with one arg: the new `expiresAt` value X. Effect 
     `expiresAt = max(expiresAt, X)` which implies that lifetimes cannot be shortened. 
       SDK may add convenience on top 
-- **Naming precedent** — the set-only/data vs set-and-unset/
-  instruction split is the universal DB convention: DynamoDB
-  `PutItem` (`Item` = "map of attribute name/value pairs") vs
-  `UpdateItem` (`SET`/`REMOVE` actions); MongoDB `insert(document)`
-  vs `update($set/$unset)`; for `patch` specifically, the
-  wide-column data APIs (Google Bigtable
-  `MutateRow(key, mutations[])` with `SetCell`/delete, HBase
-  `Mutation`).
-- **Tombstone**: `(name, 0, "")` — under `valueType = 0` the only
-  valid value is the empty byte string; anything else is a typed
-  revert (canonical encoding, no malleability).
 - **Expiry is a predicate; reaping is protocol-controlled and
   unobservable**: an entity is expired iff `expiresAt <= current`
   (last live block = `expiresAt - 1`, a pinned invariant). Expired
