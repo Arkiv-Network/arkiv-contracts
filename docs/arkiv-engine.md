@@ -17,7 +17,7 @@ graph TD
 
     SDK -->|"execute(ops) + query views — the RPC exposed ABI"| EC
     EC -->|"probes limits, costs, constants"| PP
-    EC -->|"calls engine interface<br/>execute(state, env, input) → (outcome)"| AE
+    EC -->|"calls engine interface<br/>execute (user tx) / purge (system call)<br/>(state, env, input) → (outcome, cost)"| AE
     AE -->|"reads/writes data via provided state manager<br/>(ArkivStateManager — TBD, possibly with caching)"| RS
 ```
 
@@ -39,7 +39,15 @@ Legend — design principles per component:
 - **ArkivEngine** — all business logic: validation, authorization, key
   derivation, dispatch, cost metering. Abstract and stateless — no
   storage — so everything it touches provably arrives through `(state, env, input)`.
-  Access to state is provided by the execution client as the state argument which is represented by the state manager. 
+  Access to state is provided by the execution client as the state argument which is represented by the state manager.
+  The engine interface is a small family of client-invoked entry
+  points, all the same shape (stateless, provided state + env):
+  - `execute` — user transactions: atomic entity-op batches (§4).
+  - `purge` — the per-block housekeeping system call (§5).
+  - likely `mint` (and later `burn`) — value transfer for the bridge:
+    the first stage is a *gateway* (deposits only, withdrawals not yet
+    supported), so `mint` comes first; `burn` follows with withdrawal
+    support.
 - **Golem DB** — the state/storage subsystem: hosts the storage interface
   (RecordStore/RecordReader) and the file store it persists onto. The
   only component above it that touches it is the ArkivEngine.
@@ -139,30 +147,20 @@ Dedicated lifecycle entity ops; all content mutation is one generic `patch`.
     revert.
   - **Mutations (`patch`) set and unset**: each triple sets a user
     attribute or system key, or unsets one by tombstone.
-  - **Tombstone**: `(name, 0, null)` — under `valueType = 0` the only
-  valid value is `null`; anything else is a typed
-  revert (canonical encoding, no malleability).
+  - **Tombstone**: `(name, 0, "")` — under `typeId = 0` the only
+  valid value is the empty byte string (zero-length `bytes`, the ABI
+  encoding of "no value"); anything else is a typed revert (canonical
+  encoding, no malleability).
 - **Entity lifetime** - Consider to replace BTL for `create`/`extend_expiry`, Proposal:
     - `create` with 2 args: `expiresAt` (absolute) and `minLifetime` (>= 1, relative). 
       SDK adds validation and may add convenience features on top.
     - `extend_to` (instead of `extend_expiry`) with one arg: the new `expiresAt` value X. Effect 
     `expiresAt = max(expiresAt, X)` which implies that lifetimes cannot be shortened. 
       SDK may add convenience on top 
-- **Expiry is a predicate; reaping is protocol-controlled and
-  unobservable**: an entity is expired iff `expiresAt <= current`
+- **Expiry is a predicate** - purging is protocol-controlled and
+  unobservable: an entity is expired iff `expiresAt <= current`
   (last live block = `expiresAt - 1`, a pinned invariant). Expired
-  entities become invisible to queries and reject every op — this
-  transition happens by block progression alone, no op, no event.
-  Physical removal (reaping) is performed by the protocol,
-  deterministic and budgeted per block (bounded work under expiry
-  bombs); external accounts cannot trigger it. There is deliberately
-  **no reap event**: reaping may lag expiry, so such an event would
-  fire at reclaim time and mislead — apps derive liveness from the
-  indexed `expiresAt` on `EntityCreated`/`ExpiryExtended` (the SDK
-  synthesizes expiry notifications offchain). Formally: state =
-  `active(N)`, storage = `records(N) ⊇ active(N)`; reaping is an
-  abstract no-op that only touches records outside `active(N)`.
-  Supersedes the earlier GC-bot model (deletable-by-anyone).
+  entities become invisible to queries and reject every op, see section about expiry handling  below.
 - **Cost ∝ change**: a `patch` of k mutations costs k touches — no
   O(entity) floor on any mutation; lost-update races disappear
   (partial patches compose).
@@ -237,7 +235,7 @@ keeping indexes (or at least their commitment) as part of the state.
 
 **Limits condition (create/patch)**: the limits must guarantee that the
 max purge cost of any constructible entity stays below a fixed fraction
-(e.g. 50%) of the max block gas limit — otherwise an entity could
+(e.g. 50%) of the per-block purge budget — otherwise an entity could
 become permanently unpurgeable and jam the purge frontier. Since
 entities grow by `patch`, the underlying entity-size caps must be
 enforced at create **and** patch. Companion drain invariant: per-block
@@ -400,7 +398,8 @@ struct Attribute {
                    // 4 decimal(i256) | 5 bytes32 | 6 bytes ($payload only)
                    // 7 string (<= 128 B) | 8 address | 9 entity_key
     bytes value;   // ABI encoding selected by typeId: exact 32-byte word
-                   // for word types, raw bytes for string/bytes
+                   // for word types, raw bytes for string/bytes,
+                   // zero-length bytes for tombstone (typeId 0)
 }
 ```
 
@@ -410,11 +409,11 @@ patch the predicted key):
 ```solidity
 entityKey = keccak256(abi.encodePacked(domain, owner, nonce));
 // domain: chain-config constant (ProtocolParams.DOMAIN)
-// nonce:  per-owner counter, queryable via nonces(owner)
+// nonce:  per-owner entity-nonce counter, queryable via entityNonce(owner)
 ```
 
 Beyond `execute`, the SDK-facing ABI comprises the query views
-(`query`, `nonces`, and account reading functions), the five per-op events
+(`query`, `txNonce`, `entityNonce`, and account reading functions), the five per-op events
 (`EntityCreated`, `EntityPatched`, `ExpiryExtended`,
 `OwnershipTransferred`, `EntityDeleted`), and the typed errors — all
 defined in `EntityV2` / `ExecutionClient` and stable 1:1 across
