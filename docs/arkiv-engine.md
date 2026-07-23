@@ -128,9 +128,9 @@ Dedicated lifecycle entity ops; all content mutation is one generic `patch`.
 
 | opId | op | signature | one-liner |
 |---|---|---|---|
-| 1 | `create` | `(btl, creation_flags, attributes[])` | mint key + set initial attributes |
+| 1 | `create` | `(expiryType, blocks, creationFlags, creationSalt, attributes[])` | mint key + set initial attributes |
 | 2 | `patch` | `(key, mutations[])` | partial patch, owner-only |
-| 3 | `extend_expiry` | `(key, btl)` | current impl: `expires_at = now + btl`, not additive |
+| 3 | `extend_expiry` | `(key, expiresAt, expiresIn)` | current impl: `expires_at = now + btl`, not additive |
 | 4 | `transfer_ownership` | `(key, newOwner)` | ownership; zero/self checks |
 | 5 | `delete` | `(key)` | owner-only, active entities; expired entities are removed by the protocol |
 
